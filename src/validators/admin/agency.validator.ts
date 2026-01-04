@@ -23,10 +23,6 @@ export const createAgencySchema = yup.object({
         'Phone number must be exactly 10 digits'
       )
       .trim(),
-    assignedHub: yup
-      .string()
-      .required('Assigned hub is required')
-      .matches(/^[0-9a-fA-F]{24}$/, 'Invalid hub ID'),
     status: yup
       .string()
       .oneOf(['Active', 'Inactive'], 'Status must be either Active or Inactive')
@@ -45,6 +41,11 @@ export const createAgencySchema = yup.object({
     address: yup
       .string()
       .max(500, 'Address must not exceed 500 characters')
+      .trim()
+      .optional(),
+    gstNumber: yup
+      .string()
+      .max(30, 'GST number must not exceed 30 characters')
       .trim()
       .optional(),
   }),
@@ -73,10 +74,6 @@ export const updateAgencySchema = yup.object({
       )
       .trim()
       .optional(),
-    assignedHub: yup
-      .string()
-      .matches(/^[0-9a-fA-F]{24}$/, 'Invalid hub ID')
-      .optional(),
     status: yup
       .string()
       .oneOf(['Active', 'Inactive'], 'Status must be either Active or Inactive')
@@ -95,6 +92,11 @@ export const updateAgencySchema = yup.object({
     address: yup
       .string()
       .max(500, 'Address must not exceed 500 characters')
+      .trim()
+      .optional(),
+    gstNumber: yup
+      .string()
+      .max(30, 'GST number must not exceed 30 characters')
       .trim()
       .optional(),
   }),

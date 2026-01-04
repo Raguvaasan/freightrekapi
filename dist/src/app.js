@@ -1,26 +1,24 @@
-import dotenv from "dotenv";
-dotenv.config();
-import express from "express";
-import path from "path";
-import swaggerUi from "swagger-ui-express";
-import { swaggerSpec } from "./config/swagger";
-import authRoutes from "./routes/admin";
-
-const app = express();
-
-app.use(express.json());
-
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const dotenv_1 = __importDefault(require("dotenv"));
+dotenv_1.default.config();
+const express_1 = __importDefault(require("express"));
+const path_1 = __importDefault(require("path"));
+const admin_1 = __importDefault(require("./routes/admin"));
+const app = (0, express_1.default)();
+app.use(express_1.default.json());
 // Serve static files (for HTML page)
-app.use(express.static(path.join(__dirname, '../public')));
-
+app.use(express_1.default.static(path_1.default.join(__dirname, '../public')));
 // Serve swagger spec as JSON (from pre-generated static file)
 app.get("/api-docs.json", (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/swagger.json'));
+    res.sendFile(path_1.default.join(__dirname, '../public/swagger.json'));
 });
-
 // Swagger UI with CDN assets for serverless compatibility
 app.get("/api-docs", (req, res) => {
-  res.send(`
+    res.send(`
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -59,41 +57,36 @@ app.get("/api-docs", (req, res) => {
 </html>
   `);
 });
-
 // API endpoint for JSON response
 app.get("/api", (req, res) => {
-  res.json({
-    success: true,
-    message: "Welcome to Freightrek Server API",
-    version: "1.0.0",
-    documentation: "http://localhost:3000/api-docs",
-    endpoints: {
-      auth: {
-        register: "POST /admin/auth/register",
-        login: "POST /admin/auth/login"
-      },
-      role: "POST|GET|PUT|DELETE /admin/role",
-      hub: "POST|GET|PUT|DELETE /admin/hub"
-    },
-    links: {
-      "Swagger UI": "/api-docs",
-      "Health Check": "/health"
-    }
-  });
+    res.json({
+        success: true,
+        message: "Welcome to Freightrek Server API",
+        version: "1.0.0",
+        documentation: "http://localhost:3000/api-docs",
+        endpoints: {
+            auth: {
+                register: "POST /admin/auth/register",
+                login: "POST /admin/auth/login"
+            },
+            role: "POST|GET|PUT|DELETE /admin/role",
+            hub: "POST|GET|PUT|DELETE /admin/hub"
+        },
+        links: {
+            "Swagger UI": "/api-docs",
+            "Health Check": "/health"
+        }
+    });
 });
-
 // Root endpoint serves HTML page (removed old JSON response)
 // The HTML file is served from public/index.html via express.static
-
 // Health check endpoint
 app.get("/health", (req, res) => {
-  res.json({
-    status: "ok",
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime()
-  });
+    res.json({
+        status: "ok",
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
+    });
 });
-
-app.use("/admin", authRoutes);
-
-export default app;
+app.use("/admin", admin_1.default);
+exports.default = app;

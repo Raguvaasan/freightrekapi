@@ -11,22 +11,22 @@ interface CreateAgencyInput {
   agencyName: string;
   agencyOwner: string;
   phone: string;
-  assignedHub: string;
   status?: 'Active' | 'Inactive';
   agencyType?: string;
   email?: string;
   address?: string;
+  gstNumber?: string;
 }
 
 interface UpdateAgencyInput {
   agencyName?: string;
   agencyOwner?: string;
   phone?: string;
-  assignedHub?: string;
   status?: 'Active' | 'Inactive';
   agencyType?: string;
   email?: string;
   address?: string;
+  gstNumber?: string;
 }
 
 export class AgencyService {
@@ -47,11 +47,10 @@ export class AgencyService {
 
       const agency = new Agency({
         ...data,
-        assignedHub: new Types.ObjectId(data.assignedHub),
       });
 
       await agency.save();
-      const populatedAgency = await Agency.findById(agency._id).populate('assignedHub');
+      const populatedAgency = await Agency.findById(agency._id);
 
       return {
         success: true,
@@ -72,7 +71,6 @@ export class AgencyService {
     limit: number = 10,
     search?: string,
     status?: string,
-    hubId?: string
   ): Promise<ServiceResponse> {
     try {
       const skip = (page - 1) * limit;
@@ -92,13 +90,7 @@ export class AgencyService {
         query.status = status;
       }
 
-      // Hub filter
-      if (hubId) {
-        query.assignedHub = new Types.ObjectId(hubId);
-      }
-
       const agencies = await Agency.find(query)
-        .populate('assignedHub')
         .skip(skip)
         .limit(limit)
         .sort({ createdAt: -1 });
@@ -135,7 +127,7 @@ export class AgencyService {
         };
       }
 
-      const agency = await Agency.findById(id).populate('assignedHub');
+      const agency = await Agency.findById(id);
 
       if (!agency) {
         return {
@@ -192,15 +184,13 @@ export class AgencyService {
 
       // Update fields
       Object.keys(data).forEach((key) => {
-        if (key === 'assignedHub' && data[key]) {
-          (agency as any)[key] = new Types.ObjectId(data[key]);
-        } else if (data[key as keyof UpdateAgencyInput] !== undefined) {
+        if (data[key as keyof UpdateAgencyInput] !== undefined) {
           (agency as any)[key] = data[key as keyof UpdateAgencyInput];
         }
       });
 
       await agency.save();
-      const updatedAgency = await Agency.findById(id).populate('assignedHub');
+      const updatedAgency = await Agency.findById(id);
 
       return {
         success: true,
@@ -248,32 +238,6 @@ export class AgencyService {
     }
   }
 
-  // Get agencies by hub
-  async getAgenciesByHub(hubId: string): Promise<ServiceResponse> {
-    try {
-      if (!Types.ObjectId.isValid(hubId)) {
-        return {
-          success: false,
-          message: 'Invalid hub ID',
-        };
-      }
-
-      const agencies = await Agency.find({ assignedHub: hubId })
-        .populate('assignedHub')
-        .sort({ agencyName: 1 });
-
-      return {
-        success: true,
-        data: agencies,
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        message: error.message || 'Error fetching agencies',
-      };
-    }
-  }
-
   // Update agency status
   async updateAgencyStatus(
     id: string,
@@ -291,7 +255,7 @@ export class AgencyService {
         id,
         { status },
         { new: true }
-      ).populate('assignedHub');
+      );
 
       if (!agency) {
         return {

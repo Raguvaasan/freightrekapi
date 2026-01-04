@@ -31,14 +31,12 @@ export const getAllAgencies = async (req: Request, res: Response) => {
     const limit = parseInt(req.query.limit as string) || 10;
     const search = req.query.search as string;
     const status = req.query.status as string;
-    const hubId = req.query.hubId as string;
 
     const result = await agencyService.getAllAgencies(
       page,
       limit,
       search,
-      status,
-      hubId
+      status
     );
 
     if (!result.success) {
@@ -136,18 +134,9 @@ export const deleteAgency = async (req: Request, res: Response) => {
 export const getAgenciesByHub = async (req: Request, res: Response) => {
   try {
     const { hubId } = req.params;
-    const result = await agencyService.getAgenciesByHub(hubId);
-
-    if (!result.success) {
-      return res.status(400).json({
-        success: false,
-        message: result.message,
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      data: result.data,
+    return res.status(410).json({
+      success: false,
+      message: 'Assigned hub field is removed',
     });
   } catch (err: any) {
     return res.status(500).json({

@@ -18,12 +18,12 @@ const options: swaggerJsdoc.Options = {
     },
     servers: [
       {
-        url: 'http://localhost:3000',
-        description: 'Development server'
+        url: 'https://freightrekapi.vercel.app',
+        description: 'Production (Vercel)'
       },
       {
-        url: 'https://api.freightrek.com',
-        description: 'Production server'
+        url: 'http://localhost:3000',
+        description: 'Development (local)'
       }
     ],
     components: {
@@ -130,7 +130,7 @@ const options: swaggerJsdoc.Options = {
         },
         Agency: {
           type: 'object',
-          required: ['agencyName', 'agencyOwner', 'phone', 'assignedHub'],
+          required: ['agencyName', 'agencyOwner', 'phone'],
           properties: {
             agencyName: {
               type: 'string',
@@ -143,10 +143,6 @@ const options: swaggerJsdoc.Options = {
             phone: {
               type: 'string',
               example: '9185647852'
-            },
-            assignedHub: {
-              type: 'string',
-              example: '6771a1b2c3d4e5f678901234'
             },
             status: {
               type: 'string',
@@ -165,6 +161,10 @@ const options: swaggerJsdoc.Options = {
             address: {
               type: 'string',
               example: 'Chennai, Tamil Nadu'
+            },
+            gstNumber: {
+              type: 'string',
+              example: '29ABCDE1234F2Z5'
             }
           }
         },
@@ -205,7 +205,12 @@ const options: swaggerJsdoc.Options = {
       }
     ]
   },
-  apis: ['./src/routes/admin/**/*.ts', './src/controllers/admin/**/*.ts']
+  apis: [
+    './src/routes/admin/**/*.ts',
+    './dist/routes/admin/**/*.js',
+    './src/controllers/admin/**/*.ts',
+    './dist/controllers/admin/**/*.js'
+  ]
 };
 
 export const swaggerSpec = swaggerJsdoc(options);

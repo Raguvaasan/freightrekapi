@@ -1,29 +1,15 @@
-import { Router } from 'express';
-import {
-  createAgency,
-  getAllAgencies,
-  getAgencyById,
-  updateAgency,
-  deleteAgency,
-  updateAgencyStatus,
-} from '../../controllers/admin/agency.controller';
-import { authMiddleware } from '../../middleware/auth.middleware';
-import { validate } from '../../middleware/validate.middleware';
-import {
-  createAgencySchema,
-  updateAgencySchema,
-  updateAgencyStatusSchema,
-  getAgencyByIdSchema,
-  deleteAgencySchema,
-} from '../../validators/admin/agency.validator';
-import { checkPermission } from '../../middleware/checkPermission.middleware';
-import { adminModule } from '../../config/adminModule';
-
-const router = Router();
-
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const agency_controller_1 = require("../../controllers/admin/agency.controller");
+const auth_middleware_1 = require("../../middleware/auth.middleware");
+const validate_middleware_1 = require("../../middleware/validate.middleware");
+const agency_validator_1 = require("../../validators/admin/agency.validator");
+const checkPermission_middleware_1 = require("../../middleware/checkPermission.middleware");
+const adminModule_1 = require("../../config/adminModule");
+const router = (0, express_1.Router)();
 // All routes require authentication
-router.use(authMiddleware);
-
+router.use(auth_middleware_1.authMiddleware);
 /**
  * @swagger
  * /admin/agency:
@@ -81,20 +67,9 @@ router.use(authMiddleware);
  *         description: Permission denied
  */
 // Create new agency
-router.post(
-  '/',
-  checkPermission(adminModule.agency_management, 'write'),
-  validate(createAgencySchema),
-  createAgency
-);
-
+router.post('/', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.agency_management, 'write'), (0, validate_middleware_1.validate)(agency_validator_1.createAgencySchema), agency_controller_1.createAgency);
 // Get all agencies with pagination and filters
-router.get(
-  '/',
-  checkPermission(adminModule.agency_management, 'read'),
-  getAllAgencies
-);
-
+router.get('/', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.agency_management, 'read'), agency_controller_1.getAllAgencies);
 /**
  * @swagger
  * /admin/agency/{id}:
@@ -156,21 +131,9 @@ router.get(
  *         description: Agency not found
  */
 // Get agency by ID
-router.get(
-  '/:id',
-  checkPermission(adminModule.agency_management, 'read'),
-  validate(getAgencyByIdSchema),
-  getAgencyById
-);
-
+router.get('/:id', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.agency_management, 'read'), (0, validate_middleware_1.validate)(agency_validator_1.getAgencyByIdSchema), agency_controller_1.getAgencyById);
 // Update agency
-router.put(
-  '/:id',
-  checkPermission(adminModule.agency_management, 'update'),
-  validate(updateAgencySchema),
-  updateAgency
-);
-
+router.put('/:id', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.agency_management, 'update'), (0, validate_middleware_1.validate)(agency_validator_1.updateAgencySchema), agency_controller_1.updateAgency);
 /**
  * @swagger
  * /admin/agency/{id}/status:
@@ -202,19 +165,7 @@ router.put(
  *         description: Agency not found
  */
 // Update agency status
-router.patch(
-  '/:id/status',
-  checkPermission(adminModule.agency_management, 'update'),
-  validate(updateAgencyStatusSchema),
-  updateAgencyStatus
-);
-
+router.patch('/:id/status', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.agency_management, 'update'), (0, validate_middleware_1.validate)(agency_validator_1.updateAgencyStatusSchema), agency_controller_1.updateAgencyStatus);
 // Delete agency
-router.delete(
-  '/:id',
-  checkPermission(adminModule.agency_management, 'delete'),
-  validate(deleteAgencySchema),
-  deleteAgency
-);
-
-export default router;
+router.delete('/:id', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.agency_management, 'delete'), (0, validate_middleware_1.validate)(agency_validator_1.deleteAgencySchema), agency_controller_1.deleteAgency);
+exports.default = router;

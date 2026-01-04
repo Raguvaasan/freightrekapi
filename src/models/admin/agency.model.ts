@@ -4,11 +4,11 @@ export interface IAgency {
   agencyName: string;
   agencyOwner: string;
   phone: string;
-  assignedHub: Types.ObjectId;
   status: 'Active' | 'Inactive';
   agencyType?: string;
   email?: string;
   address?: string;
+  gstNumber?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -30,11 +30,6 @@ const agencySchema = new Schema<IAgency>(
       required: [true, 'Phone number is required'],
       trim: true,
     },
-    assignedHub: {
-      type: Schema.Types.ObjectId,
-      ref: 'Hub',
-      required: [true, 'Assigned hub is required'],
-    },
     status: {
       type: String,
       enum: ['Active', 'Inactive'],
@@ -53,6 +48,10 @@ const agencySchema = new Schema<IAgency>(
       type: String,
       trim: true,
     },
+    gstNumber: {
+      type: String,
+      trim: true,
+    },
   },
   {
     timestamps: true,
@@ -61,7 +60,6 @@ const agencySchema = new Schema<IAgency>(
 
 // Index for faster queries
 agencySchema.index({ agencyName: 1 });
-agencySchema.index({ assignedHub: 1 });
 agencySchema.index({ status: 1 });
 
 export const Agency = model<IAgency>('Agency', agencySchema);
