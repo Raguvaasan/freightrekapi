@@ -1,0 +1,11 @@
+version: "3.9"
+
+services:
+  node-ts-app:
+    build: .
+    container_name: node_ts_app
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    restart: unless-stopped

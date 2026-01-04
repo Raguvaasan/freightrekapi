@@ -1,0 +1,409 @@
+{
+  "info": {
+    "name": "Freightrek Server API",
+    "description": "API collection for Freightrek Server with authentication and RBAC",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "freightrek-v1"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "auth_token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register Admin User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.test(\"User registered successfully\", function () {",
+                  "        pm.response.to.have.status(201);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Admin\",\n  \"email\": \"admin@freightrek.com\",\n  \"phoneNo\": \"1234567890\",\n  \"password\": \"Admin@123\",\n  \"roleId\": \"65abc123def456789\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "auth", "register"]
+            },
+            "description": "Register a new admin user. Requires a valid roleId from the database."
+          },
+          "response": []
+        },
+        {
+          "name": "Login Admin User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set(\"auth_token\", jsonData.token);",
+                  "    pm.collectionVariables.set(\"auth_token\", jsonData.token);",
+                  "    pm.test(\"Login successful and token saved\", function () {",
+                  "        pm.expect(jsonData.token).to.be.a('string');",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@freightrek.com\",\n  \"password\": \"Admin@123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "auth", "login"]
+            },
+            "description": "Login with email and password. Returns JWT token that is automatically saved to collection variable."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Role Management",
+      "item": [
+        {
+          "name": "Create Role",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Manager\",\n  \"permissions\": [\"read\", \"write\"],\n  \"status\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/role",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "role"]
+            },
+            "description": "Create a new role with permissions. Requires authentication."
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Roles",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/role",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "role"]
+            },
+            "description": "Retrieve all roles. Requires authentication."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Role by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/role/:id",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "role", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "65abc123def456789",
+                  "description": "Role ObjectId"
+                }
+              ]
+            },
+            "description": "Retrieve a specific role by ID. Requires authentication."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Role",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Senior Manager\",\n  \"permissions\": [\"read\", \"write\", \"delete\"],\n  \"status\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/role/:id",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "role", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "65abc123def456789",
+                  "description": "Role ObjectId"
+                }
+              ]
+            },
+            "description": "Update an existing role. Requires authentication."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Role",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/role/:id",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "role", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "65abc123def456789",
+                  "description": "Role ObjectId"
+                }
+              ]
+            },
+            "description": "Delete a role. Requires authentication and proper permissions."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Hub Management",
+      "item": [
+        {
+          "name": "Create Hub",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Mumbai Hub\",\n  \"location\": \"Mumbai, Maharashtra\",\n  \"capacity\": 1000,\n  \"status\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/hub",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "hub"]
+            },
+            "description": "Create a new freight hub. Requires authentication. (Note: Hub routes may be commented in code)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Hubs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/hub",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "hub"]
+            },
+            "description": "Retrieve all hubs. Requires authentication."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Hub by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/hub/:id",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "hub", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "65abc123def456789",
+                  "description": "Hub ObjectId"
+                }
+              ]
+            },
+            "description": "Retrieve a specific hub by ID. Requires authentication."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Hub",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Mumbai Central Hub\",\n  \"location\": \"Mumbai Central, Maharashtra\",\n  \"capacity\": 1500,\n  \"status\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/hub/:id",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "hub", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "65abc123def456789",
+                  "description": "Hub ObjectId"
+                }
+              ]
+            },
+            "description": "Update an existing hub. Requires authentication."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Hub",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/admin/hub/:id",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "hub", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "65abc123def456789",
+                  "description": "Hub ObjectId"
+                }
+              ]
+            },
+            "description": "Delete a hub. Requires authentication and proper permissions."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Health Check",
+      "item": [
+        {
+          "name": "Server Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/",
+              "host": ["{{base_url}}"],
+              "path": [""]
+            },
+            "description": "Check if server is running. No authentication required."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{auth_token}}",
+        "type": "string"
+      }
+    ]
+  }
+}
