@@ -5,6 +5,7 @@ import path from "path";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./config/swagger";
 import authRoutes from "./routes/admin";
+import locationRoutes from "./routes/location.routes";
 
 const app = express();
 
@@ -95,5 +96,6 @@ app.get("/health", (req, res) => {
 });
 
 app.use("/admin", authRoutes);
+app.use("/location", locationRoutes);
 
 export default app;

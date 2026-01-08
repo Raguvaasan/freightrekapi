@@ -1,4 +1,6 @@
 import { Staff, IStaff } from '../../models/admin/staff.model';
+import { Role } from '../../models/admin/role.model';
+import { Agency } from '../../models/admin/agency.model';
 import { Types } from 'mongoose';
 import bcrypt from 'bcryptjs';
 

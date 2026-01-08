@@ -8,6 +8,7 @@ dotenv_1.default.config();
 const express_1 = __importDefault(require("express"));
 const path_1 = __importDefault(require("path"));
 const admin_1 = __importDefault(require("./routes/admin"));
+const location_routes_1 = __importDefault(require("./routes/location.routes"));
 const app = (0, express_1.default)();
 app.use(express_1.default.json());
 // Serve static files (for HTML page)
@@ -89,4 +90,5 @@ app.get("/health", (req, res) => {
     });
 });
 app.use("/admin", admin_1.default);
+app.use("/location", location_routes_1.default);
 exports.default = app;

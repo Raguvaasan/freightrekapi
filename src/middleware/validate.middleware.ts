@@ -5,9 +5,12 @@ export const validate =
   (schema: AnyObjectSchema) =>
     async (req: Request, res: Response, next: NextFunction) => {
       try {
-        const hasBodyWrapper = (schema as any)?.fields?.body !== undefined;
+        const schemaFields = (schema as any)?.fields || {};
+        const hasWrapper = schemaFields.body !== undefined || 
+                          schemaFields.params !== undefined || 
+                          schemaFields.query !== undefined;
 
-        const payload = hasBodyWrapper
+        const payload = hasWrapper
           ? { body: req.body, params: req.params, query: req.query }
           : req.body;
 
@@ -17,7 +20,7 @@ export const validate =
         });
 
         // Overwrite with parsed values if present
-        if (hasBodyWrapper && parsed) {
+        if (hasWrapper && parsed) {
           if ((parsed as any).body) req.body = (parsed as any).body;
           if ((parsed as any).params) req.params = (parsed as any).params as any;
           if ((parsed as any).query) req.query = (parsed as any).query as any;

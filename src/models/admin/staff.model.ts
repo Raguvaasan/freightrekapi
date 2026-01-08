@@ -34,7 +34,7 @@ const staffSchema = new Schema<IStaff>(
     },
     roleId: {
       type: Schema.Types.ObjectId,
-      ref: 'Role',
+      ref: 'AdminRole',
       required: [true, 'Role is required'],
     },
     status: {
