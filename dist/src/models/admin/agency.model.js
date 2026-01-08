@@ -36,9 +36,31 @@ const agencySchema = new mongoose_1.Schema({
         type: String,
         trim: true,
     },
+    city: {
+        type: String,
+        trim: true,
+    },
+    state: {
+        type: String,
+        trim: true,
+    },
+    pincode: {
+        type: String,
+        trim: true,
+    },
     gstNumber: {
         type: String,
         trim: true,
+    },
+    username: {
+        type: String,
+        trim: true,
+        unique: true,
+        sparse: true,
+    },
+    password: {
+        type: String,
+        select: false,
     },
 }, {
     timestamps: true,

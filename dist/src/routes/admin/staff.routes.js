@@ -1,19 +1,19 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
-const agency_controller_1 = require("../../controllers/admin/agency.controller");
+const staff_controller_1 = require("../../controllers/admin/staff.controller");
 const auth_middleware_1 = require("../../middleware/auth.middleware");
 const validate_middleware_1 = require("../../middleware/validate.middleware");
-const agency_validator_1 = require("../../validators/admin/agency.validator");
+const staff_validator_1 = require("../../validators/admin/staff.validator");
 const checkPermission_middleware_1 = require("../../middleware/checkPermission.middleware");
 const adminModule_1 = require("../../config/adminModule");
 const router = (0, express_1.Router)();
 /**
  * @swagger
- * /admin/agency/login:
+ * /admin/staff/login:
  *   post:
- *     summary: Franchise login
- *     tags: [Agency Management]
+ *     summary: Staff login
+ *     tags: [Staff Management]
  *     security: []
  *     requestBody:
  *       required: true
@@ -27,8 +27,7 @@ const router = (0, express_1.Router)();
  *             properties:
  *               username:
  *                 type: string
- *                 format: email
- *                 example: admin@freightrek.com
+ *                 example: staffuser
  *               password:
  *                 type: string
  *                 format: password
@@ -39,15 +38,15 @@ const router = (0, express_1.Router)();
  *       401:
  *         description: Invalid credentials
  */
-router.post('/login', (0, validate_middleware_1.validate)(agency_validator_1.franchiseLoginSchema), agency_controller_1.loginFranchise);
+router.post('/login', (0, validate_middleware_1.validate)(staff_validator_1.staffLoginSchema), staff_controller_1.loginStaff);
 // All other routes require authentication
 router.use(auth_middleware_1.authMiddleware);
 /**
  * @swagger
- * /admin/agency:
+ * /admin/staff:
  *   post:
- *     summary: Create a new agency
- *     tags: [Agency Management]
+ *     summary: Create a new staff
+ *     tags: [Staff Management]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -55,19 +54,19 @@ router.use(auth_middleware_1.authMiddleware);
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/Agency'
+ *             $ref: '#/components/schemas/Staff'
  *     responses:
  *       201:
- *         description: Agency created successfully
+ *         description: Staff created successfully
  *       400:
- *         description: Validation error or agency already exists
+ *         description: Validation error or staff already exists
  *       401:
  *         description: Unauthorized
  *       403:
  *         description: Permission denied
  *   get:
- *     summary: Get all agencies with pagination and filters
- *     tags: [Agency Management]
+ *     summary: Get all staff with pagination
+ *     tags: [Staff Management]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -90,24 +89,28 @@ router.use(auth_middleware_1.authMiddleware);
  *         schema:
  *           type: string
  *           enum: [Active, Inactive]
+ *       - in: query
+ *         name: franchiseId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: roleId
+ *         schema:
+ *           type: string
  *     responses:
  *       200:
- *         description: List of agencies
+ *         description: Staff list retrieved successfully
  *       401:
  *         description: Unauthorized
- *       403:
- *         description: Permission denied
  */
-// Create new agency
-router.post('/', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.agency_management, 'write'), (0, validate_middleware_1.validate)(agency_validator_1.createAgencySchema), agency_controller_1.createAgency);
-// Get all agencies with pagination and filters
-router.get('/', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.agency_management, 'read'), agency_controller_1.getAllAgencies);
+router.post('/', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.access_management, 'write'), (0, validate_middleware_1.validate)(staff_validator_1.createStaffSchema), staff_controller_1.createStaff);
+router.get('/', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.access_management, 'read'), staff_controller_1.getAllStaff);
 /**
  * @swagger
- * /admin/agency/{id}:
+ * /admin/staff/{id}:
  *   get:
- *     summary: Get agency by ID
- *     tags: [Agency Management]
+ *     summary: Get staff by ID
+ *     tags: [Staff Management]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -118,12 +121,12 @@ router.get('/', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.
  *           type: string
  *     responses:
  *       200:
- *         description: Agency details
+ *         description: Staff details
  *       404:
- *         description: Agency not found
+ *         description: Staff not found
  *   put:
- *     summary: Update agency
- *     tags: [Agency Management]
+ *     summary: Update staff
+ *     tags: [Staff Management]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -137,17 +140,17 @@ router.get('/', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/Agency'
+ *             $ref: '#/components/schemas/Staff'
  *     responses:
  *       200:
- *         description: Agency updated successfully
+ *         description: Staff updated successfully
  *       400:
  *         description: Validation error
  *       404:
- *         description: Agency not found
+ *         description: Staff not found
  *   delete:
- *     summary: Delete agency
- *     tags: [Agency Management]
+ *     summary: Delete staff
+ *     tags: [Staff Management]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -158,20 +161,19 @@ router.get('/', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.
  *           type: string
  *     responses:
  *       200:
- *         description: Agency deleted successfully
+ *         description: Staff deleted successfully
  *       404:
- *         description: Agency not found
+ *         description: Staff not found
  */
-// Get agency by ID
-router.get('/:id', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.agency_management, 'read'), (0, validate_middleware_1.validate)(agency_validator_1.getAgencyByIdSchema), agency_controller_1.getAgencyById);
-// Update agency
-router.put('/:id', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.agency_management, 'update'), (0, validate_middleware_1.validate)(agency_validator_1.updateAgencySchema), agency_controller_1.updateAgency);
+router.get('/:id', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.access_management, 'read'), (0, validate_middleware_1.validate)(staff_validator_1.getStaffByIdSchema), staff_controller_1.getStaffById);
+router.put('/:id', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.access_management, 'write'), (0, validate_middleware_1.validate)(staff_validator_1.updateStaffSchema), staff_controller_1.updateStaff);
+router.delete('/:id', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.access_management, 'delete'), (0, validate_middleware_1.validate)(staff_validator_1.deleteStaffSchema), staff_controller_1.deleteStaff);
 /**
  * @swagger
- * /admin/agency/{id}/status:
+ * /admin/staff/{id}/status:
  *   patch:
- *     summary: Update agency status
- *     tags: [Agency Management]
+ *     summary: Update staff status
+ *     tags: [Staff Management]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -194,10 +196,7 @@ router.put('/:id', (0, checkPermission_middleware_1.checkPermission)(adminModule
  *       200:
  *         description: Status updated successfully
  *       404:
- *         description: Agency not found
+ *         description: Staff not found
  */
-// Update agency status
-router.patch('/:id/status', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.agency_management, 'update'), (0, validate_middleware_1.validate)(agency_validator_1.updateAgencyStatusSchema), agency_controller_1.updateAgencyStatus);
-// Delete agency
-router.delete('/:id', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.agency_management, 'delete'), (0, validate_middleware_1.validate)(agency_validator_1.deleteAgencySchema), agency_controller_1.deleteAgency);
+router.patch('/:id/status', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.access_management, 'write'), (0, validate_middleware_1.validate)(staff_validator_1.updateStaffStatusSchema), staff_controller_1.updateStaffStatus);
 exports.default = router;

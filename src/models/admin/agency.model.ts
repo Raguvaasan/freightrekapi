@@ -8,7 +8,12 @@ export interface IAgency {
   agencyType?: string;
   email?: string;
   address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
   gstNumber?: string;
+  username?: string;
+  password?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -48,9 +53,31 @@ const agencySchema = new Schema<IAgency>(
       type: String,
       trim: true,
     },
+    city: {
+      type: String,
+      trim: true,
+    },
+    state: {
+      type: String,
+      trim: true,
+    },
+    pincode: {
+      type: String,
+      trim: true,
+    },
     gstNumber: {
       type: String,
       trim: true,
+    },
+    username: {
+      type: String,
+      trim: true,
+      unique: true,
+      sparse: true,
+    },
+    password: {
+      type: String,
+      select: false,
     },
   },
   {

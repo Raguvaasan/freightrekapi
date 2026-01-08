@@ -1,5 +1,20 @@
 import * as yup from 'yup';
 
+// Franchise login validation schema
+export const franchiseLoginSchema = yup.object({
+  body: yup.object({
+    username: yup
+      .string()
+      .required('Username is required')
+      .email('Username must be a valid email')
+      .trim(),
+    password: yup
+      .string()
+      .required('Password is required')
+      .min(6, 'Password must be at least 6 characters'),
+  }),
+});
+
 // Create agency validation schema
 export const createAgencySchema = yup.object({
   body: yup.object({
@@ -43,10 +58,42 @@ export const createAgencySchema = yup.object({
       .max(500, 'Address must not exceed 500 characters')
       .trim()
       .optional(),
+    city: yup
+      .string()
+      .max(100, 'City must not exceed 100 characters')
+      .trim()
+      .optional(),
+    state: yup
+      .string()
+      .max(100, 'State must not exceed 100 characters')
+      .trim()
+      .optional(),
+    pincode: yup
+      .string()
+      .matches(
+        /^[0-9]{6}$/,
+        'Pincode must be exactly 6 digits'
+      )
+      .trim()
+      .optional(),
     gstNumber: yup
       .string()
-      .max(30, 'GST number must not exceed 30 characters')
+      .matches(
+        /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/,
+        'Invalid GST number format'
+      )
       .trim()
+      .optional(),
+    username: yup
+      .string()
+      .email('Username must be a valid email')
+      .max(100, 'Username must not exceed 100 characters')
+      .trim()
+      .optional(),
+    password: yup
+      .string()
+      .min(6, 'Password must be at least 6 characters')
+      .max(100, 'Password must not exceed 100 characters')
       .optional(),
   }),
 });
@@ -94,10 +141,42 @@ export const updateAgencySchema = yup.object({
       .max(500, 'Address must not exceed 500 characters')
       .trim()
       .optional(),
+    city: yup
+      .string()
+      .max(100, 'City must not exceed 100 characters')
+      .trim()
+      .optional(),
+    state: yup
+      .string()
+      .max(100, 'State must not exceed 100 characters')
+      .trim()
+      .optional(),
+    pincode: yup
+      .string()
+      .matches(
+        /^[0-9]{6}$/,
+        'Pincode must be exactly 6 digits'
+      )
+      .trim()
+      .optional(),
     gstNumber: yup
       .string()
-      .max(30, 'GST number must not exceed 30 characters')
+      .matches(
+        /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/,
+        'Invalid GST number format'
+      )
       .trim()
+      .optional(),
+    username: yup
+      .string()
+      .email('Username must be a valid email')
+      .max(100, 'Username must not exceed 100 characters')
+      .trim()
+      .optional(),
+    password: yup
+      .string()
+      .min(6, 'Password must be at least 6 characters')
+      .max(100, 'Password must not exceed 100 characters')
       .optional(),
   }),
   params: yup.object({

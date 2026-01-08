@@ -1,11 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateAgencyStatus = exports.getAgenciesByHub = exports.deleteAgency = exports.updateAgency = exports.getAgencyById = exports.getAllAgencies = exports.createAgency = exports.loginFranchise = void 0;
-const agency_service_1 = require("../../services/admin/agency.service");
-const loginFranchise = async (req, res) => {
+exports.updateStaffStatus = exports.deleteStaff = exports.updateStaff = exports.getStaffById = exports.getAllStaff = exports.createStaff = exports.loginStaff = void 0;
+const staff_service_1 = require("../../services/admin/staff.service");
+const loginStaff = async (req, res) => {
     try {
         const { username, password } = req.body;
-        const result = await agency_service_1.agencyService.loginFranchise(username, password);
+        const result = await staff_service_1.staffService.loginStaff(username, password);
         if (!result.success) {
             return res.status(401).json({
                 success: false,
@@ -25,10 +25,10 @@ const loginFranchise = async (req, res) => {
         });
     }
 };
-exports.loginFranchise = loginFranchise;
-const createAgency = async (req, res) => {
+exports.loginStaff = loginStaff;
+const createStaff = async (req, res) => {
     try {
-        const result = await agency_service_1.agencyService.createAgency(req.body);
+        const result = await staff_service_1.staffService.createStaff(req.body);
         if (!result.success) {
             return res.status(400).json({
                 success: false,
@@ -48,14 +48,16 @@ const createAgency = async (req, res) => {
         });
     }
 };
-exports.createAgency = createAgency;
-const getAllAgencies = async (req, res) => {
+exports.createStaff = createStaff;
+const getAllStaff = async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
         const search = req.query.search;
         const status = req.query.status;
-        const result = await agency_service_1.agencyService.getAllAgencies(page, limit, search, status);
+        const franchiseId = req.query.franchiseId;
+        const roleId = req.query.roleId;
+        const result = await staff_service_1.staffService.getAllStaff(page, limit, search, status, franchiseId, roleId);
         if (!result.success) {
             return res.status(400).json({
                 success: false,
@@ -74,11 +76,11 @@ const getAllAgencies = async (req, res) => {
         });
     }
 };
-exports.getAllAgencies = getAllAgencies;
-const getAgencyById = async (req, res) => {
+exports.getAllStaff = getAllStaff;
+const getStaffById = async (req, res) => {
     try {
         const { id } = req.params;
-        const result = await agency_service_1.agencyService.getAgencyById(id);
+        const result = await staff_service_1.staffService.getStaffById(id);
         if (!result.success) {
             return res.status(404).json({
                 success: false,
@@ -97,11 +99,11 @@ const getAgencyById = async (req, res) => {
         });
     }
 };
-exports.getAgencyById = getAgencyById;
-const updateAgency = async (req, res) => {
+exports.getStaffById = getStaffById;
+const updateStaff = async (req, res) => {
     try {
         const { id } = req.params;
-        const result = await agency_service_1.agencyService.updateAgency(id, req.body);
+        const result = await staff_service_1.staffService.updateStaff(id, req.body);
         if (!result.success) {
             return res.status(400).json({
                 success: false,
@@ -121,11 +123,11 @@ const updateAgency = async (req, res) => {
         });
     }
 };
-exports.updateAgency = updateAgency;
-const deleteAgency = async (req, res) => {
+exports.updateStaff = updateStaff;
+const deleteStaff = async (req, res) => {
     try {
         const { id } = req.params;
-        const result = await agency_service_1.agencyService.deleteAgency(id);
+        const result = await staff_service_1.staffService.deleteStaff(id);
         if (!result.success) {
             return res.status(404).json({
                 success: false,
@@ -144,28 +146,12 @@ const deleteAgency = async (req, res) => {
         });
     }
 };
-exports.deleteAgency = deleteAgency;
-const getAgenciesByHub = async (req, res) => {
-    try {
-        const { hubId } = req.params;
-        return res.status(410).json({
-            success: false,
-            message: 'Assigned hub field is removed',
-        });
-    }
-    catch (err) {
-        return res.status(500).json({
-            success: false,
-            message: err.message || 'Internal server error',
-        });
-    }
-};
-exports.getAgenciesByHub = getAgenciesByHub;
-const updateAgencyStatus = async (req, res) => {
+exports.deleteStaff = deleteStaff;
+const updateStaffStatus = async (req, res) => {
     try {
         const { id } = req.params;
         const { status } = req.body;
-        const result = await agency_service_1.agencyService.updateAgencyStatus(id, status);
+        const result = await staff_service_1.staffService.updateStaffStatus(id, status);
         if (!result.success) {
             return res.status(400).json({
                 success: false,
@@ -185,4 +171,4 @@ const updateAgencyStatus = async (req, res) => {
         });
     }
 };
-exports.updateAgencyStatus = updateAgencyStatus;
+exports.updateStaffStatus = updateStaffStatus;

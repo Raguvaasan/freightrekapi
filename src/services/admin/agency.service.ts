@@ -1,5 +1,6 @@
 import { Agency, IAgency } from '../../models/admin/agency.model';
 import { Types } from 'mongoose';
+import bcrypt from 'bcryptjs';
 
 interface ServiceResponse {
   success: boolean;
@@ -15,7 +16,12 @@ interface CreateAgencyInput {
   agencyType?: string;
   email?: string;
   address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
   gstNumber?: string;
+  username?: string;
+  password?: string;
 }
 
 interface UpdateAgencyInput {
@@ -26,10 +32,71 @@ interface UpdateAgencyInput {
   agencyType?: string;
   email?: string;
   address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
   gstNumber?: string;
+  username?: string;
+  password?: string;
 }
 
 export class AgencyService {
+  // Franchise Login
+  async loginFranchise(username: string, password: string): Promise<ServiceResponse> {
+    try {
+      // Find agency by username
+      const agency = await Agency.findOne({ username }).select('+password');
+
+      if (!agency) {
+        return {
+          success: false,
+          message: 'Invalid credentials',
+        };
+      }
+
+      // Check if agency has password set
+      if (!agency.password) {
+        return {
+          success: false,
+          message: 'Login credentials not configured for this franchise',
+        };
+      }
+
+      // Verify password
+      const isPasswordValid = await bcrypt.compare(password, agency.password);
+
+      if (!isPasswordValid) {
+        return {
+          success: false,
+          message: 'Invalid credentials',
+        };
+      }
+
+      // Check if franchise is active
+      if (agency.status !== 'Active') {
+        return {
+          success: false,
+          message: 'Franchise account is inactive',
+        };
+      }
+
+      // Remove password from response
+      const agencyData = agency.toObject();
+      delete agencyData.password;
+
+      return {
+        success: true,
+        message: 'Login successful',
+        data: agencyData,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Error during login',
+      };
+    }
+  }
+
   // Create new agency
   async createAgency(data: CreateAgencyInput): Promise<ServiceResponse> {
     try {
@@ -45,9 +112,28 @@ export class AgencyService {
         };
       }
 
-      const agency = new Agency({
-        ...data,
-      });
+      // Check if username already exists (if provided)
+      if (data.username) {
+        const existingUsername = await Agency.findOne({
+          username: data.username
+        });
+
+        if (existingUsername) {
+          return {
+            success: false,
+            message: 'Username already exists',
+          };
+        }
+      }
+
+      // Hash password if provided
+      let agencyData: any = { ...data };
+      if (data.password) {
+        const salt = await bcrypt.genSalt(10);
+        agencyData.password = await bcrypt.hash(data.password, salt);
+      }
+
+      const agency = new Agency(agencyData);
 
       await agency.save();
       const populatedAgency = await Agency.findById(agency._id);
@@ -82,6 +168,9 @@ export class AgencyService {
           { agencyName: { $regex: search, $options: 'i' } },
           { agencyOwner: { $regex: search, $options: 'i' } },
           { phone: { $regex: search, $options: 'i' } },
+          { city: { $regex: search, $options: 'i' } },
+          { state: { $regex: search, $options: 'i' } },
+          { username: { $regex: search, $options: 'i' } },
         ];
       }
 
@@ -182,10 +271,32 @@ export class AgencyService {
         }
       }
 
+      // Check if updating username and if new username already exists
+      if (data.username && data.username !== agency.username) {
+        const existingUsername = await Agency.findOne({
+          username: data.username,
+          _id: { $ne: id },
+        });
+
+        if (existingUsername) {
+          return {
+            success: false,
+            message: 'Username already exists',
+          };
+        }
+      }
+
+      // Hash password if being updated
+      let updateData: any = { ...data };
+      if (data.password) {
+        const salt = await bcrypt.genSalt(10);
+        updateData.password = await bcrypt.hash(data.password, salt);
+      }
+
       // Update fields
-      Object.keys(data).forEach((key) => {
-        if (data[key as keyof UpdateAgencyInput] !== undefined) {
-          (agency as any)[key] = data[key as keyof UpdateAgencyInput];
+      Object.keys(updateData).forEach((key) => {
+        if (updateData[key as keyof UpdateAgencyInput] !== undefined) {
+          (agency as any)[key] = updateData[key as keyof UpdateAgencyInput];
         }
       });
 

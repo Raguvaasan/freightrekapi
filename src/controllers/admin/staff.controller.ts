@@ -1,10 +1,10 @@
 import { Request, Response } from 'express';
-import { agencyService } from '../../services/admin/agency.service';
+import { staffService } from '../../services/admin/staff.service';
 
-export const loginFranchise = async (req: Request, res: Response) => {
+export const loginStaff = async (req: Request, res: Response) => {
   try {
     const { username, password } = req.body;
-    const result = await agencyService.loginFranchise(username, password);
+    const result = await staffService.loginStaff(username, password);
 
     if (!result.success) {
       return res.status(401).json({
@@ -26,9 +26,9 @@ export const loginFranchise = async (req: Request, res: Response) => {
   }
 };
 
-export const createAgency = async (req: Request, res: Response) => {
+export const createStaff = async (req: Request, res: Response) => {
   try {
-    const result = await agencyService.createAgency(req.body);
+    const result = await staffService.createStaff(req.body);
 
     if (!result.success) {
       return res.status(400).json({
@@ -50,18 +50,22 @@ export const createAgency = async (req: Request, res: Response) => {
   }
 };
 
-export const getAllAgencies = async (req: Request, res: Response) => {
+export const getAllStaff = async (req: Request, res: Response) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     const search = req.query.search as string;
     const status = req.query.status as string;
+    const franchiseId = req.query.franchiseId as string;
+    const roleId = req.query.roleId as string;
 
-    const result = await agencyService.getAllAgencies(
+    const result = await staffService.getAllStaff(
       page,
       limit,
       search,
-      status
+      status,
+      franchiseId,
+      roleId
     );
 
     if (!result.success) {
@@ -83,10 +87,10 @@ export const getAllAgencies = async (req: Request, res: Response) => {
   }
 };
 
-export const getAgencyById = async (req: Request, res: Response) => {
+export const getStaffById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const result = await agencyService.getAgencyById(id);
+    const result = await staffService.getStaffById(id);
 
     if (!result.success) {
       return res.status(404).json({
@@ -107,10 +111,10 @@ export const getAgencyById = async (req: Request, res: Response) => {
   }
 };
 
-export const updateAgency = async (req: Request, res: Response) => {
+export const updateStaff = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const result = await agencyService.updateAgency(id, req.body);
+    const result = await staffService.updateStaff(id, req.body);
 
     if (!result.success) {
       return res.status(400).json({
@@ -132,10 +136,10 @@ export const updateAgency = async (req: Request, res: Response) => {
   }
 };
 
-export const deleteAgency = async (req: Request, res: Response) => {
+export const deleteStaff = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const result = await agencyService.deleteAgency(id);
+    const result = await staffService.deleteStaff(id);
 
     if (!result.success) {
       return res.status(404).json({
@@ -156,27 +160,11 @@ export const deleteAgency = async (req: Request, res: Response) => {
   }
 };
 
-export const getAgenciesByHub = async (req: Request, res: Response) => {
-  try {
-    const { hubId } = req.params;
-    return res.status(410).json({
-      success: false,
-      message: 'Assigned hub field is removed',
-    });
-  } catch (err: any) {
-    return res.status(500).json({
-      success: false,
-      message: err.message || 'Internal server error',
-    });
-  }
-};
-
-export const updateAgencyStatus = async (req: Request, res: Response) => {
+export const updateStaffStatus = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
-
-    const result = await agencyService.updateAgencyStatus(id, status);
+    const result = await staffService.updateStaffStatus(id, status);
 
     if (!result.success) {
       return res.status(400).json({
