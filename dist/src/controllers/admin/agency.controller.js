@@ -15,6 +15,7 @@ const loginFranchise = async (req, res) => {
         return res.status(200).json({
             success: true,
             message: result.message,
+            token: result.token,
             data: result.data,
         });
     }

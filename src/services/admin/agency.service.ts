@@ -1,11 +1,13 @@
 import { Agency, IAgency } from '../../models/admin/agency.model';
 import { Types } from 'mongoose';
 import bcrypt from 'bcryptjs';
+import { generateToken } from '../../utils/jwt';
 
 interface ServiceResponse {
   success: boolean;
   message?: string;
   data?: any;
+  token?: string;
 }
 
 interface CreateAgencyInput {
@@ -84,10 +86,14 @@ export class AgencyService {
       const agencyData = agency.toObject();
       delete agencyData.password;
 
+      // Generate JWT token for franchise user
+      const token = generateToken(agency._id.toString());
+
       return {
         success: true,
         message: 'Login successful',
         data: agencyData,
+        token: token,
       };
     } catch (error: any) {
       return {

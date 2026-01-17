@@ -5,8 +5,9 @@
 2. [Role Management](#role-management)
 3. [Franchise Management](#franchise-management)
 4. [Staff Management](#staff-management)
-5. [Hub Management](#hub-management)
-6. [Testing Flow](#testing-flow)
+5. [Franchise Staff Management](#franchise-staff-management)
+6. [Hub Management](#hub-management)
+7. [Testing Flow](#testing-flow)
 
 ---
 
@@ -207,6 +208,7 @@ curl -X POST https://freightrekapi.vercel.app/admin/agency/login \
 {
   "success": true,
   "message": "Login successful",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "data": {
     "_id": "67xyz789abc123456",
     "agencyName": "SpeedX Express",
@@ -215,6 +217,8 @@ curl -X POST https://freightrekapi.vercel.app/admin/agency/login \
   }
 }
 ```
+
+**⚠️ Important:** Save this token! Use it for franchise-specific endpoints.
 
 ---
 
@@ -407,9 +411,177 @@ curl -X DELETE https://freightrekapi.vercel.app/admin/staff/67staff123abc456 \
 
 ---
 
-## 📍 Hub Management
+## � Franchise Staff Management
 
-### Step 8: Create Hub
+### Overview
+Franchise users can manage their own staff using these endpoints. The franchise token automatically filters staff to show only those belonging to the logged-in franchise.
+
+**⚠️ Important:** Use the token received from franchise login for these endpoints.
+
+---
+
+### Step 8: Get Franchise Staff List
+
+Get all staff members under your franchise.
+
+```bash
+curl -X GET "https://freightrekapi.vercel.app/admin/franchise/staff?page=1&limit=10&status=Active" \
+  -H "Authorization: Bearer FRANCHISE_JWT_TOKEN"
+```
+
+**Query Parameters:**
+- `page` - Page number (default: 1)
+- `limit` - Items per page (default: 10)
+- `search` - Search by name/email/phone/username
+- `status` - Filter by Active/Inactive
+- `roleId` - Filter by role
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "_id": "67staff123abc456",
+        "name": "John Doe",
+        "email": "john@example.com",
+        "phone": "9876543210",
+        "roleId": {...},
+        "franchiseId": {...},
+        "status": "Active"
+      }
+    ],
+    "pagination": {
+      "total": 5,
+      "page": 1,
+      "limit": 10,
+      "totalPages": 1
+    }
+  }
+}
+```
+
+---
+
+### Step 9: Create Staff for Your Franchise
+
+Create a new staff member. The staff will automatically be assigned to your franchise.
+
+```bash
+curl -X POST https://freightrekapi.vercel.app/admin/franchise/staff \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer FRANCHISE_JWT_TOKEN" \
+  -d '{
+    "name": "Jane Smith",
+    "email": "jane@example.com",
+    "phone": "9123456789",
+    "roleId": "67def456abc789012",
+    "username": "janesmith",
+    "password": "Jane@123",
+    "status": "Active"
+  }'
+```
+
+**Note:** You don't need to provide `franchiseId` - it's automatically set to your franchise.
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Staff created successfully",
+  "data": {
+    "_id": "67newstaff789abc",
+    "name": "Jane Smith",
+    "email": "jane@example.com",
+    "franchiseId": "YOUR_FRANCHISE_ID"
+  }
+}
+```
+
+---
+
+### Get Staff by ID
+
+Get details of a specific staff member (only if they belong to your franchise).
+
+```bash
+curl -X GET https://freightrekapi.vercel.app/admin/franchise/staff/67staff123abc456 \
+  -H "Authorization: Bearer FRANCHISE_JWT_TOKEN"
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "_id": "67staff123abc456",
+    "name": "John Doe",
+    "email": "john@example.com",
+    "roleId": {...},
+    "franchiseId": {...}
+  }
+}
+```
+
+**Error if staff doesn't belong to your franchise:**
+```json
+{
+  "success": false,
+  "message": "Access denied: Staff does not belong to your franchise"
+}
+```
+
+---
+
+### Update Staff
+
+Update a staff member's details (only if they belong to your franchise).
+
+```bash
+curl -X PUT https://freightrekapi.vercel.app/admin/franchise/staff/67staff123abc456 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer FRANCHISE_JWT_TOKEN" \
+  -d '{
+    "name": "John Smith Updated",
+    "phone": "9999888877",
+    "roleId": "67newrole456abc"
+  }'
+```
+
+**Note:** You cannot change the `franchiseId` field.
+
+---
+
+### Update Staff Status
+
+Activate or deactivate a staff member.
+
+```bash
+curl -X PATCH https://freightrekapi.vercel.app/admin/franchise/staff/67staff123abc456/status \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer FRANCHISE_JWT_TOKEN" \
+  -d '{
+    "status": "Inactive"
+  }'
+```
+
+---
+
+### Delete Staff
+
+Remove a staff member from your franchise.
+
+```bash
+curl -X DELETE https://freightrekapi.vercel.app/admin/franchise/staff/67staff123abc456 \
+  -H "Authorization: Bearer FRANCHISE_JWT_TOKEN"
+```
+
+---
+
+## �📍 Hub Management
+
+### Step 10: Create Hub
 
 ```bash
 curl -X POST https://freightrekapi.vercel.app/admin/hub \
@@ -524,6 +696,33 @@ curl -X POST https://freightrekapi.vercel.app/admin/staff/login \
 
 ---
 
+### Flow 4: Franchise Staff Management
+
+```bash
+# 1. Franchise Login (Save the franchise token)
+curl -X POST https://freightrekapi.vercel.app/admin/agency/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"test@agency.com","password":"Test@123"}'
+
+# 2. View Your Franchise Staff
+curl -X GET "https://freightrekapi.vercel.app/admin/franchise/staff?page=1&limit=10" \
+  -H "Authorization: Bearer FRANCHISE_TOKEN"
+
+# 3. Create Staff for Your Franchise (franchiseId automatically set)
+curl -X POST https://freightrekapi.vercel.app/admin/franchise/staff \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer FRANCHISE_TOKEN" \
+  -d '{"name":"New Staff","email":"newstaff@test.com","phone":"9876543210","roleId":"ROLE_ID","username":"newstaff","password":"Staff@123"}'
+
+# 4. Update Your Staff Status
+curl -X PATCH https://freightrekapi.vercel.app/admin/franchise/staff/STAFF_ID/status \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer FRANCHISE_TOKEN" \
+  -d '{"status":"Inactive"}'
+```
+
+---
+
 ## 📝 Testing Tips
 
 ### 1. Save Token
@@ -533,6 +732,11 @@ After login, save the JWT token:
 TOKEN=$(curl -X POST https://freightrekapi.vercel.app/admin/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"admin@test.com","password":"Admin@123"}' | jq -r '.token')
+
+# Franchise Token
+FRANCHISE_TOKEN=$(curl -X POST https://freightrekapi.vercel.app/admin/agency/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"test@agency.com","password":"Test@123"}' | jq -r '.token')
 
 # Then use: -H "Authorization: Bearer $TOKEN"
 ```
@@ -629,12 +833,18 @@ https://freightrekapi.vercel.app/api-docs
 |----------|--------|---------------|-------------|
 | `/admin/auth/register` | POST | No | Register admin |
 | `/admin/auth/login` | POST | No | Admin login |
-| `/admin/agency/login` | POST | No | Franchise login |
+| `/admin/agency/login` | POST | No | Franchise login (returns token) |
 | `/admin/staff/login` | POST | No | Staff login |
-| `/admin/role` | POST | Yes | Create role |
-| `/admin/agency` | POST | Yes | Create franchise |
-| `/admin/staff` | POST | Yes | Create staff |
-| `/admin/hub` | POST | Yes | Create hub |
+| `/admin/role` | POST | Yes (Admin) | Create role |
+| `/admin/agency` | POST | Yes (Admin) | Create franchise |
+| `/admin/staff` | POST | Yes (Admin) | Create staff |
+| `/admin/hub` | POST | Yes (Admin) | Create hub |
+| `/admin/franchise/staff` | GET | Yes (Franchise) | Get franchise's staff list |
+| `/admin/franchise/staff` | POST | Yes (Franchise) | Create staff for franchise |
+| `/admin/franchise/staff/{id}` | GET | Yes (Franchise) | Get staff details |
+| `/admin/franchise/staff/{id}` | PUT | Yes (Franchise) | Update staff |
+| `/admin/franchise/staff/{id}` | DELETE | Yes (Franchise) | Delete staff |
+| `/admin/franchise/staff/{id}/status` | PATCH | Yes (Franchise) | Update staff status |
 
 ---
 

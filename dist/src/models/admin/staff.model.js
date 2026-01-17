@@ -22,7 +22,7 @@ const staffSchema = new mongoose_1.Schema({
     },
     roleId: {
         type: mongoose_1.Schema.Types.ObjectId,
-        ref: 'Role',
+        ref: 'AdminRole',
         required: [true, 'Role is required'],
     },
     status: {

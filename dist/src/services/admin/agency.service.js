@@ -7,6 +7,7 @@ exports.agencyService = exports.AgencyService = void 0;
 const agency_model_1 = require("../../models/admin/agency.model");
 const mongoose_1 = require("mongoose");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
+const jwt_1 = require("../../utils/jwt");
 class AgencyService {
     // Franchise Login
     async loginFranchise(username, password) {
@@ -44,10 +45,13 @@ class AgencyService {
             // Remove password from response
             const agencyData = agency.toObject();
             delete agencyData.password;
+            // Generate JWT token for franchise user
+            const token = (0, jwt_1.generateToken)(agency._id.toString());
             return {
                 success: true,
                 message: 'Login successful',
                 data: agencyData,
+                token: token,
             };
         }
         catch (error) {

@@ -16,6 +16,7 @@ export const loginFranchise = async (req: Request, res: Response) => {
     return res.status(200).json({
       success: true,
       message: result.message,
+      token: result.token,
       data: result.data,
     });
   } catch (err: any) {
