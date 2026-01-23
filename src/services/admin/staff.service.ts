@@ -14,9 +14,10 @@ interface CreateStaffInput {
   name: string;
   email: string;
   phone: string;
-  roleId: string;
+  type: 'head_quarter' | 'franchise';
+  roleId?: string;
   status?: 'Active' | 'Inactive';
-  franchiseId: string;
+  franchiseId?: string;
   username: string;
   password: string;
 }
@@ -25,6 +26,7 @@ interface UpdateStaffInput {
   name?: string;
   email?: string;
   phone?: string;
+  type?: 'head_quarter' | 'franchise';
   roleId?: string;
   status?: 'Active' | 'Inactive';
   franchiseId?: string;
@@ -105,6 +107,53 @@ export class StaffService {
         };
       }
 
+      // Validate based on type
+      if (data.type === 'head_quarter') {
+        // Head quarter staff must have roleId and must not have franchiseId
+        if (!data.roleId) {
+          return {
+            success: false,
+            message: 'Role is required for head quarter staff',
+          };
+        }
+        if (data.franchiseId) {
+          return {
+            success: false,
+            message: 'Franchise should not be provided for head quarter staff',
+          };
+        }
+        // Validate roleId exists
+        const roleExists = await Role.findById(data.roleId);
+        if (!roleExists) {
+          return {
+            success: false,
+            message: 'Role not found',
+          };
+        }
+      } else if (data.type === 'franchise') {
+        // Franchise staff must have franchiseId and must not have roleId
+        if (!data.franchiseId) {
+          return {
+            success: false,
+            message: 'Franchise is required for franchise staff',
+          };
+        }
+        if (data.roleId) {
+          return {
+            success: false,
+            message: 'Role should not be provided for franchise staff',
+          };
+        }
+        // Validate franchiseId exists
+        const franchiseExists = await Agency.findById(data.franchiseId);
+        if (!franchiseExists) {
+          return {
+            success: false,
+            message: 'Franchise not found',
+          };
+        }
+      }
+
       // Hash password
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(data.password, salt);
@@ -115,9 +164,17 @@ export class StaffService {
       });
 
       await staff.save();
-      const populatedStaff = await Staff.findById(staff._id)
-        .populate('roleId', 'name permissions')
-        .populate('franchiseId', 'agencyName agencyOwner');
+      
+      // Build populate query based on what fields exist
+      let query = Staff.findById(staff._id);
+      if (data.roleId) {
+        query = query.populate('roleId', 'name permissions');
+      }
+      if (data.franchiseId) {
+        query = query.populate('franchiseId', 'agencyName agencyOwner');
+      }
+      
+      const populatedStaff = await query;
 
       return {
         success: true,
@@ -281,6 +338,48 @@ export class StaffService {
         }
       }
 
+      // Determine the type (use updated type or existing type)
+      const staffType = data.type || staff.type;
+
+      // Validate based on type
+      if (staffType === 'head_quarter') {
+        // Head quarter staff must not have franchiseId
+        if (data.franchiseId) {
+          return {
+            success: false,
+            message: 'Franchise should not be provided for head quarter staff',
+          };
+        }
+        // If roleId is being updated, validate it exists
+        if (data.roleId) {
+          const roleExists = await Role.findById(data.roleId);
+          if (!roleExists) {
+            return {
+              success: false,
+              message: 'Role not found',
+            };
+          }
+        }
+      } else if (staffType === 'franchise') {
+        // Franchise staff must not have roleId
+        if (data.roleId) {
+          return {
+            success: false,
+            message: 'Role should not be provided for franchise staff',
+          };
+        }
+        // If franchiseId is being updated, validate it exists
+        if (data.franchiseId) {
+          const franchiseExists = await Agency.findById(data.franchiseId);
+          if (!franchiseExists) {
+            return {
+              success: false,
+              message: 'Franchise not found',
+            };
+          }
+        }
+      }
+
       // Hash password if being updated
       let updateData: any = { ...data };
       if (data.password) {
@@ -296,9 +395,17 @@ export class StaffService {
       });
 
       await staff.save();
-      const updatedStaff = await Staff.findById(id)
-        .populate('roleId', 'name permissions')
-        .populate('franchiseId', 'agencyName agencyOwner');
+      
+      // Build populate query based on what fields exist
+      let query = Staff.findById(id);
+      if (staff.roleId) {
+        query = query.populate('roleId', 'name permissions');
+      }
+      if (staff.franchiseId) {
+        query = query.populate('franchiseId', 'agencyName agencyOwner');
+      }
+      
+      const updatedStaff = await query;
 
       return {
         success: true,

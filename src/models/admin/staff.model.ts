@@ -4,9 +4,10 @@ export interface IStaff {
   name: string;
   email: string;
   phone: string;
-  roleId: Types.ObjectId;
+  type: 'head_quarter' | 'franchise';
+  roleId?: Types.ObjectId;
   status: 'Active' | 'Inactive';
-  franchiseId: Types.ObjectId;
+  franchiseId?: Types.ObjectId;
   username: string;
   password: string;
   createdAt: Date;
@@ -32,10 +33,15 @@ const staffSchema = new Schema<IStaff>(
       required: [true, 'Phone number is required'],
       trim: true,
     },
+    type: {
+      type: String,
+      enum: ['head_quarter', 'franchise'],
+      required: [true, 'Type is required'],
+    },
     roleId: {
       type: Schema.Types.ObjectId,
       ref: 'AdminRole',
-      required: [true, 'Role is required'],
+      required: false,
     },
     status: {
       type: String,
@@ -45,7 +51,7 @@ const staffSchema = new Schema<IStaff>(
     franchiseId: {
       type: Schema.Types.ObjectId,
       ref: 'Agency',
-      required: [true, 'Franchise is required'],
+      required: false,
     },
     username: {
       type: String,

@@ -20,10 +20,15 @@ const staffSchema = new mongoose_1.Schema({
         required: [true, 'Phone number is required'],
         trim: true,
     },
+    type: {
+        type: String,
+        enum: ['head_quarter', 'franchise'],
+        required: [true, 'Type is required'],
+    },
     roleId: {
         type: mongoose_1.Schema.Types.ObjectId,
         ref: 'AdminRole',
-        required: [true, 'Role is required'],
+        required: false,
     },
     status: {
         type: String,
@@ -33,7 +38,7 @@ const staffSchema = new mongoose_1.Schema({
     franchiseId: {
         type: mongoose_1.Schema.Types.ObjectId,
         ref: 'Agency',
-        required: [true, 'Franchise is required'],
+        required: false,
     },
     username: {
         type: String,
