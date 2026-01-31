@@ -39,36 +39,13 @@ const router = (0, express_1.Router)();
  *         description: Invalid credentials
  */
 router.post('/login', (0, validate_middleware_1.validate)(staff_validator_1.staffLoginSchema), staff_controller_1.loginStaff);
-// All other routes require authentication
-router.use(auth_middleware_1.authMiddleware);
 /**
  * @swagger
  * /admin/staff:
- *   post:
- *     summary: Create a new staff
- *     tags: [Staff Management]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/Staff'
- *     responses:
- *       201:
- *         description: Staff created successfully
- *       400:
- *         description: Validation error or staff already exists
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Permission denied
  *   get:
- *     summary: Get all staff with pagination
+ *     summary: Get all staff with pagination (Public)
  *     tags: [Staff Management]
- *     security:
- *       - bearerAuth: []
+ *     security: []
  *     parameters:
  *       - in: query
  *         name: page
@@ -100,19 +77,15 @@ router.use(auth_middleware_1.authMiddleware);
  *     responses:
  *       200:
  *         description: Staff list retrieved successfully
- *       401:
- *         description: Unauthorized
  */
-router.post('/', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.access_management, 'write'), (0, validate_middleware_1.validate)(staff_validator_1.createStaffSchema), staff_controller_1.createStaff);
-router.get('/', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.access_management, 'read'), staff_controller_1.getAllStaff);
+router.get('/', staff_controller_1.getAllStaff);
 /**
  * @swagger
  * /admin/staff/{id}:
  *   get:
- *     summary: Get staff by ID
+ *     summary: Get staff by ID (Public)
  *     tags: [Staff Management]
- *     security:
- *       - bearerAuth: []
+ *     security: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -124,6 +97,38 @@ router.get('/', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.
  *         description: Staff details
  *       404:
  *         description: Staff not found
+ */
+router.get('/:id', (0, validate_middleware_1.validate)(staff_validator_1.getStaffByIdSchema), staff_controller_1.getStaffById);
+// All other routes require authentication
+router.use(auth_middleware_1.authMiddleware);
+/**
+ * @swagger
+ * /admin/staff:
+ *   post:
+ *     summary: Create a new staff
+ *     tags: [Staff Management]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/Staff'
+ *     responses:
+ *       201:
+ *         description: Staff created successfully
+ *       400:
+ *         description: Validation error or staff already exists
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Permission denied
+ */
+router.post('/', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.access_management, 'write'), (0, validate_middleware_1.validate)(staff_validator_1.createStaffSchema), staff_controller_1.createStaff);
+/**
+ * @swagger
+ * /admin/staff/{id}:
  *   put:
  *     summary: Update staff
  *     tags: [Staff Management]
@@ -165,7 +170,6 @@ router.get('/', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.
  *       404:
  *         description: Staff not found
  */
-router.get('/:id', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.access_management, 'read'), (0, validate_middleware_1.validate)(staff_validator_1.getStaffByIdSchema), staff_controller_1.getStaffById);
 router.put('/:id', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.access_management, 'write'), (0, validate_middleware_1.validate)(staff_validator_1.updateStaffSchema), staff_controller_1.updateStaff);
 router.delete('/:id', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.access_management, 'delete'), (0, validate_middleware_1.validate)(staff_validator_1.deleteStaffSchema), staff_controller_1.deleteStaff);
 /**

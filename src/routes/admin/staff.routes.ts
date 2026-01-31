@@ -55,37 +55,13 @@ const router = Router();
  */
 router.post('/login', validate(staffLoginSchema), loginStaff);
 
-// All other routes require authentication
-router.use(authMiddleware);
-
 /**
  * @swagger
  * /admin/staff:
- *   post:
- *     summary: Create a new staff
- *     tags: [Staff Management]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/Staff'
- *     responses:
- *       201:
- *         description: Staff created successfully
- *       400:
- *         description: Validation error or staff already exists
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Permission denied
  *   get:
- *     summary: Get all staff with pagination
+ *     summary: Get all staff with pagination (Public)
  *     tags: [Staff Management]
- *     security:
- *       - bearerAuth: []
+ *     security: []
  *     parameters:
  *       - in: query
  *         name: page
@@ -117,20 +93,16 @@ router.use(authMiddleware);
  *     responses:
  *       200:
  *         description: Staff list retrieved successfully
- *       401:
- *         description: Unauthorized
  */
-router.post('/', checkPermission(adminModule.access_management, 'write'), validate(createStaffSchema), createStaff);
-router.get('/', checkPermission(adminModule.access_management, 'read'), getAllStaff);
+router.get('/', getAllStaff);
 
 /**
  * @swagger
  * /admin/staff/{id}:
  *   get:
- *     summary: Get staff by ID
+ *     summary: Get staff by ID (Public)
  *     tags: [Staff Management]
- *     security:
- *       - bearerAuth: []
+ *     security: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -142,6 +114,41 @@ router.get('/', checkPermission(adminModule.access_management, 'read'), getAllSt
  *         description: Staff details
  *       404:
  *         description: Staff not found
+ */
+router.get('/:id', validate(getStaffByIdSchema), getStaffById);
+
+// All other routes require authentication
+router.use(authMiddleware);
+
+/**
+ * @swagger
+ * /admin/staff:
+ *   post:
+ *     summary: Create a new staff
+ *     tags: [Staff Management]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/Staff'
+ *     responses:
+ *       201:
+ *         description: Staff created successfully
+ *       400:
+ *         description: Validation error or staff already exists
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Permission denied
+ */
+router.post('/', checkPermission(adminModule.access_management, 'write'), validate(createStaffSchema), createStaff);
+
+/**
+ * @swagger
+ * /admin/staff/{id}:
  *   put:
  *     summary: Update staff
  *     tags: [Staff Management]
@@ -183,7 +190,6 @@ router.get('/', checkPermission(adminModule.access_management, 'read'), getAllSt
  *       404:
  *         description: Staff not found
  */
-router.get('/:id', checkPermission(adminModule.access_management, 'read'), validate(getStaffByIdSchema), getStaffById);
 router.put('/:id', checkPermission(adminModule.access_management, 'write'), validate(updateStaffSchema), updateStaff);
 router.delete('/:id', checkPermission(adminModule.access_management, 'delete'), validate(deleteStaffSchema), deleteStaff);
 
