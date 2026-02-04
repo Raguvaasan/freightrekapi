@@ -51,6 +51,14 @@ export const walletService = {
     try {
       const { amount, paymentMethod, userId, userEmail, userPhone, userName } = data;
 
+      // Log environment variables for debugging
+      console.log('Cashfree Config:', {
+        apiUrl: process.env.CASHFREE_API_URL,
+        clientId: process.env.CASHFREE_CLIENT_ID ? 'SET' : 'NOT SET',
+        clientSecret: process.env.CASHFREE_CLIENT_SECRET ? 'SET' : 'NOT SET',
+        backendUrl: process.env.BACKEND_URL,
+      });
+
       // Validate amount
       if (amount < 100) {
         return {
@@ -80,6 +88,7 @@ export const walletService = {
       });
 
       // Create Cashfree payment session
+      console.log('Creating Cashfree order:', orderId);
       const cashfreeResponse = await axios.post(
         `${process.env.CASHFREE_API_URL}/orders`,
         {

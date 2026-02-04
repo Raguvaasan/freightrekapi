@@ -173,11 +173,13 @@ exports.shipmentService = {
                 success: true,
                 data: shipments.map((s) => ({
                     orderId: s.orderId,
-                    waybill: s.waybill,
+                    bookingId: s.waybill,
                     status: s.status,
                     consigneeName: s.name,
+                    consigneeNumber: s.phone,
                     city: s.city,
                     paymentMode: s.paymentMode,
+                    amount: s.paymentMode === 'COD' ? s.codAmount : s.totalAmount,
                     createdAt: s.createdAt,
                 })),
                 pagination: {
