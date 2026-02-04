@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@types/yup": "^0.29.14",
+    "axios": "^1.13.4",
     "bcryptjs": "^3.0.3",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",

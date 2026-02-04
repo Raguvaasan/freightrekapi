@@ -1,4 +1,5 @@
 .env
+.env.cashfree
 node_modules
 package-*.json
 .vscode

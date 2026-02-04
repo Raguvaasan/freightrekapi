@@ -7,6 +7,9 @@ import { swaggerSpec } from "./config/swagger";
 import authRoutes from "./routes/admin";
 import locationRoutes from "./routes/location.routes";
 import markupRoutes from "./routes/markup.routes";
+import walletRoutes from "./routes/wallet.routes";
+import shipmentRoutes from "./routes/shipment.routes";
+import { cashfreeWebhook } from "./controllers/wallet.controller";
 
 const app = express();
 
@@ -99,5 +102,10 @@ app.get("/health", (req, res) => {
 app.use("/admin", authRoutes);
 app.use("/location", locationRoutes);
 app.use("/api/v1/settings", markupRoutes);
+app.use("/api/wallet", walletRoutes);
+app.use("/api/shipment", shipmentRoutes);
+
+// Webhook endpoint (no auth, verified by signature)
+app.post("/webhook/cashfree", cashfreeWebhook);
 
 export default app;
