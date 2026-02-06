@@ -33,7 +33,7 @@ const orderSchema = new Schema<IOrder>(
     amount: {
       type: Number,
       required: true,
-      min: 100,
+      min: 1, // Minimum ₹1
     },
     currency: {
       type: String,

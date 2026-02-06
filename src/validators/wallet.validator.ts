@@ -4,7 +4,7 @@ export const createPaymentOrderSchema = yup.object().shape({
   amount: yup
     .number()
     .required('Amount is required')
-    .min(100, 'Minimum amount is ₹100')
+    .min(1, 'Minimum amount is ₹1')
     .max(100000, 'Maximum amount is ₹100,000'),
   paymentMethod: yup
     .string()

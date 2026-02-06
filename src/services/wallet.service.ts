@@ -60,12 +60,12 @@ export const walletService = {
       });
 
       // Validate amount
-      if (amount < 100) {
-        return {
-          success: false,
-          message: 'Minimum amount is ₹100',
-        };
-      }
+      // if (amount < 1) {
+      //   return {
+      //     success: false,
+      //     message: 'Minimum amount is ₹1',
+      //   };
+      // }
 
       if (amount > 100000) {
         return {
