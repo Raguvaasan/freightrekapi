@@ -28,7 +28,7 @@ Environment: ✅ Production ✅ Preview ✅ Development
 #### Variable 2: CASHFREE_CLIENT_SECRET
 ```
 Name: CASHFREE_CLIENT_SECRET
-Value: cfsk_ma_test_df28d4f268eaf1f8b065f1ce553de5c3_4b5d9985
+Value: YOUR_CASHFREE_CLIENT_SECRET_HERE
 Environment: ✅ Production ✅ Preview ✅ Development
 ```
 **Add Variable** button click செய்யுங்க
@@ -161,11 +161,11 @@ cd g:\freightrekapi\freightrekapi
 
 # Add CASHFREE_CLIENT_ID
 vercel env add CASHFREE_CLIENT_ID production
-# Paste: TEST108720629f172329f064a997a5da26027801
+# Paste: YOUR_CASHFREE_CLIENT_ID_HERE
 
 # Add CASHFREE_CLIENT_SECRET
 vercel env add CASHFREE_CLIENT_SECRET production
-# Paste: cfsk_ma_test_df28d4f268eaf1f8b065f1ce553de5c3_4b5d9985
+# Paste: YOUR_CASHFREE_CLIENT_SECRET_HERE
 
 # Add CASHFREE_API_URL
 vercel env add CASHFREE_API_URL production

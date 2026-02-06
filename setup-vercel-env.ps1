@@ -4,14 +4,14 @@ Write-Host "🔧 Setting up Vercel Environment Variables..." -ForegroundColor Cy
 
 # Set CASHFREE_CLIENT_ID
 Write-Host "`n1️⃣ Setting CASHFREE_CLIENT_ID..." -ForegroundColor Yellow
-$clientId = "11234039df03f3ca05c6ad44a223043211"
+$clientId = "YOUR_CASHFREE_CLIENT_ID_HERE"
 Set-Content -Path temp_client_id.txt -Value $clientId -NoNewline
 Get-Content temp_client_id.txt | vercel env add CASHFREE_CLIENT_ID production
 Remove-Item temp_client_id.txt
 
 # Set CASHFREE_CLIENT_SECRET
 Write-Host "`n2️⃣ Setting CASHFREE_CLIENT_SECRET..." -ForegroundColor Yellow
-$clientSecret = "cfsk_ma_prod_16fdb417afe46c7b8787f42b3f547b49_183a3a56"
+$clientSecret = "YOUR_CASHFREE_CLIENT_SECRET_HERE"
 Set-Content -Path temp_client_secret.txt -Value $clientSecret -NoNewline
 Get-Content temp_client_secret.txt | vercel env add CASHFREE_CLIENT_SECRET production
 Remove-Item temp_client_secret.txt
