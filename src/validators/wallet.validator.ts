@@ -14,7 +14,7 @@ export const createPaymentOrderSchema = yup.object().shape({
 
 export const verifyPaymentSchema = yup.object().shape({
   orderId: yup.string().required('Order ID is required'),
-  paymentId: yup.string().required('Payment ID is required'),
+  paymentId: yup.string().optional(),
 });
 
 export const getTransactionsSchema = yup.object().shape({

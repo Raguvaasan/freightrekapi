@@ -17,7 +17,7 @@ const orderSchema = new mongoose_1.Schema({
     amount: {
         type: Number,
         required: true,
-        min: 100,
+        min: 1, // Minimum ₹1
     },
     currency: {
         type: String,

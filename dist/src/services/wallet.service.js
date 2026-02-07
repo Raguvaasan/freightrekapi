@@ -40,10 +40,10 @@ exports.walletService = {
             });
             // Validate amount
             // if (amount < 1) {
-            //     return {
-            //         success: false,
-            //         message: 'Minimum amount is ₹1',
-            //     };
+            //   return {
+            //     success: false,
+            //     message: 'Minimum amount is ₹1',
+            //   };
             // }
             if (amount > 100000) {
                 return {
@@ -64,6 +64,16 @@ exports.walletService = {
             });
             // Create Cashfree payment session
             console.log('Creating Cashfree order:', orderId);
+            console.log('Cashfree Request:', {
+                url: `${process.env.CASHFREE_API_URL}/orders`,
+                orderId,
+                amount,
+                customerDetails: {
+                    customer_id: userId,
+                    customer_email: userEmail || 'user@example.com',
+                    customer_phone: userPhone || '9999999999',
+                },
+            });
             const cashfreeResponse = await axios_1.default.post(`${process.env.CASHFREE_API_URL}/orders`, {
                 order_id: orderId,
                 order_amount: amount,
@@ -87,6 +97,11 @@ exports.walletService = {
                     'Content-Type': 'application/json',
                 },
             });
+            console.log('✅ Cashfree Response:', {
+                orderId: cashfreeResponse.data.order_id,
+                sessionId: cashfreeResponse.data.payment_session_id?.substring(0, 30) + '...',
+                status: cashfreeResponse.status,
+            });
             // Save session ID
             order.sessionId = cashfreeResponse.data.payment_session_id;
             order.cashfreeOrderId = cashfreeResponse.data.order_id;
@@ -100,10 +115,15 @@ exports.walletService = {
             };
         }
         catch (error) {
-            console.error('Create payment order error:', error.response?.data || error);
+            console.error('❌ Cashfree API Error:');
+            console.error('Status:', error.response?.status);
+            console.error('Status Text:', error.response?.statusText);
+            console.error('Error Data:', JSON.stringify(error.response?.data, null, 2));
+            console.error('Error Message:', error.message);
             return {
                 success: false,
-                message: error.response?.data?.message || 'Failed to create payment order',
+                message: error.response?.data?.message || error.message || 'Failed to create payment order',
+                error: error.response?.data || { message: error.message },
             };
         }
     },
@@ -130,6 +150,7 @@ exports.walletService = {
                 };
             }
             // Verify payment with Cashfree
+            console.log(`🔍 Verifying payment for order: ${orderId}`);
             const verifyResponse = await axios_1.default.get(`${process.env.CASHFREE_API_URL}/orders/${orderId}/payments`, {
                 headers: {
                     'x-client-id': process.env.CASHFREE_CLIENT_ID,
@@ -137,19 +158,31 @@ exports.walletService = {
                     'x-api-version': '2023-08-01',
                 },
             });
+            console.log('💳 Cashfree payments response:', JSON.stringify(verifyResponse.data, null, 2));
             const payments = verifyResponse.data;
             let paymentSuccess = false;
-            // Find the specific payment
+            let successfulPaymentId = paymentId;
+            // Find the successful payment
             if (Array.isArray(payments)) {
-                const payment = payments.find((p) => p.cf_payment_id === paymentId);
-                paymentSuccess = payment && payment.payment_status === 'SUCCESS';
+                const payment = paymentId
+                    ? payments.find((p) => p.cf_payment_id === paymentId)
+                    : payments.find((p) => p.payment_status === 'SUCCESS');
+                if (payment) {
+                    paymentSuccess = payment.payment_status === 'SUCCESS';
+                    successfulPaymentId = payment.cf_payment_id;
+                    console.log(`✅ Payment found - Status: ${payment.payment_status}, ID: ${successfulPaymentId}`);
+                }
+                else {
+                    console.log('❌ No successful payment found');
+                }
             }
             if (paymentSuccess) {
                 // Update order status
                 order.status = 'completed';
-                order.paymentId = paymentId;
+                order.paymentId = successfulPaymentId;
                 order.completedAt = new Date();
                 await order.save();
+                console.log(`✅ Order marked as completed: ${orderId}`);
                 // Get current balance
                 let wallet = await wallet_model_1.Wallet.findOne({ userId });
                 if (!wallet) {
@@ -170,7 +203,7 @@ exports.walletService = {
                     status: 'completed',
                     description: 'Wallet Recharge',
                     paymentMethod: order.paymentMethod,
-                    paymentId,
+                    paymentId: successfulPaymentId,
                     balanceBefore,
                     balanceAfter: wallet.balance,
                     metadata: {
@@ -178,6 +211,7 @@ exports.walletService = {
                         orderType: 'wallet_recharge',
                     },
                 });
+                console.log(`💰 Wallet credited: ₹${order.amount}, New balance: ₹${wallet.balance}`);
                 return {
                     success: true,
                     status: 'SUCCESS',

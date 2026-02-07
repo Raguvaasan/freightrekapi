@@ -48,7 +48,7 @@ exports.createPaymentOrderSchema = yup.object().shape({
 });
 exports.verifyPaymentSchema = yup.object().shape({
     orderId: yup.string().required('Order ID is required'),
-    paymentId: yup.string().required('Payment ID is required'),
+    paymentId: yup.string().optional(),
 });
 exports.getTransactionsSchema = yup.object().shape({
     page: yup.number().min(1, 'Page must be at least 1'),
