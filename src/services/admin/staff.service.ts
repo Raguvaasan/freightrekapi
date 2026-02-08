@@ -1,5 +1,6 @@
 import { Staff, IStaff } from '../../models/admin/staff.model';
 import { Role } from '../../models/admin/role.model';
+import { FranchiseRole } from '../../models/admin/franchiseRole.model';
 import { Agency } from '../../models/admin/agency.model';
 import { Types } from 'mongoose';
 import bcrypt from 'bcryptjs';
@@ -118,7 +119,7 @@ export class StaffService {
         }
         // Validate roleId if provided
         if (data.roleId) {
-          const roleExists = await Role.findById(data.roleId);
+          const roleExists = await Role.findById(data.roleId) || await FranchiseRole.findById(data.roleId);
           if (!roleExists) {
             return {
               success: false,
@@ -142,9 +143,9 @@ export class StaffService {
             message: 'Franchise not found',
           };
         }
-        // Validate roleId if provided
+        // Validate roleId if provided (check both AdminRole and FranchiseRole)
         if (data.roleId) {
-          const roleExists = await Role.findById(data.roleId);
+          const roleExists = await Role.findById(data.roleId) || await FranchiseRole.findById(data.roleId);
           if (!roleExists) {
             return {
               success: false,
@@ -352,7 +353,7 @@ export class StaffService {
         }
         // If roleId is being updated, validate it exists
         if (data.roleId) {
-          const roleExists = await Role.findById(data.roleId);
+          const roleExists = await Role.findById(data.roleId) || await FranchiseRole.findById(data.roleId);
           if (!roleExists) {
             return {
               success: false,
@@ -363,7 +364,7 @@ export class StaffService {
       } else if (staffType === 'franchise') {
         // If roleId is being updated, validate it exists
         if (data.roleId) {
-          const roleExists = await Role.findById(data.roleId);
+          const roleExists = await Role.findById(data.roleId) || await FranchiseRole.findById(data.roleId);
           if (!roleExists) {
             return {
               success: false,
