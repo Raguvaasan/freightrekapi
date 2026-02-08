@@ -106,12 +106,12 @@ class StaffService {
                         message: 'Franchise is required for franchise staff',
                     };
                 }
-                if (data.roleId) {
-                    return {
-                        success: false,
-                        message: 'Role should not be provided for franchise staff',
-                    };
-                }
+                // if (data.roleId) {
+                //     return {
+                //         success: false,
+                //         message: 'Role should not be provided for franchise staff',
+                //     };
+                // }
                 // Validate franchiseId exists
                 const franchiseExists = await agency_model_1.Agency.findById(data.franchiseId);
                 if (!franchiseExists) {
@@ -300,12 +300,12 @@ class StaffService {
             }
             else if (staffType === 'franchise') {
                 // Franchise staff must not have roleId
-                if (data.roleId) {
-                    return {
-                        success: false,
-                        message: 'Role should not be provided for franchise staff',
-                    };
-                }
+                // if (data.roleId) {
+                //     return {
+                //         success: false,
+                //         message: 'Role should not be provided for franchise staff',
+                //     };
+                // }
                 // If franchiseId is being updated, validate it exists
                 if (data.franchiseId) {
                     const franchiseExists = await agency_model_1.Agency.findById(data.franchiseId);

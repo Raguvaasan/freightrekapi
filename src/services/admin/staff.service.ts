@@ -109,39 +109,29 @@ export class StaffService {
 
       // Validate based on type
       if (data.type === 'head_quarter') {
-        // Head quarter staff must have roleId and must not have franchiseId
-        if (!data.roleId) {
-          return {
-            success: false,
-            message: 'Role is required for head quarter staff',
-          };
-        }
+        // Head quarter staff must not have franchiseId
         if (data.franchiseId) {
           return {
             success: false,
             message: 'Franchise should not be provided for head quarter staff',
           };
         }
-        // Validate roleId exists
-        const roleExists = await Role.findById(data.roleId);
-        if (!roleExists) {
-          return {
-            success: false,
-            message: 'Role not found',
-          };
+        // Validate roleId if provided
+        if (data.roleId) {
+          const roleExists = await Role.findById(data.roleId);
+          if (!roleExists) {
+            return {
+              success: false,
+              message: 'Role not found',
+            };
+          }
         }
       } else if (data.type === 'franchise') {
-        // Franchise staff must have franchiseId and must not have roleId
+        // Franchise staff must have franchiseId
         if (!data.franchiseId) {
           return {
             success: false,
             message: 'Franchise is required for franchise staff',
-          };
-        }
-        if (data.roleId) {
-          return {
-            success: false,
-            message: 'Role should not be provided for franchise staff',
           };
         }
         // Validate franchiseId exists
@@ -151,6 +141,16 @@ export class StaffService {
             success: false,
             message: 'Franchise not found',
           };
+        }
+        // Validate roleId if provided
+        if (data.roleId) {
+          const roleExists = await Role.findById(data.roleId);
+          if (!roleExists) {
+            return {
+              success: false,
+              message: 'Role not found',
+            };
+          }
         }
       }
 
@@ -361,12 +361,15 @@ export class StaffService {
           }
         }
       } else if (staffType === 'franchise') {
-        // Franchise staff must not have roleId
+        // If roleId is being updated, validate it exists
         if (data.roleId) {
-          return {
-            success: false,
-            message: 'Role should not be provided for franchise staff',
-          };
+          const roleExists = await Role.findById(data.roleId);
+          if (!roleExists) {
+            return {
+              success: false,
+              message: 'Role not found',
+            };
+          }
         }
         // If franchiseId is being updated, validate it exists
         if (data.franchiseId) {

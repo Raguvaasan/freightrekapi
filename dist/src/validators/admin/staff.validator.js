@@ -65,7 +65,7 @@ exports.createStaffSchema = yup.object({
             .when('type', {
             is: 'head_quarter',
             then: (schema) => schema.required('Role is required for head quarter staff'),
-            otherwise: (schema) => schema.test('no-role-for-franchise', 'Role should not be provided for franchise staff', (value) => !value),
+            // otherwise: (schema) => schema.test('no-role-for-franchise', 'Role should not be provided for franchise staff', (value) => !value),
         }),
         status: yup
             .string()
