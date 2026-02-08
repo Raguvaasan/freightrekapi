@@ -2,6 +2,7 @@ import axios from 'axios';
 import { Wallet } from '../models/wallet/wallet.model';
 import { Order } from '../models/wallet/order.model';
 import { Transaction } from '../models/wallet/transaction.model';
+import { Agency } from '../models/admin/agency.model';
 
 interface CreateOrderData {
   amount: number;
@@ -23,6 +24,8 @@ interface TransactionQuery {
   page: number;
   limit: number;
   type?: 'credit' | 'debit' | 'refund' | 'reversal';
+  isAdmin?: boolean;
+  franchiseUserIds?: string[];
 }
 
 export const walletService = {
@@ -293,9 +296,20 @@ export const walletService = {
 
   async getTransactions(query: TransactionQuery) {
     try {
-      const { userId, page, limit, type } = query;
+      const { userId, page, limit, type, isAdmin, franchiseUserIds } = query;
 
-      const filter: any = { userId };
+      // If admin, return all franchise transactions (not admin's own)
+      // Otherwise, filter by logged-in userId
+      const filter: any = {};
+      
+      if (isAdmin && franchiseUserIds && franchiseUserIds.length > 0) {
+        // Admin: show only franchise transactions
+        filter.userId = { $in: franchiseUserIds };
+      } else {
+        // Non-admin: show only their own transactions
+        filter.userId = userId;
+      }
+      
       if (type) {
         filter.type = type;
       }
@@ -310,9 +324,16 @@ export const walletService = {
 
       const total = await Transaction.countDocuments(filter);
 
-      // Format response
+      // Get unique userIds to fetch franchise names
+      const userIds = [...new Set(transactions.map(txn => txn.userId))];
+      const agencies = await Agency.find({ _id: { $in: userIds } }, 'agencyName');
+      const agencyMap = new Map(agencies.map(agency => [agency._id.toString(), agency.agencyName]));
+
+      // Format response with franchise names
       const formattedTransactions = transactions.map((txn) => ({
         id: txn.transactionId,
+        userId: txn.userId,
+        franchiseName: agencyMap.get(txn.userId) || 'Unknown',
         amount: txn.amount,
         type: txn.type,
         status: txn.status,

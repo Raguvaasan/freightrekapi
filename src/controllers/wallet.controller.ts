@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import crypto from 'crypto';
 import { walletService } from '../services/wallet.service';
+import { AdminUser } from '../models/admin/adminUser.model';
+import { Agency } from '../models/admin/agency.model';
 
 export const getBalance = async (req: Request, res: Response) => {
   try {
@@ -113,11 +115,29 @@ export const getTransactions = async (req: Request, res: Response) => {
     const limit = parseInt(req.query.limit as string) || 20;
     const type = req.query.type as 'credit' | 'debit' | 'refund' | 'reversal' | undefined;
 
+    // Check if user is admin
+    let isAdmin = false;
+    let franchiseUserIds: string[] = [];
+    
+    const user = await AdminUser.findById(userId).populate('roleId');
+    if (user && user.roleId) {
+      const role: any = user.roleId;
+      isAdmin = role.isRoot === true;
+      
+      // If admin, get all franchise (Agency) user IDs
+      if (isAdmin) {
+        const agencies = await Agency.find({}, '_id');
+        franchiseUserIds = agencies.map(agency => agency._id.toString());
+      }
+    }
+
     const result = await walletService.getTransactions({
       userId,
       page,
       limit,
       type,
+      isAdmin,
+      franchiseUserIds,
     });
 
     if (!result.success) {
