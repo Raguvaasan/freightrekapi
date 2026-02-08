@@ -11,6 +11,7 @@ import walletRoutes from "./routes/wallet.routes";
 import shipmentRoutes from "./routes/shipment.routes";
 import franchiseRoleRoutes from "./routes/admin/franchiseRole.routes";
 import dashboardRoutes from "./routes/dashboard.routes";
+import adminDashboardRoutes from "./routes/admin/dashboard.routes";
 import { cashfreeWebhook } from "./controllers/wallet.controller";
 
 const app = express();
@@ -103,6 +104,7 @@ app.get("/health", (req, res) => {
 
 app.use("/admin", authRoutes);
 app.use("/admin/franchise/role", franchiseRoleRoutes);
+app.use("/admin/dashboard", adminDashboardRoutes);
 app.use("/location", locationRoutes);
 app.use("/api/v1/settings", markupRoutes);
 app.use("/api/wallet", walletRoutes);
