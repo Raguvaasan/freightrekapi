@@ -1,5 +1,8 @@
 import axios from 'axios';
 import { Shipment } from '../models/shipment/shipment.model';
+import { Wallet } from '../models/wallet/wallet.model';
+import { Transaction } from '../models/wallet/transaction.model';
+import { Agency } from '../models/admin/agency.model';
 
 interface CreateShipmentData {
   userId: string;
@@ -45,6 +48,51 @@ export const shipmentService = {
 
       // Generate unique order ID if not provided
       const orderId = `ORD_${userId}_${Date.now()}`;
+
+      // Handle Prepaid payment - Deduct from wallet
+      if (shipmentData.paymentMode === 'Prepaid') {
+        const amount = parseFloat(shipmentData.totalAmount || '0');
+        
+        if (amount <= 0) {
+          return {
+            success: false,
+            message: 'Invalid amount for prepaid order',
+          };
+        }
+
+        // Check wallet balance
+        let wallet = await Wallet.findOne({ userId });
+        if (!wallet) {
+          wallet = await Wallet.create({ userId, balance: 0 });
+        }
+
+        if (wallet.balance < amount) {
+          return {
+            success: false,
+            message: `Insufficient wallet balance. Available: ₹${wallet.balance}, Required: ₹${amount}`,
+          };
+        }
+
+        // Deduct amount from wallet
+        const balanceBefore = wallet.balance;
+        wallet.balance -= amount;
+        await wallet.save();
+
+        // Create debit transaction
+        const transactionId = `TXN_${orderId}_${Date.now()}`;
+        await Transaction.create({
+          transactionId,
+          userId,
+          orderId,
+          amount,
+          type: 'debit',
+          status: 'completed',
+          description: `Prepaid order - ${orderId}`,
+          paymentMethod: 'wallet',
+          balanceBefore,
+          balanceAfter: wallet.balance,
+        });
+      }
 
       // Create shipment in database
       const shipment = await Shipment.create({
@@ -203,9 +251,20 @@ export const shipmentService = {
     }
   },
 
-  async getShipments(userId: string, page: number = 1, limit: number = 20, status?: string) {
+  async getShipments(userId: string, page: number = 1, limit: number = 20, status?: string, isAdmin?: boolean, franchiseUserIds?: string[]) {
     try {
-      const query: any = { userId };
+      // If admin, show all franchise orders (not admin's own)
+      // Otherwise, filter by logged-in userId
+      const query: any = {};
+      
+      if (isAdmin && franchiseUserIds && franchiseUserIds.length > 0) {
+        // Admin: show only franchise orders
+        query.userId = { $in: franchiseUserIds };
+      } else {
+        // Non-admin: show only their own orders
+        query.userId = userId;
+      }
+      
       if (status) {
         query.status = status;
       }
@@ -220,17 +279,24 @@ export const shipmentService = {
 
       const total = await Shipment.countDocuments(query);
 
+      // Get unique userIds to fetch franchise names
+      const userIds = [...new Set(shipments.map(s => s.userId))];
+      const agencies = await Agency.find({ _id: { $in: userIds } }, 'agencyName');
+      const agencyMap = new Map(agencies.map(agency => [agency._id.toString(), agency.agencyName]));
+
       return {
         success: true,
         data: shipments.map((s) => ({
           orderId: s.orderId,
+          userId: s.userId,
+          franchiseName: agencyMap.get(s.userId) || 'Unknown',
           bookingId: s.waybill,
           status: s.status,
           consigneeName: s.name,
           consigneeNumber: s.phone,
           city: s.city,
           paymentMode: s.paymentMode,
-          amount: s.paymentMode === 'COD' ? s.codAmount : s.totalAmount,
+          amount: s.codAmount || s.totalAmount || '0',
           createdAt: s.createdAt,
         })),
         pagination: {

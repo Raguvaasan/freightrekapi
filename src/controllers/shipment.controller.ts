@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import { shipmentService } from '../services/shipment.service';
+import { AdminUser } from '../models/admin/adminUser.model';
+import { Agency } from '../models/admin/agency.model';
 
 export const createShipment = async (req: Request, res: Response) => {
   try {
@@ -79,7 +81,23 @@ export const getShipments = async (req: Request, res: Response) => {
     const limit = parseInt(req.query.limit as string) || 20;
     const status = req.query.status as string;
 
-    const result = await shipmentService.getShipments(userId, page, limit, status);
+    // Check if user is admin
+    let isAdmin = false;
+    let franchiseUserIds: string[] = [];
+    
+    const user = await AdminUser.findById(userId).populate('roleId');
+    if (user && user.roleId) {
+      const role: any = user.roleId;
+      isAdmin = role.isRoot === true;
+      
+      // If admin, get all franchise (Agency) user IDs
+      if (isAdmin) {
+        const agencies = await Agency.find({}, '_id');
+        franchiseUserIds = agencies.map(agency => agency._id.toString());
+      }
+    }
+
+    const result = await shipmentService.getShipments(userId, page, limit, status, isAdmin, franchiseUserIds);
 
     if (!result.success) {
       return res.status(400).json(result);
