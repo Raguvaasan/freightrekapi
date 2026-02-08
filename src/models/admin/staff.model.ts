@@ -40,8 +40,8 @@ const staffSchema = new Schema<IStaff>(
     },
     roleId: {
       type: Schema.Types.ObjectId,
-      ref: 'AdminRole',
       required: false,
+      // No fixed ref - can be AdminRole or FranchiseRole
     },
     status: {
       type: String,

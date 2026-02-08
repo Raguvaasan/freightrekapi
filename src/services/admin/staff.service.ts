@@ -42,7 +42,6 @@ export class StaffService {
       // Find staff by username
       const staff = await Staff.findOne({ username })
         .select('+password')
-        .populate('roleId', 'name permissions')
         .populate('franchiseId', 'agencyName');
 
       if (!staff) {
@@ -68,6 +67,21 @@ export class StaffService {
           success: false,
           message: 'Staff account is inactive',
         };
+      }
+
+      // Manually populate roleId - check both AdminRole and FranchiseRole
+      if (staff.roleId) {
+        let roleData: any = await Role.findById(staff.roleId).select('name permissions').lean();
+        if (!roleData) {
+          roleData = await FranchiseRole.findById(staff.roleId).select('roleName permissions').lean();
+          if (roleData) {
+            // Map roleName to name for consistency
+            roleData = { ...roleData, name: roleData.roleName };
+          }
+        }
+        if (roleData) {
+          (staff as any).roleId = roleData;
+        }
       }
 
       // Remove password from response
@@ -166,16 +180,24 @@ export class StaffService {
 
       await staff.save();
       
-      // Build populate query based on what fields exist
-      let query = Staff.findById(staff._id);
-      if (data.roleId) {
-        query = query.populate('roleId', 'name permissions');
-      }
-      if (data.franchiseId) {
-        query = query.populate('franchiseId', 'agencyName agencyOwner');
-      }
+      // Fetch created staff and manually populate roleId from correct collection
+      const populatedStaff = await Staff.findById(staff._id)
+        .populate('franchiseId', 'agencyName agencyOwner');
       
-      const populatedStaff = await query;
+      // Manually populate roleId - check both AdminRole and FranchiseRole
+      if (populatedStaff && populatedStaff.roleId) {
+        let roleData: any = await Role.findById(populatedStaff.roleId).select('name permissions').lean();
+        if (!roleData) {
+          roleData = await FranchiseRole.findById(populatedStaff.roleId).select('roleName permissions').lean();
+          if (roleData) {
+            // Map roleName to name for consistency
+            roleData = { ...roleData, name: roleData.roleName };
+          }
+        }
+        if (roleData) {
+          (populatedStaff as any).roleId = roleData;
+        }
+      }
 
       return {
         success: true,
@@ -232,8 +254,24 @@ export class StaffService {
         .skip(skip)
         .limit(limit)
         .sort({ createdAt: -1 })
-        .populate('roleId', 'name permissions')
         .populate('franchiseId', 'agencyName agencyOwner');
+
+      // Manually populate roleId for each staff - check both AdminRole and FranchiseRole
+      for (const s of staff) {
+        if (s.roleId) {
+          let roleData: any = await Role.findById(s.roleId).select('name permissions').lean();
+          if (!roleData) {
+            roleData = await FranchiseRole.findById(s.roleId).select('roleName permissions').lean();
+            if (roleData) {
+              // Map roleName to name for consistency
+              roleData = { ...roleData, name: roleData.roleName };
+            }
+          }
+          if (roleData) {
+            (s as any).roleId = roleData;
+          }
+        }
+      }
 
       const total = await Staff.countDocuments(query);
 
@@ -268,7 +306,6 @@ export class StaffService {
       }
 
       const staff = await Staff.findById(id)
-        .populate('roleId', 'name permissions')
         .populate('franchiseId', 'agencyName agencyOwner');
 
       if (!staff) {
@@ -276,6 +313,21 @@ export class StaffService {
           success: false,
           message: 'Staff not found',
         };
+      }
+
+      // Manually populate roleId - check both AdminRole and FranchiseRole
+      if (staff.roleId) {
+        let roleData: any = await Role.findById(staff.roleId).select('name permissions').lean();
+        if (!roleData) {
+          roleData = await FranchiseRole.findById(staff.roleId).select('roleName permissions').lean();
+          if (roleData) {
+            // Map roleName to name for consistency
+            roleData = { ...roleData, name: roleData.roleName };
+          }
+        }
+        if (roleData) {
+          (staff as any).roleId = roleData;
+        }
       }
 
       return {
@@ -400,16 +452,24 @@ export class StaffService {
 
       await staff.save();
       
-      // Build populate query based on what fields exist
-      let query = Staff.findById(id);
-      if (staff.roleId) {
-        query = query.populate('roleId', 'name permissions');
-      }
-      if (staff.franchiseId) {
-        query = query.populate('franchiseId', 'agencyName agencyOwner');
-      }
+      // Fetch updated staff and manually populate roleId from correct collection
+      const updatedStaff = await Staff.findById(id)
+        .populate('franchiseId', 'agencyName agencyOwner');
       
-      const updatedStaff = await query;
+      // Manually populate roleId - check both AdminRole and FranchiseRole
+      if (updatedStaff && updatedStaff.roleId) {
+        let roleData: any = await Role.findById(updatedStaff.roleId).select('name permissions').lean();
+        if (!roleData) {
+          roleData = await FranchiseRole.findById(updatedStaff.roleId).select('roleName permissions').lean();
+          if (roleData) {
+            // Map roleName to name for consistency
+            roleData = { ...roleData, name: roleData.roleName };
+          }
+        }
+        if (roleData) {
+          (updatedStaff as any).roleId = roleData;
+        }
+      }
 
       return {
         success: true,
