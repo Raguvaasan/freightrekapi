@@ -10,6 +10,7 @@ import markupRoutes from "./routes/markup.routes";
 import walletRoutes from "./routes/wallet.routes";
 import shipmentRoutes from "./routes/shipment.routes";
 import franchiseRoleRoutes from "./routes/admin/franchiseRole.routes";
+import dashboardRoutes from "./routes/dashboard.routes";
 import { cashfreeWebhook } from "./controllers/wallet.controller";
 
 const app = express();
@@ -106,6 +107,7 @@ app.use("/location", locationRoutes);
 app.use("/api/v1/settings", markupRoutes);
 app.use("/api/wallet", walletRoutes);
 app.use("/api/shipment", shipmentRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
 // Webhook endpoint (no auth, verified by signature)
 app.post("/webhook/cashfree", cashfreeWebhook);
