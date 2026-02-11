@@ -6,6 +6,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.cashfreeWebhook = exports.getTransactions = exports.verifyPayment = exports.createPaymentOrder = exports.getBalance = void 0;
 const crypto_1 = __importDefault(require("crypto"));
 const wallet_service_1 = require("../services/wallet.service");
+const adminUser_model_1 = require("../models/admin/adminUser.model");
+const agency_model_1 = require("../models/admin/agency.model");
 const getBalance = async (req, res) => {
     try {
         const userId = req.user?.id;
@@ -104,11 +106,26 @@ const getTransactions = async (req, res) => {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
         const type = req.query.type;
+        // Check if user is admin
+        let isAdmin = false;
+        let franchiseUserIds = [];
+        const user = await adminUser_model_1.AdminUser.findById(userId).populate('roleId');
+        if (user && user.roleId) {
+            const role = user.roleId;
+            isAdmin = role.isRoot === true;
+            // If admin, get all franchise (Agency) user IDs
+            if (isAdmin) {
+                const agencies = await agency_model_1.Agency.find({}, '_id');
+                franchiseUserIds = agencies.map(agency => agency._id.toString());
+            }
+        }
         const result = await wallet_service_1.walletService.getTransactions({
             userId,
             page,
             limit,
             type,
+            isAdmin,
+            franchiseUserIds,
         });
         if (!result.success) {
             return res.status(400).json(result);

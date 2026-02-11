@@ -6,17 +6,17 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.staffService = exports.StaffService = void 0;
 const staff_model_1 = require("../../models/admin/staff.model");
 const role_model_1 = require("../../models/admin/role.model");
+const franchiseRole_model_1 = require("../../models/admin/franchiseRole.model");
 const agency_model_1 = require("../../models/admin/agency.model");
 const mongoose_1 = require("mongoose");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 class StaffService {
-    // Staff Login
+    // Staff Login (Generic - for backward compatibility)
     async loginStaff(username, password) {
         try {
             // Find staff by username
             const staff = await staff_model_1.Staff.findOne({ username })
                 .select('+password')
-                .populate('roleId', 'name permissions')
                 .populate('franchiseId', 'agencyName');
             if (!staff) {
                 return {
@@ -39,12 +39,146 @@ class StaffService {
                     message: 'Staff account is inactive',
                 };
             }
+            // Manually populate roleId - check both AdminRole and FranchiseRole
+            if (staff.roleId) {
+                let roleData = await role_model_1.Role.findById(staff.roleId).select('name permissions').lean();
+                if (!roleData) {
+                    roleData = await franchiseRole_model_1.FranchiseRole.findById(staff.roleId).select('roleName permissions').lean();
+                    if (roleData) {
+                        // Map roleName to name for consistency
+                        roleData = { ...roleData, name: roleData.roleName };
+                    }
+                }
+                if (roleData) {
+                    staff.roleId = roleData;
+                }
+            }
             // Remove password from response
             const staffData = staff.toObject();
             delete staffData.password;
             return {
                 success: true,
                 message: 'Login successful',
+                data: staffData,
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                message: error.message || 'Error during login',
+            };
+        }
+    }
+    // Franchise Staff Login (Specific)
+    async loginFranchiseStaff(username, password) {
+        try {
+            // Find staff by username
+            const staff = await staff_model_1.Staff.findOne({ username })
+                .select('+password')
+                .populate('franchiseId', 'agencyName');
+            if (!staff) {
+                return {
+                    success: false,
+                    message: 'Invalid credentials',
+                };
+            }
+            // Check if staff type is franchise
+            if (staff.type !== 'franchise') {
+                return {
+                    success: false,
+                    message: 'Invalid credentials. This is not a franchise staff account.',
+                };
+            }
+            // Verify franchiseId exists
+            if (!staff.franchiseId) {
+                return {
+                    success: false,
+                    message: 'Franchise information missing. Contact administrator.',
+                };
+            }
+            // Verify password
+            const isPasswordValid = await bcryptjs_1.default.compare(password, staff.password);
+            if (!isPasswordValid) {
+                return {
+                    success: false,
+                    message: 'Invalid credentials',
+                };
+            }
+            // Check if staff is active
+            if (staff.status !== 'Active') {
+                return {
+                    success: false,
+                    message: 'Staff account is inactive',
+                };
+            }
+            // Remove password from response
+            const staffData = staff.toObject();
+            delete staffData.password;
+            return {
+                success: true,
+                message: 'Franchise staff login successful',
+                data: staffData,
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                message: error.message || 'Error during login',
+            };
+        }
+    }
+    // Head Quarter Staff Login (Specific)
+    async loginHeadQuarterStaff(username, password) {
+        try {
+            // Find staff by username
+            const staff = await staff_model_1.Staff.findOne({ username })
+                .select('+password');
+            if (!staff) {
+                return {
+                    success: false,
+                    message: 'Invalid credentials',
+                };
+            }
+            // Check if staff type is head_quarter
+            if (staff.type !== 'head_quarter') {
+                return {
+                    success: false,
+                    message: 'Invalid credentials. This is not a head quarter staff account.',
+                };
+            }
+            // Verify roleId exists
+            if (!staff.roleId) {
+                return {
+                    success: false,
+                    message: 'Role information missing. Contact administrator.',
+                };
+            }
+            // Verify password
+            const isPasswordValid = await bcryptjs_1.default.compare(password, staff.password);
+            if (!isPasswordValid) {
+                return {
+                    success: false,
+                    message: 'Invalid credentials',
+                };
+            }
+            // Check if staff is active
+            if (staff.status !== 'Active') {
+                return {
+                    success: false,
+                    message: 'Staff account is inactive',
+                };
+            }
+            // Populate roleId from AdminRole
+            let roleData = await role_model_1.Role.findById(staff.roleId).select('name permissions').lean();
+            if (roleData) {
+                staff.roleId = roleData;
+            }
+            // Remove password from response
+            const staffData = staff.toObject();
+            delete staffData.password;
+            return {
+                success: true,
+                message: 'Head quarter staff login successful',
                 data: staffData,
             };
         }
@@ -76,42 +210,32 @@ class StaffService {
             }
             // Validate based on type
             if (data.type === 'head_quarter') {
-                // Head quarter staff must have roleId and must not have franchiseId
-                if (!data.roleId) {
-                    return {
-                        success: false,
-                        message: 'Role is required for head quarter staff',
-                    };
-                }
+                // Head quarter staff must not have franchiseId
                 if (data.franchiseId) {
                     return {
                         success: false,
                         message: 'Franchise should not be provided for head quarter staff',
                     };
                 }
-                // Validate roleId exists
-                const roleExists = await role_model_1.Role.findById(data.roleId);
-                if (!roleExists) {
-                    return {
-                        success: false,
-                        message: 'Role not found',
-                    };
+                // Validate roleId if provided
+                if (data.roleId) {
+                    const roleExists = await role_model_1.Role.findById(data.roleId) || await franchiseRole_model_1.FranchiseRole.findById(data.roleId);
+                    if (!roleExists) {
+                        return {
+                            success: false,
+                            message: 'Role not found',
+                        };
+                    }
                 }
             }
             else if (data.type === 'franchise') {
-                // Franchise staff must have franchiseId and must not have roleId
+                // Franchise staff must have franchiseId
                 if (!data.franchiseId) {
                     return {
                         success: false,
                         message: 'Franchise is required for franchise staff',
                     };
                 }
-                // if (data.roleId) {
-                //     return {
-                //         success: false,
-                //         message: 'Role should not be provided for franchise staff',
-                //     };
-                // }
                 // Validate franchiseId exists
                 const franchiseExists = await agency_model_1.Agency.findById(data.franchiseId);
                 if (!franchiseExists) {
@@ -119,6 +243,16 @@ class StaffService {
                         success: false,
                         message: 'Franchise not found',
                     };
+                }
+                // Validate roleId if provided (check both AdminRole and FranchiseRole)
+                if (data.roleId) {
+                    const roleExists = await role_model_1.Role.findById(data.roleId) || await franchiseRole_model_1.FranchiseRole.findById(data.roleId);
+                    if (!roleExists) {
+                        return {
+                            success: false,
+                            message: 'Role not found',
+                        };
+                    }
                 }
             }
             // Hash password
@@ -129,15 +263,23 @@ class StaffService {
                 password: hashedPassword,
             });
             await staff.save();
-            // Build populate query based on what fields exist
-            let query = staff_model_1.Staff.findById(staff._id);
-            if (data.roleId) {
-                query = query.populate('roleId', 'name permissions');
+            // Fetch created staff and manually populate roleId from correct collection
+            const populatedStaff = await staff_model_1.Staff.findById(staff._id)
+                .populate('franchiseId', 'agencyName agencyOwner');
+            // Manually populate roleId - check both AdminRole and FranchiseRole
+            if (populatedStaff && populatedStaff.roleId) {
+                let roleData = await role_model_1.Role.findById(populatedStaff.roleId).select('name permissions').lean();
+                if (!roleData) {
+                    roleData = await franchiseRole_model_1.FranchiseRole.findById(populatedStaff.roleId).select('roleName permissions').lean();
+                    if (roleData) {
+                        // Map roleName to name for consistency
+                        roleData = { ...roleData, name: roleData.roleName };
+                    }
+                }
+                if (roleData) {
+                    populatedStaff.roleId = roleData;
+                }
             }
-            if (data.franchiseId) {
-                query = query.populate('franchiseId', 'agencyName agencyOwner');
-            }
-            const populatedStaff = await query;
             return {
                 success: true,
                 message: 'Staff created successfully',
@@ -181,8 +323,23 @@ class StaffService {
                 .skip(skip)
                 .limit(limit)
                 .sort({ createdAt: -1 })
-                .populate('roleId', 'name permissions')
                 .populate('franchiseId', 'agencyName agencyOwner');
+            // Manually populate roleId for each staff - check both AdminRole and FranchiseRole
+            for (const s of staff) {
+                if (s.roleId) {
+                    let roleData = await role_model_1.Role.findById(s.roleId).select('name permissions').lean();
+                    if (!roleData) {
+                        roleData = await franchiseRole_model_1.FranchiseRole.findById(s.roleId).select('roleName permissions').lean();
+                        if (roleData) {
+                            // Map roleName to name for consistency
+                            roleData = { ...roleData, name: roleData.roleName };
+                        }
+                    }
+                    if (roleData) {
+                        s.roleId = roleData;
+                    }
+                }
+            }
             const total = await staff_model_1.Staff.countDocuments(query);
             return {
                 success: true,
@@ -214,13 +371,26 @@ class StaffService {
                 };
             }
             const staff = await staff_model_1.Staff.findById(id)
-                .populate('roleId', 'name permissions')
                 .populate('franchiseId', 'agencyName agencyOwner');
             if (!staff) {
                 return {
                     success: false,
                     message: 'Staff not found',
                 };
+            }
+            // Manually populate roleId - check both AdminRole and FranchiseRole
+            if (staff.roleId) {
+                let roleData = await role_model_1.Role.findById(staff.roleId).select('name permissions').lean();
+                if (!roleData) {
+                    roleData = await franchiseRole_model_1.FranchiseRole.findById(staff.roleId).select('roleName permissions').lean();
+                    if (roleData) {
+                        // Map roleName to name for consistency
+                        roleData = { ...roleData, name: roleData.roleName };
+                    }
+                }
+                if (roleData) {
+                    staff.roleId = roleData;
+                }
             }
             return {
                 success: true,
@@ -289,7 +459,7 @@ class StaffService {
                 }
                 // If roleId is being updated, validate it exists
                 if (data.roleId) {
-                    const roleExists = await role_model_1.Role.findById(data.roleId);
+                    const roleExists = await role_model_1.Role.findById(data.roleId) || await franchiseRole_model_1.FranchiseRole.findById(data.roleId);
                     if (!roleExists) {
                         return {
                             success: false,
@@ -299,13 +469,16 @@ class StaffService {
                 }
             }
             else if (staffType === 'franchise') {
-                // Franchise staff must not have roleId
-                // if (data.roleId) {
-                //     return {
-                //         success: false,
-                //         message: 'Role should not be provided for franchise staff',
-                //     };
-                // }
+                // If roleId is being updated, validate it exists
+                if (data.roleId) {
+                    const roleExists = await role_model_1.Role.findById(data.roleId) || await franchiseRole_model_1.FranchiseRole.findById(data.roleId);
+                    if (!roleExists) {
+                        return {
+                            success: false,
+                            message: 'Role not found',
+                        };
+                    }
+                }
                 // If franchiseId is being updated, validate it exists
                 if (data.franchiseId) {
                     const franchiseExists = await agency_model_1.Agency.findById(data.franchiseId);
@@ -330,15 +503,23 @@ class StaffService {
                 }
             });
             await staff.save();
-            // Build populate query based on what fields exist
-            let query = staff_model_1.Staff.findById(id);
-            if (staff.roleId) {
-                query = query.populate('roleId', 'name permissions');
+            // Fetch updated staff and manually populate roleId from correct collection
+            const updatedStaff = await staff_model_1.Staff.findById(id)
+                .populate('franchiseId', 'agencyName agencyOwner');
+            // Manually populate roleId - check both AdminRole and FranchiseRole
+            if (updatedStaff && updatedStaff.roleId) {
+                let roleData = await role_model_1.Role.findById(updatedStaff.roleId).select('name permissions').lean();
+                if (!roleData) {
+                    roleData = await franchiseRole_model_1.FranchiseRole.findById(updatedStaff.roleId).select('roleName permissions').lean();
+                    if (roleData) {
+                        // Map roleName to name for consistency
+                        roleData = { ...roleData, name: roleData.roleName };
+                    }
+                }
+                if (roleData) {
+                    updatedStaff.roleId = roleData;
+                }
             }
-            if (staff.franchiseId) {
-                query = query.populate('franchiseId', 'agencyName agencyOwner');
-            }
-            const updatedStaff = await query;
             return {
                 success: true,
                 message: 'Staff updated successfully',

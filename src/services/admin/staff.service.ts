@@ -36,7 +36,7 @@ interface UpdateStaffInput {
 }
 
 export class StaffService {
-  // Staff Login
+  // Staff Login (Generic - for backward compatibility)
   async loginStaff(username: string, password: string): Promise<ServiceResponse> {
     try {
       // Find staff by username
@@ -91,6 +91,143 @@ export class StaffService {
       return {
         success: true,
         message: 'Login successful',
+        data: staffData,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Error during login',
+      };
+    }
+  }
+
+  // Franchise Staff Login (Specific)
+  async loginFranchiseStaff(username: string, password: string): Promise<ServiceResponse> {
+    try {
+      // Find staff by username
+      const staff = await Staff.findOne({ username })
+        .select('+password')
+        .populate('franchiseId', 'agencyName');
+
+      if (!staff) {
+        return {
+          success: false,
+          message: 'Invalid credentials',
+        };
+      }
+
+      // Check if staff type is franchise
+      if (staff.type !== 'franchise') {
+        return {
+          success: false,
+          message: 'Invalid credentials. This is not a franchise staff account.',
+        };
+      }
+
+      // Verify franchiseId exists
+      if (!staff.franchiseId) {
+        return {
+          success: false,
+          message: 'Franchise information missing. Contact administrator.',
+        };
+      }
+
+      // Verify password
+      const isPasswordValid = await bcrypt.compare(password, staff.password);
+
+      if (!isPasswordValid) {
+        return {
+          success: false,
+          message: 'Invalid credentials',
+        };
+      }
+
+      // Check if staff is active
+      if (staff.status !== 'Active') {
+        return {
+          success: false,
+          message: 'Staff account is inactive',
+        };
+      }
+
+      // Remove password from response
+      const staffData: any = staff.toObject();
+      delete staffData.password;
+
+      return {
+        success: true,
+        message: 'Franchise staff login successful',
+        data: staffData,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Error during login',
+      };
+    }
+  }
+
+  // Head Quarter Staff Login (Specific)
+  async loginHeadQuarterStaff(username: string, password: string): Promise<ServiceResponse> {
+    try {
+      // Find staff by username
+      const staff = await Staff.findOne({ username })
+        .select('+password');
+
+      if (!staff) {
+        return {
+          success: false,
+          message: 'Invalid credentials',
+        };
+      }
+
+      // Check if staff type is head_quarter
+      if (staff.type !== 'head_quarter') {
+        return {
+          success: false,
+          message: 'Invalid credentials. This is not a head quarter staff account.',
+        };
+      }
+
+      // Verify roleId exists
+      if (!staff.roleId) {
+        return {
+          success: false,
+          message: 'Role information missing. Contact administrator.',
+        };
+      }
+
+      // Verify password
+      const isPasswordValid = await bcrypt.compare(password, staff.password);
+
+      if (!isPasswordValid) {
+        return {
+          success: false,
+          message: 'Invalid credentials',
+        };
+      }
+
+      // Check if staff is active
+      if (staff.status !== 'Active') {
+        return {
+          success: false,
+          message: 'Staff account is inactive',
+        };
+      }
+
+      // Populate roleId from AdminRole
+      let roleData: any = await Role.findById(staff.roleId).select('name permissions').lean();
+      if (roleData) {
+        (staff as any).roleId = roleData;
+      }
+
+      // Remove password from response
+      const staffData: any = staff.toObject();
+      delete staffData.password;
+
+      return {
+        success: true,
+        message: 'Head quarter staff login successful',
         data: staffData,
       };
     } catch (error: any) {

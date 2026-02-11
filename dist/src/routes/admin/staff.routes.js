@@ -41,6 +41,68 @@ const router = (0, express_1.Router)();
 router.post('/login', (0, validate_middleware_1.validate)(staff_validator_1.staffLoginSchema), staff_controller_1.loginStaff);
 /**
  * @swagger
+ * /admin/staff/login/franchise:
+ *   post:
+ *     summary: Franchise staff login (only for franchise staff)
+ *     tags: [Staff Management]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *               - password
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 example: franchisestaff
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 example: password123
+ *     responses:
+ *       200:
+ *         description: Franchise staff login successful
+ *       401:
+ *         description: Invalid credentials or not a franchise staff
+ */
+router.post('/login/franchise', (0, validate_middleware_1.validate)(staff_validator_1.staffLoginSchema), staff_controller_1.loginFranchiseStaff);
+/**
+ * @swagger
+ * /admin/staff/login/headquarter:
+ *   post:
+ *     summary: Head quarter staff login (only for HQ staff)
+ *     tags: [Staff Management]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *               - password
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 example: hqstaff
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 example: password123
+ *     responses:
+ *       200:
+ *         description: Head quarter staff login successful
+ *       401:
+ *         description: Invalid credentials or not a head quarter staff
+ */
+router.post('/login/headquarter', (0, validate_middleware_1.validate)(staff_validator_1.staffLoginSchema), staff_controller_1.loginHeadQuarterStaff);
+/**
+ * @swagger
  * /admin/staff:
  *   get:
  *     summary: Get all staff with pagination (Public)

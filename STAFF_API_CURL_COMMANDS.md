@@ -7,63 +7,347 @@
 
 > Replace the base URL in the commands below based on your environment.
 
-## 1. Staff Login
+## 1. Staff Login 🔐
+
+> **Authentication:** Not required for login endpoint  
+> **Available for:** Both Head Quarter staff and Franchise staff
+
+### 🎯 Separate Login Endpoints (Recommended)
+
+Now franchise staff and head quarter staff have **separate login endpoints** to prevent confusion:
+
+- **Franchise Staff**: `/admin/staff/login/franchise` 
+- **Head Quarter Staff**: `/admin/staff/login/headquarter`
+- **Generic (Both)**: `/admin/staff/login` (backward compatibility)
+
+---
+
+### 1.1 🏢 Franchise Staff Login (Franchise Only)
+
+**Endpoint:** `POST /admin/staff/login/franchise`
+
+✅ **Only franchise staff** can login through this endpoint  
+❌ Head quarter staff will be **rejected** with error message
+
+**Local:**
+```bash
+curl -X POST http://localhost:3000/admin/staff/login/franchise \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "raguvasans46@gmail.com",
+    "password": "Admin@123"
+  }'
+```
+
+**Production:**
+```bash
+curl -X POST https://freightrekapi.vercel.app/admin/staff/login/franchise \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "raguvasans46@gmail.com",
+    "password": "Admin@123"
+  }'
+```
+
+**PowerShell:**
+```powershell
+Invoke-RestMethod -Uri "https://freightrekapi.vercel.app/admin/staff/login/franchise" `
+  -Method POST `
+  -ContentType "application/json" `
+  -Body (@{
+    username = "raguvasans46@gmail.com"
+    password = "Admin@123"
+  } | ConvertTo-Json)
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Franchise staff login successful",
+  "data": {
+    "_id": "698cb058276ccedd504da48b",
+    "name": "Raguvasans Franchise Staff",
+    "email": "raguvasans46@gmail.com",
+    "phone": "1234567890",
+    "type": "franchise",
+    "username": "raguvasans46@gmail.com",
+    "status": "Active",
+    "franchiseId": {
+      "_id": "695fcf4ef80198a959bc0125",
+      "agencyName": "Test"
+    },
+    "createdAt": "2026-02-11T10:30:00.000Z",
+    "updatedAt": "2026-02-11T10:30:00.000Z"
+  }
+}
+```
+
+**Error - Not a Franchise Staff (401):**
+```json
+{
+  "success": false,
+  "message": "Invalid credentials. This is not a franchise staff account."
+}
+```
+
+---
+
+### 1.2 🏛️ Head Quarter Staff Login (HQ Only)
+
+**Endpoint:** `POST /admin/staff/login/headquarter`
+
+✅ **Only head quarter staff** can login through this endpoint  
+❌ Franchise staff will be **rejected** with error message
+
+**Local:**
+```bash
+curl -X POST http://localhost:3000/admin/staff/login/headquarter \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "johndoe",
+    "password": "password123"
+  }'
+```
+
+**Production:**
+```bash
+curl -X POST https://freightrekapi.vercel.app/admin/staff/login/headquarter \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "johndoe",
+    "password": "password123"
+  }'
+```
+
+**PowerShell:**
+```powershell
+Invoke-RestMethod -Uri "https://freightrekapi.vercel.app/admin/staff/login/headquarter" `
+  -Method POST `
+  -ContentType "application/json" `
+  -Body (@{
+    username = "johndoe"
+    password = "password123"
+  } | ConvertTo-Json)
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Head quarter staff login successful",
+  "data": {
+    "_id": "65abc123def456789",
+    "name": "John Doe",
+    "email": "john@example.com",
+    "phone": "1234567890",
+    "type": "head_quarter",
+    "username": "johndoe",
+    "status": "Active",
+    "roleId": {
+      "_id": "65role123abc456",
+      "name": "Operations Manager",
+      "permissions": [
+        {
+          "module": "Staff Management",
+          "read": true,
+          "write": true,
+          "update": true,
+          "delete": false
+        }
+      ]
+    },
+    "createdAt": "2026-02-10T10:30:00.000Z",
+    "updatedAt": "2026-02-10T10:30:00.000Z"
+  }
+}
+```
+
+**Error - Not a Head Quarter Staff (401):**
+```json
+{
+  "success": false,
+  "message": "Invalid credentials. This is not a head quarter staff account."
+}
+```
+
+---
+
+### 1.3 🔄 Generic Staff Login (Backward Compatibility)
+
+**Endpoint:** `POST /admin/staff/login`
+
+This endpoint accepts **both** franchise and head quarter staff. Use this for backward compatibility only.
 
 **Local:**
 ```bash
 curl -X POST http://localhost:3000/admin/staff/login \
   -H "Content-Type: application/json" \
-  -d "{
-    \"username\": \"johndoe\",
-    \"password\": \"password123\"
-  }"
+  -d '{
+    "username": "johndoe",
+    "password": "password123"
+  }'
 ```
 
 **Production:**
 ```bash
 curl -X POST https://freightrekapi.vercel.app/admin/staff/login \
-**Local:**
-```bash
-curl -X POST http://localhost:3000/admin/staff \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -d "{
-    \"name\": \"John Doe\",
-    \"email\": \"john@example.com\",
-    \"phone\": \"1234567890\",
-    \"type\": \"head_quarter\",
-    \"roleId\": \"65abc123def456789\",
-    \"username\": \"johndoe\",
-    \"password\": \"password123\",
-    \"status\": \"Active\"
-  }"
+  -d '{
+    "username": "johndoe",
+    "password": "password123"
+  }'
 ```
 
-**Production:**
-```bash
-curl -X POST https://freightrekapi.vercel.app
-    \"username\": \"johndoe\",
-**Local:**
-```bash
-curl -X POST http://localhost:3000/admin/staff \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -d "{
-    \"name\": \"Jane Smith\",
-    \"email\": \"jane@example.com\",
-    \"phone\": \"0987654321\",
-    \"type\": \"franchise\",
-    \"franchiseId\": \"65xyz789abc123456\",
-    \"username\": \"janesmith\",
-    \"password\": \"password123\",
-    \"status\": \"Active\"
-  }"
+---
+
+### Login Error Responses
+
+**❌ Invalid Credentials (401):**
+```json
+{
+  "success": false,
+  "message": "Invalid credentials"
+}
 ```
 
-**Production:**
-```bash
-curl -X POST https://freightrekapi.vercel.app
+**❌ Inactive Account (401):**
+```json
+{
+  "success": false,
+  "message": "Staff account is inactive"
+}
 ```
+
+**❌ Validation Error (400):**
+```json
+{
+  "success": false,
+  "message": "username is required"
+}
+```
+
+**❌ Server Error (500):**
+```json
+{
+  "success": false,
+  "message": "Error during login"
+}
+```
+
+---
+
+### Quick Test Commands
+
+**Using environment variables (Recommended):**
+
+```bash
+# Set base URL
+export BASE_URL="https://freightrekapi.vercel.app"
+
+# Test Head Quarter Staff Login
+curl -X POST "$BASE_URL/admin/staff/login" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "johndoe",
+    "password": "password123"
+  }'
+
+# Test Franchise Staff Login
+curl -X POST "$BASE_URL/admin/staff/login" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "janesmith",
+    "password": "password123"
+  }'
+```
+
+**PowerShell version:**
+```powershell
+# Set base URL
+$BASE_URL = "https://freightrekapi.vercel.app"
+
+# Test Staff Login
+Invoke-RestMethod -Uri "$BASE_URL/admin/staff/login" `
+  -Method POST `
+  -ContentType "application/json" `
+  -Body (@{
+    username = "johndoe"
+    password = "password123"
+  } | ConvertTo-Json)
+```
+
+---
+
+### Login Key Points
+
+✅ **Separate endpoints**: Franchise and HQ staff have dedicated login endpoints  
+✅ **Type validation**: Each endpoint validates staff type before login  
+✅ **Secure authentication**: Passwords are hashed with bcrypt  
+✅ **Account status check**: Only "Active" staff can login  
+✅ **Role/Franchise populated**: Response includes full role or franchise details  
+✅ **Password excluded**: Password field never appears in response  
+
+🔒 **Security Notes:**
+- Use HTTPS in production to protect credentials
+- Implement rate limiting to prevent brute force attacks
+- Consider adding JWT tokens for subsequent requests
+- Log failed login attempts for security monitoring
+
+---
+
+## 📚 Tamil Guide / தமிழ் வழிகாட்டி
+
+### Franchise Staff Login - விளக்கம்
+
+**முக்கிய புள்ளிகள்:**
+
+1. **Separate Endpoint** - தனி endpoint  
+   - Franchise staff க்கு: `/admin/staff/login/franchise`
+   - Head Quarter staff க்கு: `/admin/staff/login/headquarter`
+   - இப்போது இரண்டும் தனித்தனியாக login செய்யலாம்
+
+2. **Type Validation** - வகை சரிபார்ப்பு  
+   - Franchise endpoint-ல் franchise staff மட்டும் login ஆகும்
+   - HQ endpoint-ல் HQ staff மட்டும் login ஆகும்
+   - தவறான endpoint-ல் login செய்தால் error வரும்
+
+3. **Error Messages** - பிழை செய்திகள்  
+   ```
+   "Invalid credentials. This is not a franchise staff account."
+   - இது franchise staff account இல்லை - HQ staff தான்
+   
+   "Invalid credentials. This is not a head quarter staff account."
+   - இது HQ staff account இல்லை - franchise staff தான்
+   ```
+
+**உதாரணம்:**
+
+```bash
+# Franchise staff login - சரியான முறை
+curl -X POST https://freightrekapi.vercel.app/admin/staff/login/franchise \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "raguvasans46@gmail.com",
+    "password": "Admin@123"
+  }'
+
+# HQ staff login - சரியான முறை
+curl -X POST https://freightrekapi.vercel.app/admin/staff/login/headquarter \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "johndoe",
+    "password": "password123"
+  }'
+```
+
+**பலன்கள் (Benefits):**
+- 🔒 அதிக பாதுகாப்பு (More secure)
+- ✅ தெளிவான பிரிப்பு (Clear separation)
+- 🚫 குழப்பம் இல்லை (No confusion)
+- 🎯 சரியான validation
+
+
 
 ---
 

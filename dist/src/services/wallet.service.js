@@ -8,6 +8,7 @@ const axios_1 = __importDefault(require("axios"));
 const wallet_model_1 = require("../models/wallet/wallet.model");
 const order_model_1 = require("../models/wallet/order.model");
 const transaction_model_1 = require("../models/wallet/transaction.model");
+const agency_model_1 = require("../models/admin/agency.model");
 exports.walletService = {
     async getBalance(userId) {
         try {
@@ -241,8 +242,18 @@ exports.walletService = {
     },
     async getTransactions(query) {
         try {
-            const { userId, page, limit, type } = query;
-            const filter = { userId };
+            const { userId, page, limit, type, isAdmin, franchiseUserIds } = query;
+            // If admin, return all franchise transactions (not admin's own)
+            // Otherwise, filter by logged-in userId
+            const filter = {};
+            if (isAdmin && franchiseUserIds && franchiseUserIds.length > 0) {
+                // Admin: show only franchise transactions
+                filter.userId = { $in: franchiseUserIds };
+            }
+            else {
+                // Non-admin: show only their own transactions
+                filter.userId = userId;
+            }
             if (type) {
                 filter.type = type;
             }
@@ -253,9 +264,15 @@ exports.walletService = {
                 .skip(skip)
                 .lean();
             const total = await transaction_model_1.Transaction.countDocuments(filter);
-            // Format response
+            // Get unique userIds to fetch franchise names
+            const userIds = [...new Set(transactions.map(txn => txn.userId))];
+            const agencies = await agency_model_1.Agency.find({ _id: { $in: userIds } }, 'agencyName');
+            const agencyMap = new Map(agencies.map(agency => [agency._id.toString(), agency.agencyName]));
+            // Format response with franchise names
             const formattedTransactions = transactions.map((txn) => ({
                 id: txn.transactionId,
+                userId: txn.userId,
+                franchiseName: agencyMap.get(txn.userId) || 'Unknown',
                 amount: txn.amount,
                 type: txn.type,
                 status: txn.status,

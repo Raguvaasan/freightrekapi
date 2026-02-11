@@ -62,11 +62,7 @@ exports.createStaffSchema = yup.object({
         roleId: yup
             .string()
             .matches(/^[0-9a-fA-F]{24}$/, 'Invalid role ID')
-            .when('type', {
-            is: 'head_quarter',
-            then: (schema) => schema.required('Role is required for head quarter staff'),
-            // otherwise: (schema) => schema.test('no-role-for-franchise', 'Role should not be provided for franchise staff', (value) => !value),
-        }),
+            .optional(),
         status: yup
             .string()
             .oneOf(['Active', 'Inactive'], 'Status must be either Active or Inactive')

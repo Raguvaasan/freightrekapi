@@ -12,6 +12,9 @@ const location_routes_1 = __importDefault(require("./routes/location.routes"));
 const markup_routes_1 = __importDefault(require("./routes/markup.routes"));
 const wallet_routes_1 = __importDefault(require("./routes/wallet.routes"));
 const shipment_routes_1 = __importDefault(require("./routes/shipment.routes"));
+const franchiseRole_routes_1 = __importDefault(require("./routes/admin/franchiseRole.routes"));
+const dashboard_routes_1 = __importDefault(require("./routes/dashboard.routes"));
+const dashboard_routes_2 = __importDefault(require("./routes/admin/dashboard.routes"));
 const wallet_controller_1 = require("./controllers/wallet.controller");
 const app = (0, express_1.default)();
 app.use(express_1.default.json());
@@ -94,10 +97,13 @@ app.get("/health", (req, res) => {
     });
 });
 app.use("/admin", admin_1.default);
+app.use("/admin/franchise/role", franchiseRole_routes_1.default);
+app.use("/admin/dashboard", dashboard_routes_2.default);
 app.use("/location", location_routes_1.default);
 app.use("/api/v1/settings", markup_routes_1.default);
 app.use("/api/wallet", wallet_routes_1.default);
 app.use("/api/shipment", shipment_routes_1.default);
+app.use("/api/dashboard", dashboard_routes_1.default);
 // Webhook endpoint (no auth, verified by signature)
 app.post("/webhook/cashfree", wallet_controller_1.cashfreeWebhook);
 exports.default = app;

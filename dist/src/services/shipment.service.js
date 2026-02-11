@@ -6,12 +6,57 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.shipmentService = void 0;
 const axios_1 = __importDefault(require("axios"));
 const shipment_model_1 = require("../models/shipment/shipment.model");
+const wallet_model_1 = require("../models/wallet/wallet.model");
+const transaction_model_1 = require("../models/wallet/transaction.model");
+const agency_model_1 = require("../models/admin/agency.model");
 exports.shipmentService = {
     async createShipment(data) {
         try {
             const { userId, ...shipmentData } = data;
             // Generate unique order ID if not provided
             const orderId = `ORD_${userId}_${Date.now()}`;
+            // Handle Prepaid payment - Deduct from wallet
+            if (shipmentData.paymentMode === 'Prepaid') {
+                const amount = parseFloat(shipmentData.totalAmount || '0');
+                if (amount <= 0) {
+                    console.log('❌ Invalid amount for prepaid order:', amount);
+                    return {
+                        success: false,
+                        message: 'Invalid amount for prepaid order',
+                    };
+                }
+                // Check wallet balance
+                let wallet = await wallet_model_1.Wallet.findOne({ userId });
+                if (!wallet) {
+                    wallet = await wallet_model_1.Wallet.create({ userId, balance: 0 });
+                }
+                console.log(`💰 Wallet check - Balance: ₹${wallet.balance}, Required: ₹${amount}`);
+                if (wallet.balance < amount) {
+                    console.log(`❌ Insufficient wallet balance - Available: ₹${wallet.balance}, Required: ₹${amount}`);
+                    return {
+                        success: false,
+                        message: `Insufficient wallet balance. Available: ₹${wallet.balance}, Required: ₹${amount}`,
+                    };
+                }
+                // Deduct amount from wallet
+                const balanceBefore = wallet.balance;
+                wallet.balance -= amount;
+                await wallet.save();
+                // Create debit transaction
+                const transactionId = `TXN_${orderId}_${Date.now()}`;
+                await transaction_model_1.Transaction.create({
+                    transactionId,
+                    userId,
+                    orderId,
+                    amount,
+                    type: 'debit',
+                    status: 'completed',
+                    description: `Prepaid order - ${orderId}`,
+                    paymentMethod: 'wallet',
+                    balanceBefore,
+                    balanceAfter: wallet.balance,
+                });
+            }
             // Create shipment in database
             const shipment = await shipment_model_1.Shipment.create({
                 userId,
@@ -156,9 +201,19 @@ exports.shipmentService = {
             };
         }
     },
-    async getShipments(userId, page = 1, limit = 20, status) {
+    async getShipments(userId, page = 1, limit = 20, status, isAdmin, franchiseUserIds) {
         try {
-            const query = { userId };
+            // If admin, show all franchise orders (not admin's own)
+            // Otherwise, filter by logged-in userId
+            const query = {};
+            if (isAdmin && franchiseUserIds && franchiseUserIds.length > 0) {
+                // Admin: show only franchise orders
+                query.userId = { $in: franchiseUserIds };
+            }
+            else {
+                // Non-admin: show only their own orders
+                query.userId = userId;
+            }
             if (status) {
                 query.status = status;
             }
@@ -169,17 +224,23 @@ exports.shipmentService = {
                 .skip(skip)
                 .lean();
             const total = await shipment_model_1.Shipment.countDocuments(query);
+            // Get unique userIds to fetch franchise names
+            const userIds = [...new Set(shipments.map(s => s.userId))];
+            const agencies = await agency_model_1.Agency.find({ _id: { $in: userIds } }, 'agencyName');
+            const agencyMap = new Map(agencies.map(agency => [agency._id.toString(), agency.agencyName]));
             return {
                 success: true,
                 data: shipments.map((s) => ({
                     orderId: s.orderId,
+                    userId: s.userId,
+                    franchiseName: agencyMap.get(s.userId) || 'Unknown',
                     bookingId: s.waybill,
                     status: s.status,
                     consigneeName: s.name,
                     consigneeNumber: s.phone,
                     city: s.city,
                     paymentMode: s.paymentMode,
-                    amount: s.paymentMode === 'COD' ? s.codAmount : s.totalAmount,
+                    amount: s.codAmount || s.totalAmount || '0',
                     createdAt: s.createdAt,
                 })),
                 pagination: {

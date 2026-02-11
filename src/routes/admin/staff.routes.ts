@@ -7,6 +7,8 @@ import {
   deleteStaff,
   updateStaffStatus,
   loginStaff,
+  loginFranchiseStaff,
+  loginHeadQuarterStaff,
 } from '../../controllers/admin/staff.controller';
 import { authMiddleware } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validate.middleware';
@@ -54,6 +56,70 @@ const router = Router();
  *         description: Invalid credentials
  */
 router.post('/login', validate(staffLoginSchema), loginStaff);
+
+/**
+ * @swagger
+ * /admin/staff/login/franchise:
+ *   post:
+ *     summary: Franchise staff login (only for franchise staff)
+ *     tags: [Staff Management]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *               - password
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 example: franchisestaff
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 example: password123
+ *     responses:
+ *       200:
+ *         description: Franchise staff login successful
+ *       401:
+ *         description: Invalid credentials or not a franchise staff
+ */
+router.post('/login/franchise', validate(staffLoginSchema), loginFranchiseStaff);
+
+/**
+ * @swagger
+ * /admin/staff/login/headquarter:
+ *   post:
+ *     summary: Head quarter staff login (only for HQ staff)
+ *     tags: [Staff Management]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *               - password
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 example: hqstaff
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 example: password123
+ *     responses:
+ *       200:
+ *         description: Head quarter staff login successful
+ *       401:
+ *         description: Invalid credentials or not a head quarter staff
+ */
+router.post('/login/headquarter', validate(staffLoginSchema), loginHeadQuarterStaff);
 
 /**
  * @swagger

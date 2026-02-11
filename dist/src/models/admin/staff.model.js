@@ -27,8 +27,8 @@ const staffSchema = new mongoose_1.Schema({
     },
     roleId: {
         type: mongoose_1.Schema.Types.ObjectId,
-        ref: 'AdminRole',
         required: false,
+        // No fixed ref - can be AdminRole or FranchiseRole
     },
     status: {
         type: String,
