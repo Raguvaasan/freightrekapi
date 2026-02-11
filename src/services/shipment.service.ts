@@ -54,6 +54,7 @@ export const shipmentService = {
         const amount = parseFloat(shipmentData.totalAmount || '0');
         
         if (amount <= 0) {
+          console.log('❌ Invalid amount for prepaid order:', amount);
           return {
             success: false,
             message: 'Invalid amount for prepaid order',
@@ -66,7 +67,10 @@ export const shipmentService = {
           wallet = await Wallet.create({ userId, balance: 0 });
         }
 
+        console.log(`💰 Wallet check - Balance: ₹${wallet.balance}, Required: ₹${amount}`);
+
         if (wallet.balance < amount) {
+          console.log(`❌ Insufficient wallet balance - Available: ₹${wallet.balance}, Required: ₹${amount}`);
           return {
             success: false,
             message: `Insufficient wallet balance. Available: ₹${wallet.balance}, Required: ₹${amount}`,

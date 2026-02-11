@@ -19,15 +19,27 @@ export const createShipment = async (req: Request, res: Response) => {
       ...req.body,
     });
 
+    // Handle error responses (including insufficient wallet balance)
     if (!result.success) {
-      return res.status(400).json(result);
+      return res.status(400).json({
+        success: false,
+        message: result.message,
+        error: result.message, // Added for clarity
+      });
     }
 
-    return res.status(201).json(result);
+    // Success response
+    return res.status(201).json({
+      success: true,
+      message: 'Shipment created successfully',
+      data: result.data,
+    });
   } catch (err: any) {
+    console.error('Create shipment controller error:', err);
     return res.status(500).json({
       success: false,
       message: err.message || 'Failed to create shipment',
+      error: err.message,
     });
   }
 };
