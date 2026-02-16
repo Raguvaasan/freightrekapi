@@ -13,6 +13,13 @@ export interface IShipment {
   phone: string;
   order: string;
   paymentMode: 'Prepaid' | 'COD';
+  fromName?: string;
+  fromAdd?: string;
+  fromPin?: string;
+  fromCity?: string;
+  fromState?: string;
+  fromCountry?: string;
+  fromPhone?: string;
   returnPin?: string;
   returnCity?: string;
   returnPhone?: string;
@@ -35,6 +42,8 @@ export interface IShipment {
   addressType?: string;
   pickupLocation: {
     name: string;
+    address?: string;
+    pincode?: string;
   };
   status: 'pending' | 'created' | 'in_transit' | 'delivered' | 'failed' | 'cancelled';
   delhiveryResponse?: any;
@@ -98,6 +107,13 @@ const shipmentSchema = new Schema<IShipment>(
       enum: ['Prepaid', 'COD'],
       required: true,
     },
+    fromName: String,
+    fromAdd: String,
+    fromPin: String,
+    fromCity: String,
+    fromState: String,
+    fromCountry: String,
+    fromPhone: String,
     returnPin: String,
     returnCity: String,
     returnPhone: String,
@@ -132,6 +148,12 @@ const shipmentSchema = new Schema<IShipment>(
       name: {
         type: String,
         required: true,
+      },
+      address: {
+        type: String,
+      },
+      pincode: {
+        type: String,
       },
     },
     status: {

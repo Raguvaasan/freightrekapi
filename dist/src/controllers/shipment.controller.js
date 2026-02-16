@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.trackShipment = exports.getShipments = exports.getShipment = exports.createShipment = void 0;
+exports.deleteShipment = exports.updateShipment = exports.trackShipment = exports.getShipments = exports.getShipment = exports.createShipment = void 0;
 const shipment_service_1 = require("../services/shipment.service");
 const adminUser_model_1 = require("../models/admin/adminUser.model");
 const agency_model_1 = require("../models/admin/agency.model");
@@ -141,3 +141,64 @@ const trackShipment = async (req, res) => {
     }
 };
 exports.trackShipment = trackShipment;
+const updateShipment = async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { orderId } = req.params;
+        const updateData = req.body;
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: 'User not authenticated',
+            });
+        }
+        if (!orderId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Order ID is required',
+            });
+        }
+        const result = await shipment_service_1.shipmentService.updateShipment(orderId, userId, updateData);
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+        return res.status(200).json(result);
+    }
+    catch (err) {
+        return res.status(500).json({
+            success: false,
+            message: err.message || 'Failed to update shipment',
+        });
+    }
+};
+exports.updateShipment = updateShipment;
+const deleteShipment = async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { orderId } = req.params;
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: 'User not authenticated',
+            });
+        }
+        if (!orderId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Order ID is required',
+            });
+        }
+        const result = await shipment_service_1.shipmentService.deleteShipment(orderId, userId);
+        if (!result.success) {
+            return res.status(400).json(result);
+        }
+        return res.status(200).json(result);
+    }
+    catch (err) {
+        return res.status(500).json({
+            success: false,
+            message: err.message || 'Failed to delete shipment',
+        });
+    }
+};
+exports.deleteShipment = deleteShipment;

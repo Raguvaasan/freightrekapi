@@ -19,6 +19,13 @@ export const createShipmentSchema = yup.object().shape({
     .string()
     .required('Payment mode is required')
     .oneOf(['Prepaid', 'COD'], 'Payment mode must be Prepaid or COD'),
+  fromName: yup.string(),
+  fromAdd: yup.string(),
+  fromPin: yup.string().matches(/^\d{6}$/, 'From PIN code must be 6 digits'),
+  fromCity: yup.string(),
+  fromState: yup.string(),
+  fromCountry: yup.string(),
+  fromPhone: yup.string().matches(/^\d{10}$/, 'From phone number must be 10 digits'),
   returnPin: yup.string(),
   returnCity: yup.string(),
   returnPhone: yup.string(),
@@ -57,4 +64,39 @@ export const getShipmentsSchema = yup.object().shape({
       ['pending', 'created', 'in_transit', 'delivered', 'failed', 'cancelled'],
       'Invalid status'
     ),
+});
+
+export const updateShipmentSchema = yup.object().shape({
+  name: yup.string(),
+  add: yup.string(),
+  pin: yup.string().matches(/^\d{6}$/, 'PIN code must be 6 digits'),
+  city: yup.string(),
+  state: yup.string(),
+  country: yup.string(),
+  phone: yup.string().matches(/^\d{10}$/, 'Phone number must be 10 digits'),
+  paymentMode: yup.string().oneOf(['Prepaid', 'COD'], 'Payment mode must be Prepaid or COD'),
+  status: yup
+    .string()
+    .oneOf(
+      ['pending', 'created', 'in_transit', 'delivered', 'failed', 'cancelled'],
+      'Invalid status'
+    ),
+  fromName: yup.string(),
+  fromAdd: yup.string(),
+  fromPin: yup.string().matches(/^\d{6}$/, 'From PIN code must be 6 digits'),
+  fromCity: yup.string(),
+  fromState: yup.string(),
+  fromCountry: yup.string(),
+  fromPhone: yup.string().matches(/^\d{10}$/, 'From phone number must be 10 digits'),
+  returnPin: yup.string(),
+  returnCity: yup.string(),
+  returnPhone: yup.string(),
+  returnAdd: yup.string(),
+  returnState: yup.string(),
+  returnCountry: yup.string(),
+  productsDesc: yup.string(),
+  codAmount: yup.string(),
+  totalAmount: yup.string(),
+  weight: yup.string(),
+  shippingMode: yup.string().oneOf(['Surface', 'Express'], 'Shipping mode must be Surface or Express'),
 });

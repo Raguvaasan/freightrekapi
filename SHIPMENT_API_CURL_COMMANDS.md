@@ -241,6 +241,99 @@ curl --request GET \
 
 ---
 
+## ✏️ 5. UPDATE ORDER (Order Update)
+
+```bash
+curl --request PUT \
+  --url https://freightrekapi.vercel.app/api/shipment/order/ORD_USER123_1738568400000 \
+  --header 'Authorization: Bearer YOUR_JWT_TOKEN_HERE' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "name": "Rajesh Kumar Updated",
+    "phone": "9876543211",
+    "add": "New Address, Anna Nagar",
+    "status": "in_transit",
+    "weight": "600"
+  }'
+```
+
+### Update Consignee Details Only:
+```bash
+curl --request PUT \
+  --url https://freightrekapi.vercel.app/api/shipment/order/ORD_USER123_1738568400000 \
+  --header 'Authorization: Bearer YOUR_JWT_TOKEN_HERE' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "name": "New Name",
+    "phone": "9999888877",
+    "city": "Delhi"
+  }'
+```
+
+### Update From Address:
+```bash
+curl --request PUT \
+  --url https://freightrekapi.vercel.app/api/shipment/order/ORD_USER123_1738568400000 \
+  --header 'Authorization: Bearer YOUR_JWT_TOKEN_HERE' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "fromName": "Updated Sender",
+    "fromAdd": "New Sender Address",
+    "fromPhone": "9111222333"
+  }'
+```
+
+### Response:
+```json
+{
+  "success": true,
+  "message": "Shipment updated successfully",
+  "data": {
+    "orderId": "ORD_USER123_1738568400000",
+    "waybill": "WB123456789",
+    "status": "in_transit",
+    "updatedAt": "2026-02-12T11:00:00.000Z"
+  }
+}
+```
+
+**Important Notes:**
+- ✅ Update panna mudiyathu: `pending`, `created`, `in_transit`, `failed`, `cancelled` status irukura orders
+- ❌ Update panna mudiyathu: `delivered` status irukura orders
+
+---
+
+## ❌ 6. DELETE ORDER (Cancel with Auto-Refund)
+
+```bash
+curl --request DELETE \
+  --url https://freightrekapi.vercel.app/api/shipment/order/ORD_USER123_1738568400000 \
+  --header 'Authorization: Bearer YOUR_JWT_TOKEN_HERE'
+```
+
+### Response:
+```json
+{
+  "success": true,
+  "message": "Shipment cancelled successfully",
+  "data": {
+    "orderId": "ORD_USER123_1738568400000",
+    "status": "cancelled",
+    "refunded": true,
+    "refundAmount": "15000"
+  }
+}
+```
+
+**Auto-Refund Features:**
+- 💰 **Prepaid orders**: Amount automatically refunded to wallet
+- 📝 Refund transaction automatically created
+- 🔄 COD orders: No refund (nothing was charged)
+- ✅ Cancel panna mudiyum: All status except `delivered`
+- ❌ Cancel panna mudiyathu: `delivered` status
+
+---
+
 ## 🎯 Production URLs (Live Deployment)
 
 ### Production URL (Live Deployment):
@@ -386,12 +479,17 @@ curl --request POST \
 - [ ] Get single order working
 - [ ] Get all orders with pagination
 - [ ] Track shipment working
+- [ ] Update order working (consignee, status, from address)
+- [ ] Delete order working with auto-refund
+- [ ] Prepaid refund to wallet verified
 - [ ] Delhivery token configured
 
 ---
 
 **Created**: February 3, 2026  
+**Updated**: February 12, 2026  
 **Status**: Ready to Use 🚀  
 **Environment**: Development/Production  
+**New Features**: Update & Delete Orders with Auto-Refund 💰
 
 All CURL commands ready! Copy & paste pannunga! 📋✨

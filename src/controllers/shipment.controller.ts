@@ -157,3 +157,72 @@ export const trackShipment = async (req: Request, res: Response) => {
     });
   }
 };
+
+export const updateShipment = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { orderId } = req.params;
+    const updateData = req.body;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated',
+      });
+    }
+
+    if (!orderId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order ID is required',
+      });
+    }
+
+    const result = await shipmentService.updateShipment(orderId, userId, updateData);
+
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    return res.status(200).json(result);
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to update shipment',
+    });
+  }
+};
+
+export const deleteShipment = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { orderId } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated',
+      });
+    }
+
+    if (!orderId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order ID is required',
+      });
+    }
+
+    const result = await shipmentService.deleteShipment(orderId, userId);
+
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    return res.status(200).json(result);
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to delete shipment',
+    });
+  }
+};

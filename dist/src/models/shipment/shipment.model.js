@@ -56,6 +56,13 @@ const shipmentSchema = new mongoose_1.Schema({
         enum: ['Prepaid', 'COD'],
         required: true,
     },
+    fromName: String,
+    fromAdd: String,
+    fromPin: String,
+    fromCity: String,
+    fromState: String,
+    fromCountry: String,
+    fromPhone: String,
     returnPin: String,
     returnCity: String,
     returnPhone: String,
@@ -90,6 +97,12 @@ const shipmentSchema = new mongoose_1.Schema({
         name: {
             type: String,
             required: true,
+        },
+        address: {
+            type: String,
+        },
+        pincode: {
+            type: String,
         },
     },
     status: {

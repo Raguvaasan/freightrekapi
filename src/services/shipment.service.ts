@@ -3,6 +3,7 @@ import { Shipment } from '../models/shipment/shipment.model';
 import { Wallet } from '../models/wallet/wallet.model';
 import { Transaction } from '../models/wallet/transaction.model';
 import { Agency } from '../models/admin/agency.model';
+import { HubModel } from '../models/hub/hub.model';
 
 interface CreateShipmentData {
   userId: string;
@@ -15,6 +16,13 @@ interface CreateShipmentData {
   phone: string;
   order: string;
   paymentMode: 'Prepaid' | 'COD';
+  fromName?: string;
+  fromAdd?: string;
+  fromPin?: string;
+  fromCity?: string;
+  fromState?: string;
+  fromCountry?: string;
+  fromPhone?: string;
   returnPin?: string;
   returnCity?: string;
   returnPhone?: string;
@@ -38,6 +46,8 @@ interface CreateShipmentData {
   addressType?: string;
   pickupLocation: {
     name: string;
+    address?: string;
+    pincode?: string;
   };
 }
 
@@ -96,6 +106,23 @@ export const shipmentService = {
           balanceBefore,
           balanceAfter: wallet.balance,
         });
+      }
+
+      // Fetch pickup location details from Hub or Agency if not provided
+      if (shipmentData.pickupLocation && (!shipmentData.pickupLocation.address || !shipmentData.pickupLocation.pincode)) {
+        // First try to find in Hub collection
+        const hub = await HubModel.findOne({ hubName: shipmentData.pickupLocation.name });
+        if (hub) {
+          shipmentData.pickupLocation.address = hub.address;
+          shipmentData.pickupLocation.pincode = hub.pincode.toString();
+        } else {
+          // If not found in Hub, try to find in Agency collection
+          const agency = await Agency.findOne({ agencyName: shipmentData.pickupLocation.name });
+          if (agency) {
+            shipmentData.pickupLocation.address = agency.address;
+            shipmentData.pickupLocation.pincode = agency.pincode;
+          }
+        }
       }
 
       // Create shipment in database
@@ -223,6 +250,15 @@ export const shipmentService = {
           waybill: shipment.waybill,
           status: shipment.status,
           trackingUrl: shipment.trackingUrl,
+          from: {
+            name: shipment.fromName,
+            address: shipment.fromAdd,
+            city: shipment.fromCity,
+            state: shipment.fromState,
+            pin: shipment.fromPin,
+            country: shipment.fromCountry,
+            phone: shipment.fromPhone,
+          },
           consignee: {
             name: shipment.name,
             address: shipment.add,
@@ -288,21 +324,63 @@ export const shipmentService = {
       const agencies = await Agency.find({ _id: { $in: userIds } }, 'agencyName');
       const agencyMap = new Map(agencies.map(agency => [agency._id.toString(), agency.agencyName]));
 
+      // Get unique pickup location names to fetch hub and agency details
+      const pickupLocationNames = [...new Set(shipments.map(s => s.pickupLocation?.name).filter(Boolean))];
+      
+      // Try to find in Hub collection first
+      const hubs = await HubModel.find({ hubName: { $in: pickupLocationNames } }, 'hubName address pincode');
+      const hubMap = new Map(hubs.map(hub => [hub.hubName, { address: hub.address, pincode: hub.pincode.toString() }]));
+      
+      // Also try to find in Agency collection (for franchise-based pickup locations)
+      const agenciesForPickup = await Agency.find({ agencyName: { $in: pickupLocationNames } }, 'agencyName address pincode');
+      const agencyPickupMap = new Map(agenciesForPickup.map(agency => [agency.agencyName, { address: agency.address, pincode: agency.pincode }]));
+
       return {
         success: true,
-        data: shipments.map((s) => ({
+        data: shipments.map((s) => {
+          const hubDetails = hubMap.get(s.pickupLocation?.name);
+          const agencyDetails = agencyPickupMap.get(s.pickupLocation?.name);
+          const pickupDetails = hubDetails || agencyDetails;
+          return {
           orderId: s.orderId,
           userId: s.userId,
           franchiseName: agencyMap.get(s.userId) || 'Unknown',
-          bookingId: s.waybill,
+          waybill: s.waybill,
           status: s.status,
-          consigneeName: s.name,
-          consigneeNumber: s.phone,
-          city: s.city,
-          paymentMode: s.paymentMode,
+          trackingUrl: s.trackingUrl,
+          from: {
+            name: s.fromName,
+            address: s.fromAdd,
+            phone: s.fromPhone,
+            city: s.fromCity,
+            state: s.fromState,
+            pin: s.fromPin,
+            country: s.fromCountry,
+          },
+          consignee: {
+            name: s.name,
+            phone: s.phone,
+            address: s.add,
+            city: s.city,
+            state: s.state,
+            pin: s.pin,
+          },
+          shipmentDetails: {
+            order: s.order,
+            paymentMode: s.paymentMode,
+            shippingMode: s.shippingMode,
+            weight: s.weight,
+          },
           amount: s.codAmount || s.totalAmount || '0',
+          pickupLocation: {
+            name: s.pickupLocation?.name,
+            address: s.pickupLocation?.address || pickupDetails?.address,
+            pincode: s.pickupLocation?.pincode || pickupDetails?.pincode,
+          },
           createdAt: s.createdAt,
-        })),
+          updatedAt: s.updatedAt,
+        };
+        }),
         pagination: {
           page,
           limit,
@@ -363,6 +441,128 @@ export const shipmentService = {
       return {
         success: false,
         message: error.response?.data?.message || 'Failed to track shipment',
+      };
+    }
+  },
+
+  async updateShipment(orderId: string, userId: string, updateData: any) {
+    try {
+      const shipment = await Shipment.findOne({ orderId, userId });
+
+      if (!shipment) {
+        return {
+          success: false,
+          message: 'Shipment not found',
+        };
+      }
+
+      // Prevent updating delivered shipments
+      if (shipment.status === 'delivered') {
+        return {
+          success: false,
+          message: 'Cannot update delivered shipment',
+        };
+      }
+
+      // Update only provided fields
+      Object.keys(updateData).forEach(key => {
+        if (updateData[key] !== undefined) {
+          (shipment as any)[key] = updateData[key];
+        }
+      });
+
+      await shipment.save();
+
+      return {
+        success: true,
+        message: 'Shipment updated successfully',
+        data: {
+          orderId: shipment.orderId,
+          waybill: shipment.waybill,
+          status: shipment.status,
+          updatedAt: shipment.updatedAt,
+        },
+      };
+    } catch (error: any) {
+      console.error('Update shipment error:', error);
+      return {
+        success: false,
+        message: error.message || 'Failed to update shipment',
+      };
+    }
+  },
+
+  async deleteShipment(orderId: string, userId: string) {
+    try {
+      const shipment = await Shipment.findOne({ orderId, userId });
+
+      if (!shipment) {
+        return {
+          success: false,
+          message: 'Shipment not found',
+        };
+      }
+
+      // Prevent deleting delivered shipments
+      if (shipment.status === 'delivered') {
+        return {
+          success: false,
+          message: 'Cannot delete delivered shipment',
+        };
+      }
+
+      // Soft delete by setting status to cancelled
+      shipment.status = 'cancelled';
+      await shipment.save();
+
+      // If prepaid, refund to wallet
+      if (shipment.paymentMode === 'Prepaid' && shipment.totalAmount) {
+        const amount = parseFloat(shipment.totalAmount);
+        
+        if (amount > 0) {
+          let wallet = await Wallet.findOne({ userId });
+          if (!wallet) {
+            wallet = await Wallet.create({ userId, balance: 0 });
+          }
+
+          const balanceBefore = wallet.balance;
+          wallet.balance += amount;
+          await wallet.save();
+
+          // Create refund transaction
+          const transactionId = `TXN_REFUND_${orderId}_${Date.now()}`;
+          await Transaction.create({
+            transactionId,
+            userId,
+            orderId,
+            amount,
+            type: 'refund',
+            status: 'completed',
+            description: `Refund for cancelled shipment - ${orderId}`,
+            paymentMethod: 'wallet',
+            balanceBefore,
+            balanceAfter: wallet.balance,
+          });
+
+          console.log(`💰 Refund processed: ₹${amount} refunded to wallet`);
+        }
+      }
+
+      return {
+        success: true,
+        message: 'Shipment cancelled successfully',
+        data: {
+          orderId: shipment.orderId,
+          status: shipment.status,
+          refunded: shipment.paymentMode === 'Prepaid',
+          refundAmount: shipment.totalAmount || '0',
+        },
+      };
+    } catch (error: any) {
+      console.error('Delete shipment error:', error);
+      return {
+        success: false,
+        message: error.message || 'Failed to delete shipment',
       };
     }
   },

@@ -6,8 +6,10 @@ import {
   getShipment,
   getShipments,
   trackShipment,
+  updateShipment,
+  deleteShipment,
 } from '../controllers/shipment.controller';
-import { createShipmentSchema, getShipmentsSchema } from '../validators/shipment.validator';
+import { createShipmentSchema, getShipmentsSchema, updateShipmentSchema } from '../validators/shipment.validator';
 
 const router = Router();
 
@@ -17,6 +19,10 @@ router.post('/create', authMiddleware, validate(createShipmentSchema), createShi
 router.get('/orders', authMiddleware, validate(getShipmentsSchema), getShipments);
 
 router.get('/order/:orderId', authMiddleware, getShipment);
+
+router.put('/order/:orderId', authMiddleware, validate(updateShipmentSchema), updateShipment);
+
+router.delete('/order/:orderId', authMiddleware, deleteShipment);
 
 router.get('/track/:waybill', authMiddleware, trackShipment);
 
