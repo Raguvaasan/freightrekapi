@@ -171,9 +171,14 @@ exports.shipmentService = {
             };
         }
     },
-    async getShipment(orderId, userId) {
+    async getShipment(orderId, userId, isAdmin) {
         try {
-            const shipment = await shipment_model_1.Shipment.findOne({ orderId, userId }).lean();
+            // If admin, allow viewing any order. Otherwise, only user's own orders
+            const query = { orderId };
+            if (!isAdmin) {
+                query.userId = userId;
+            }
+            const shipment = await shipment_model_1.Shipment.findOne(query).lean();
             if (!shipment) {
                 return {
                     success: false,
@@ -325,10 +330,15 @@ exports.shipmentService = {
             };
         }
     },
-    async trackShipment(waybill, userId) {
+    async trackShipment(waybill, userId, isAdmin) {
         try {
+            // If admin, allow tracking any shipment. Otherwise, only user's own shipments
+            const query = { waybill };
+            if (!isAdmin) {
+                query.userId = userId;
+            }
             // Find shipment in database
-            const shipment = await shipment_model_1.Shipment.findOne({ waybill, userId });
+            const shipment = await shipment_model_1.Shipment.findOne(query);
             if (!shipment) {
                 return {
                     success: false,
@@ -365,9 +375,14 @@ exports.shipmentService = {
             };
         }
     },
-    async updateShipment(orderId, userId, updateData) {
+    async updateShipment(orderId, userId, updateData, isAdmin) {
         try {
-            const shipment = await shipment_model_1.Shipment.findOne({ orderId, userId });
+            // If admin, allow updating any order. Otherwise, only user's own orders
+            const query = { orderId };
+            if (!isAdmin) {
+                query.userId = userId;
+            }
+            const shipment = await shipment_model_1.Shipment.findOne(query);
             if (!shipment) {
                 return {
                     success: false,
@@ -407,9 +422,14 @@ exports.shipmentService = {
             };
         }
     },
-    async deleteShipment(orderId, userId) {
+    async deleteShipment(orderId, userId, isAdmin) {
         try {
-            const shipment = await shipment_model_1.Shipment.findOne({ orderId, userId });
+            // If admin, allow deleting any order. Otherwise, only user's own orders
+            const query = { orderId };
+            if (!isAdmin) {
+                query.userId = userId;
+            }
+            const shipment = await shipment_model_1.Shipment.findOne(query);
             if (!shipment) {
                 return {
                     success: false,

@@ -58,7 +58,14 @@ const getShipment = async (req, res) => {
                 message: 'Order ID is required',
             });
         }
-        const result = await shipment_service_1.shipmentService.getShipment(orderId, userId);
+        // Check if user is admin
+        let isAdmin = false;
+        const user = await adminUser_model_1.AdminUser.findById(userId).populate('roleId');
+        if (user && user.roleId) {
+            const role = user.roleId;
+            isAdmin = role.isRoot === true;
+        }
+        const result = await shipment_service_1.shipmentService.getShipment(orderId, userId, isAdmin);
         if (!result.success) {
             return res.status(404).json(result);
         }
@@ -127,7 +134,14 @@ const trackShipment = async (req, res) => {
                 message: 'Waybill is required',
             });
         }
-        const result = await shipment_service_1.shipmentService.trackShipment(waybill, userId);
+        // Check if user is admin
+        let isAdmin = false;
+        const user = await adminUser_model_1.AdminUser.findById(userId).populate('roleId');
+        if (user && user.roleId) {
+            const role = user.roleId;
+            isAdmin = role.isRoot === true;
+        }
+        const result = await shipment_service_1.shipmentService.trackShipment(waybill, userId, isAdmin);
         if (!result.success) {
             return res.status(404).json(result);
         }
@@ -158,7 +172,14 @@ const updateShipment = async (req, res) => {
                 message: 'Order ID is required',
             });
         }
-        const result = await shipment_service_1.shipmentService.updateShipment(orderId, userId, updateData);
+        // Check if user is admin
+        let isAdmin = false;
+        const user = await adminUser_model_1.AdminUser.findById(userId).populate('roleId');
+        if (user && user.roleId) {
+            const role = user.roleId;
+            isAdmin = role.isRoot === true;
+        }
+        const result = await shipment_service_1.shipmentService.updateShipment(orderId, userId, updateData, isAdmin);
         if (!result.success) {
             return res.status(400).json(result);
         }
@@ -188,7 +209,14 @@ const deleteShipment = async (req, res) => {
                 message: 'Order ID is required',
             });
         }
-        const result = await shipment_service_1.shipmentService.deleteShipment(orderId, userId);
+        // Check if user is admin
+        let isAdmin = false;
+        const user = await adminUser_model_1.AdminUser.findById(userId).populate('roleId');
+        if (user && user.roleId) {
+            const role = user.roleId;
+            isAdmin = role.isRoot === true;
+        }
+        const result = await shipment_service_1.shipmentService.deleteShipment(orderId, userId, isAdmin);
         if (!result.success) {
             return res.status(400).json(result);
         }

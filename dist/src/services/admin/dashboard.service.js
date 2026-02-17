@@ -146,11 +146,23 @@ class AdminDashboardService {
                 },
             ]);
             // 6. Recent Bookings (last 10 shipments across all franchises)
-            const recentBookings = await shipment_model_1.Shipment.find()
+            const recentBookingsData = await shipment_model_1.Shipment.find()
                 .sort({ createdAt: -1 })
                 .limit(10)
-                .populate('userId', 'agencyName')
-                .select('trackingNumber pickupCity deliveryCity status paymentType amount createdAt');
+                .lean();
+            // Get franchise names for recent bookings
+            const bookingUserIds = [...new Set(recentBookingsData.map(b => b.userId))];
+            const bookingAgencies = await agency_model_1.Agency.find({ _id: { $in: bookingUserIds } }, 'agencyName');
+            const bookingAgencyMap = new Map(bookingAgencies.map(agency => [agency._id.toString(), agency.agencyName]));
+            const recentBookings = recentBookingsData.map(booking => ({
+                orderId: booking.orderId,
+                waybill: booking.waybill || 'N/A',
+                franchiseName: bookingAgencyMap.get(booking.userId) || 'Unknown',
+                consigneeName: booking.name,
+                amount: parseFloat(booking.totalAmount || booking.codAmount || '0'),
+                status: booking.status,
+                createdAt: booking.createdAt,
+            }));
             return {
                 success: true,
                 data: {
@@ -186,19 +198,38 @@ class AdminDashboardService {
             };
         }
     }
-    // Get top performing franchises
-    async getTopFranchises(limit = 5) {
+    // Get top performing franchises (per day)
+    async getTopFranchises(limit = 3) {
         try {
+            // Get today's date range
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
             const topFranchises = await shipment_model_1.Shipment.aggregate([
                 {
-                    $group: {
-                        _id: '$userId',
-                        shipmentCount: { $sum: 1 },
-                        totalRevenue: { $sum: '$amount' },
+                    $match: {
+                        createdAt: { $gte: today, $lt: tomorrow },
                     },
                 },
                 {
-                    $sort: { totalRevenue: -1 },
+                    $addFields: {
+                        numericAmount: {
+                            $toDouble: {
+                                $ifNull: ['$totalAmount', { $ifNull: ['$codAmount', '0'] }],
+                            },
+                        },
+                    },
+                },
+                {
+                    $group: {
+                        _id: '$userId',
+                        orderCount: { $sum: 1 },
+                        totalValue: { $sum: '$numericAmount' },
+                    },
+                },
+                {
+                    $sort: { totalValue: -1 },
                 },
                 {
                     $limit: limit,
@@ -212,15 +243,18 @@ class AdminDashboardService {
                     },
                 },
                 {
-                    $unwind: '$franchiseDetails',
+                    $unwind: {
+                        path: '$franchiseDetails',
+                        preserveNullAndEmptyArrays: true,
+                    },
                 },
                 {
                     $project: {
                         _id: 0,
                         franchiseId: '$_id',
-                        franchiseName: '$franchiseDetails.agencyName',
-                        shipmentCount: 1,
-                        totalRevenue: 1,
+                        franchiseName: { $ifNull: ['$franchiseDetails.agencyName', 'Unknown'] },
+                        orderCount: 1,
+                        totalValue: { $round: ['$totalValue', 2] },
                     },
                 },
             ]);

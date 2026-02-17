@@ -232,9 +232,15 @@ export const shipmentService = {
     }
   },
 
-  async getShipment(orderId: string, userId: string) {
+  async getShipment(orderId: string, userId: string, isAdmin?: boolean) {
     try {
-      const shipment = await Shipment.findOne({ orderId, userId }).lean();
+      // If admin, allow viewing any order. Otherwise, only user's own orders
+      const query: any = { orderId };
+      if (!isAdmin) {
+        query.userId = userId;
+      }
+
+      const shipment = await Shipment.findOne(query).lean();
 
       if (!shipment) {
         return {
@@ -397,10 +403,16 @@ export const shipmentService = {
     }
   },
 
-  async trackShipment(waybill: string, userId: string) {
+  async trackShipment(waybill: string, userId: string, isAdmin?: boolean) {
     try {
+      // If admin, allow tracking any shipment. Otherwise, only user's own shipments
+      const query: any = { waybill };
+      if (!isAdmin) {
+        query.userId = userId;
+      }
+
       // Find shipment in database
-      const shipment = await Shipment.findOne({ waybill, userId });
+      const shipment = await Shipment.findOne(query);
 
       if (!shipment) {
         return {
@@ -445,9 +457,15 @@ export const shipmentService = {
     }
   },
 
-  async updateShipment(orderId: string, userId: string, updateData: any) {
+  async updateShipment(orderId: string, userId: string, updateData: any, isAdmin?: boolean) {
     try {
-      const shipment = await Shipment.findOne({ orderId, userId });
+      // If admin, allow updating any order. Otherwise, only user's own orders
+      const query: any = { orderId };
+      if (!isAdmin) {
+        query.userId = userId;
+      }
+
+      const shipment = await Shipment.findOne(query);
 
       if (!shipment) {
         return {
@@ -492,9 +510,15 @@ export const shipmentService = {
     }
   },
 
-  async deleteShipment(orderId: string, userId: string) {
+  async deleteShipment(orderId: string, userId: string, isAdmin?: boolean) {
     try {
-      const shipment = await Shipment.findOne({ orderId, userId });
+      // If admin, allow deleting any order. Otherwise, only user's own orders
+      const query: any = { orderId };
+      if (!isAdmin) {
+        query.userId = userId;
+      }
+
+      const shipment = await Shipment.findOne(query);
 
       if (!shipment) {
         return {

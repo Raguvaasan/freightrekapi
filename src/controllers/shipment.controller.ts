@@ -63,7 +63,15 @@ export const getShipment = async (req: Request, res: Response) => {
       });
     }
 
-    const result = await shipmentService.getShipment(orderId, userId);
+    // Check if user is admin
+    let isAdmin = false;
+    const user = await AdminUser.findById(userId).populate('roleId');
+    if (user && user.roleId) {
+      const role: any = user.roleId;
+      isAdmin = role.isRoot === true;
+    }
+
+    const result = await shipmentService.getShipment(orderId, userId, isAdmin);
 
     if (!result.success) {
       return res.status(404).json(result);
@@ -143,7 +151,15 @@ export const trackShipment = async (req: Request, res: Response) => {
       });
     }
 
-    const result = await shipmentService.trackShipment(waybill, userId);
+    // Check if user is admin
+    let isAdmin = false;
+    const user = await AdminUser.findById(userId).populate('roleId');
+    if (user && user.roleId) {
+      const role: any = user.roleId;
+      isAdmin = role.isRoot === true;
+    }
+
+    const result = await shipmentService.trackShipment(waybill, userId, isAdmin);
 
     if (!result.success) {
       return res.status(404).json(result);
@@ -178,7 +194,15 @@ export const updateShipment = async (req: Request, res: Response) => {
       });
     }
 
-    const result = await shipmentService.updateShipment(orderId, userId, updateData);
+    // Check if user is admin
+    let isAdmin = false;
+    const user = await AdminUser.findById(userId).populate('roleId');
+    if (user && user.roleId) {
+      const role: any = user.roleId;
+      isAdmin = role.isRoot === true;
+    }
+
+    const result = await shipmentService.updateShipment(orderId, userId, updateData, isAdmin);
 
     if (!result.success) {
       return res.status(400).json(result);
@@ -212,7 +236,15 @@ export const deleteShipment = async (req: Request, res: Response) => {
       });
     }
 
-    const result = await shipmentService.deleteShipment(orderId, userId);
+    // Check if user is admin
+    let isAdmin = false;
+    const user = await AdminUser.findById(userId).populate('roleId');
+    if (user && user.roleId) {
+      const role: any = user.roleId;
+      isAdmin = role.isRoot === true;
+    }
+
+    const result = await shipmentService.deleteShipment(orderId, userId, isAdmin);
 
     if (!result.success) {
       return res.status(400).json(result);
