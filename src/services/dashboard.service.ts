@@ -11,55 +11,36 @@ export const dashboardService = {
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
 
-      // Total Shipments
-      const totalShipments = await Shipment.countDocuments({ userId });
+      // Run independent queries in parallel
+      const [
+        totalShipments,
+        activeShipments,
+        todaysShipments,
+        wallet,
+        codOrders,
+        todaysCodOrders,
+        recentBookings,
+        roadFreight,
+        airFreight
+      ] = await Promise.all([
+        Shipment.countDocuments({ userId }),
+        Shipment.countDocuments({ userId, status: { $in: ['pending', 'created', 'in-transit'] } }),
+        Shipment.countDocuments({ userId, createdAt: { $gte: today, $lt: tomorrow } }),
+        Wallet.findOne({ userId }).lean(),
+        Shipment.find({ userId, paymentMode: 'COD' }).lean(),
+        Shipment.find({ userId, paymentMode: 'COD', createdAt: { $gte: today, $lt: tomorrow } }).lean(),
+        Shipment.find({ userId }).sort({ createdAt: -1 }).limit(5).lean(),
+        Shipment.countDocuments({ userId, shippingMode: 'Surface' }),
+        Shipment.countDocuments({ userId, shippingMode: 'Express' })
+      ]);
 
-      // Active Shipments (pending, created, in-transit)
-      const activeShipments = await Shipment.countDocuments({
-        userId,
-        status: { $in: ['pending', 'created', 'in-transit'] },
-      });
-
-      // Today's Shipments
-      const todaysShipments = await Shipment.countDocuments({
-        userId,
-        createdAt: { $gte: today, $lt: tomorrow },
-      });
-
-      // Wallet Balance
-      const wallet = await Wallet.findOne({ userId });
       const walletBalance = wallet?.balance || 0;
+      const codRevenue = codOrders.reduce((sum, order) => sum + parseFloat(order.codAmount || '0'), 0);
+      const todaysRevenue = todaysCodOrders.reduce((sum, order) => sum + parseFloat(order.codAmount || '0'), 0);
 
-      // COD Revenue (sum of all COD orders)
-      const codOrders = await Shipment.find({
-        userId,
-        paymentMode: 'COD',
-      }).lean();
-
-      const codRevenue = codOrders.reduce((sum, order) => {
-        return sum + parseFloat(order.codAmount || '0');
-      }, 0);
-
-      // Today's Revenue (sum of today's COD orders)
-      const todaysCodOrders = await Shipment.find({
-        userId,
-        paymentMode: 'COD',
-        createdAt: { $gte: today, $lt: tomorrow },
-      }).lean();
-
-      const todaysRevenue = todaysCodOrders.reduce((sum, order) => {
-        return sum + parseFloat(order.codAmount || '0');
-      }, 0);
-
-      // Recent Bookings (last 5)
-      const recentBookings = await Shipment.find({ userId })
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .lean();
-
-      const formattedBookings = recentBookings.map((booking) => ({
+      const formattedBookings = recentBookings.map((booking:any) => ({
         bookingId: booking.waybill || booking.orderId,
-        orderId: booking.orderId,
+        orderId: booking.order, // Use franchise API orderId
         franchise: booking.pickupLocation?.name || 'N/A',
         amount: booking.codAmount || booking.totalAmount || '0',
         status: booking.status,
@@ -67,16 +48,7 @@ export const dashboardService = {
       }));
 
       // Shipment Type Distribution
-      const roadFreight = await Shipment.countDocuments({
-        userId,
-        shippingMode: 'Surface',
-      });
-
       const oceanFreight = 0; // Not implemented yet
-      const airFreight = await Shipment.countDocuments({
-        userId,
-        shippingMode: 'Express',
-      });
       const railFreight = 0; // Not implemented yet
 
       return {

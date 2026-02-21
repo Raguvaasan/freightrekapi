@@ -5,6 +5,7 @@ import {
   getAdminDashboard,
   getTopFranchises,
   getWalletStatistics,
+  getOrdersStatistics,
 } from '../../controllers/admin/dashboard.controller';
 
 const router = Router();
@@ -34,5 +35,12 @@ router.get('/top-franchises', getTopFranchises);
  * @access  Admin only
  */
 router.get('/wallet-statistics', getWalletStatistics);
+
+/**
+ * @route   GET /admin/dashboard/orders-statistics
+ * @desc    Get orders statistics - total count and per day breakdown
+ * @access  Admin only
+ */
+router.get('/orders-statistics', getOrdersStatistics);
 
 export default router;

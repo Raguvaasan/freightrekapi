@@ -44,24 +44,69 @@ export class AdminDashboardService {
           break;
       }
 
-      // 1. Overview Statistics
-      const totalShipments = await Shipment.countDocuments();
-      const activeShipments = await Shipment.countDocuments({
-        status: { $in: ['in_transit', 'out_for_delivery'] },
-      });
+      // Get today's date range
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
 
-      const inTransitCount = await Shipment.countDocuments({ status: 'in_transit' });
-      const outForDeliveryCount = await Shipment.countDocuments({ status: 'out_for_delivery' });
-
-      // Shipments in current period
-      const currentPeriodShipments = await Shipment.countDocuments({
-        createdAt: { $gte: startDate, $lte: now },
-      });
-
-      // Shipments in previous period
-      const previousPeriodShipments = await Shipment.countDocuments({
-        createdAt: { $gte: previousStartDate, $lte: previousEndDate },
-      });
+      // Run all independent queries in parallel for better performance
+      const [
+        totalShipments,
+        activeShipments,
+        inTransitCount,
+        outForDeliveryCount,
+        currentPeriodShipments,
+        previousPeriodShipments,
+        activeAgencies,
+        allTimeRevenueData,
+        todayRevenueData,
+        currentPeriodRevenueData,
+        previousPeriodRevenueData,
+        revenueTrendData,
+        shipmentTypeDistribution,
+        ordersPerDay,
+        todayOrders,
+        recentBookingsData
+      ] = await Promise.all([
+        Shipment.countDocuments(),
+        Shipment.countDocuments({ status: { $in: ['in_transit', 'out_for_delivery'] } }),
+        Shipment.countDocuments({ status: 'in_transit' }),
+        Shipment.countDocuments({ status: 'out_for_delivery' }),
+        Shipment.countDocuments({ createdAt: { $gte: startDate, $lte: now } }),
+        Shipment.countDocuments({ createdAt: { $gte: previousStartDate, $lte: previousEndDate } }),
+        Agency.countDocuments({ status: 'Active' }),
+        Shipment.find().lean(),
+        Shipment.find({ createdAt: { $gte: todayStart } }).lean(),
+        Shipment.find({ createdAt: { $gte: startDate, $lte: now } }).lean(),
+        Shipment.find({ createdAt: { $gte: previousStartDate, $lte: previousEndDate } }).lean(),
+        Shipment.find({ createdAt: { $gte: startDate, $lte: now } }).lean(),
+        Shipment.aggregate([
+          { $group: { _id: '$shippingMode', count: { $sum: 1 } } },
+          { $project: { _id: 0, type: '$_id', count: 1 } },
+        ]),
+        Shipment.aggregate([
+          { $match: { createdAt: { $gte: startDate, $lte: now } } },
+          {
+            $group: {
+              _id: {
+                year: { $year: '$createdAt' },
+                month: { $month: '$createdAt' },
+                day: { $dayOfMonth: '$createdAt' },
+              },
+              count: { $sum: 1 },
+            },
+          },
+          { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 } },
+          {
+            $project: {
+              _id: 0,
+              date: { $dateFromParts: { year: '$_id.year', month: '$_id.month', day: '$_id.day' } },
+              count: 1,
+            },
+          },
+        ]),
+        Shipment.countDocuments({ createdAt: { $gte: todayStart } }),
+        Shipment.find().sort({ createdAt: -1 }).limit(10).lean(),
+      ]);
 
       // Calculate shipment percentage change
       const shipmentPercentageChange =
@@ -69,115 +114,74 @@ export class AdminDashboardService {
           ? (((currentPeriodShipments - previousPeriodShipments) / previousPeriodShipments) * 100).toFixed(1)
           : '0.0';
 
-      // 2. Active Agencies Count
-      const activeAgencies = await Agency.countDocuments({ status: 'Active' });
+      // Calculate all-time total revenue from all shipments
+      const totalRevenue = allTimeRevenueData.reduce((sum, shipment) => {
+        return sum + parseFloat(shipment.totalAmount || shipment.codAmount || '0');
+      }, 0);
 
-      // 3. Revenue Statistics
-      const currentPeriodRevenue = await Transaction.aggregate([
-        {
-          $match: {
-            type: 'debit',
-            createdAt: { $gte: startDate, $lte: now },
-          },
-        },
-        {
-          $group: {
-            _id: null,
-            total: { $sum: '$amount' },
-          },
-        },
-      ]);
+      // Calculate today's revenue
+      const todayRevenue = todayRevenueData.reduce((sum, shipment) => {
+        return sum + parseFloat(shipment.totalAmount || shipment.codAmount || '0');
+      }, 0);
 
-      const previousPeriodRevenue = await Transaction.aggregate([
-        {
-          $match: {
-            type: 'debit',
-            createdAt: { $gte: previousStartDate, $lte: previousEndDate },
-          },
-        },
-        {
-          $group: {
-            _id: null,
-            total: { $sum: '$amount' },
-          },
-        },
-      ]);
+      // Calculate revenue from shipments for current period (for trend analysis)
+      const currentRevenue = currentPeriodRevenueData.reduce((sum, shipment) => {
+        return sum + parseFloat(shipment.totalAmount || shipment.codAmount || '0');
+      }, 0);
 
-      const currentRevenue = currentPeriodRevenue.length > 0 ? currentPeriodRevenue[0].total : 0;
-      const previousRevenue = previousPeriodRevenue.length > 0 ? previousPeriodRevenue[0].total : 0;
+      const previousRevenue = previousPeriodRevenueData.reduce((sum, shipment) => {
+        return sum + parseFloat(shipment.totalAmount || shipment.codAmount || '0');
+      }, 0);
 
-      // Calculate revenue percentage change
       const revenuePercentageChange =
         previousRevenue > 0
           ? (((currentRevenue - previousRevenue) / previousRevenue) * 100).toFixed(1)
           : '0.0';
 
-      // 4. Revenue Trend (daily data for chart)
-      const revenueTrend = await Transaction.aggregate([
-        {
-          $match: {
-            type: 'debit',
-            createdAt: { $gte: startDate, $lte: now },
-          },
-        },
-        {
-          $group: {
-            _id: {
-              year: { $year: '$createdAt' },
-              month: { $month: '$createdAt' },
-              day: { $dayOfMonth: '$createdAt' },
-            },
-            revenue: { $sum: '$amount' },
-          },
-        },
-        {
-          $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 },
-        },
-        {
-          $project: {
-            _id: 0,
-            date: {
-              $dateFromParts: {
-                year: '$_id.year',
-                month: '$_id.month',
-                day: '$_id.day',
-              },
-            },
-            revenue: 1,
-          },
-        },
-      ]);
+      // Create revenue trend (group by day)
+      const revenueTrendMap = new Map();
+      revenueTrendData.forEach((shipment) => {
+        const date = new Date(shipment.createdAt);
+        date.setHours(0, 0, 0, 0);
+        const dateKey = date.toISOString().split('T')[0];
+        const amount = parseFloat(shipment.totalAmount || shipment.codAmount || '0');
+        revenueTrendMap.set(dateKey, (revenueTrendMap.get(dateKey) || 0) + amount);
+      });
 
-      // 5. Shipment Type Distribution
-      const shipmentTypeDistribution = await Shipment.aggregate([
-        {
-          $group: {
-            _id: '$shipmentType',
-            count: { $sum: 1 },
-          },
-        },
-        {
-          $project: {
-            _id: 0,
-            type: '$_id',
-            count: 1,
-          },
-        },
-      ]);
+      const revenueTrend = Array.from(revenueTrendMap.entries())
+        .map(([date, revenue]) => ({ date: new Date(date), revenue }))
+        .sort((a, b) => a.date.getTime() - b.date.getTime());
 
-      // 6. Recent Bookings (last 10 shipments across all franchises)
-      const recentBookingsData = await Shipment.find()
-        .sort({ createdAt: -1 })
-        .limit(10)
-        .lean();
+      // Calculate average orders per day for current period
+      const totalDaysInPeriod = Math.ceil((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) || 1;
+      const averageOrdersPerDay = (currentPeriodShipments / totalDaysInPeriod).toFixed(2);
+
+      // Normalize shipment type distribution to always show both Surface and Express with percentages
+      const shipmentTypeMap = new Map(shipmentTypeDistribution.map(item => [item.type, item.count]));
+      const surfaceCount = shipmentTypeMap.get('Surface') || 0;
+      const expressCount = shipmentTypeMap.get('Express') || 0;
+      const totalShipmentTypeCount = surfaceCount + expressCount || 1; // Avoid division by zero
+      
+      const normalizedShipmentTypes = [
+        { 
+          type: 'Surface', 
+          count: surfaceCount,
+          percentage: ((surfaceCount / totalShipmentTypeCount) * 100).toFixed(1)
+        },
+        { 
+          type: 'Express', 
+          count: expressCount,
+          percentage: ((expressCount / totalShipmentTypeCount) * 100).toFixed(1)
+        },
+      ];
 
       // Get franchise names for recent bookings
       const bookingUserIds = [...new Set(recentBookingsData.map(b => b.userId))];
       const bookingAgencies = await Agency.find({ _id: { $in: bookingUserIds } }, 'agencyName');
       const bookingAgencyMap = new Map(bookingAgencies.map(agency => [agency._id.toString(), agency.agencyName]));
-
+console.log('Recent Bookings Data:', recentBookingsData);
       const recentBookings = recentBookingsData.map(booking => ({
-        orderId: booking.orderId,
+        orderId: booking.order, // Use franchise API orderId
         waybill: booking.waybill || 'N/A',
         franchiseName: bookingAgencyMap.get(booking.userId) || 'Unknown',
         consigneeName: booking.name,
@@ -200,15 +204,23 @@ export class AdminDashboardService {
               currentPeriod: currentPeriodShipments,
               percentageChange: shipmentPercentageChange,
             },
+            totalOrders: {
+              allTime: totalShipments,
+              today: todayOrders,
+              currentPeriod: currentPeriodShipments,
+              averagePerDay: parseFloat(averageOrdersPerDay),
+            },
             revenue: {
-              total: currentRevenue,
+              total: totalRevenue,
+              today: todayRevenue,
               percentageChange: revenuePercentageChange,
               currency: '₹',
             },
             activeAgencies: activeAgencies,
           },
           revenueTrend: revenueTrend,
-          shipmentTypeDistribution: shipmentTypeDistribution,
+          ordersPerDay: ordersPerDay,
+          shipmentTypeDistribution: normalizedShipmentTypes,
           recentBookings: recentBookings,
           period: period,
         },
@@ -221,26 +233,80 @@ export class AdminDashboardService {
     }
   }
 
-  // Get top performing franchises (per day)
-  async getTopFranchises(limit: number = 3): Promise<ServiceResponse> {
+  // Get top performing franchises
+  async getTopFranchises(limit: number = 3, period: 'day' | 'week' | 'month' | 'all' = 'all'): Promise<ServiceResponse> {
     try {
-      // Get today's date range
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-
-      const topFranchises = await Shipment.aggregate([
-        {
+      // Calculate date range based on period
+      let matchStage: any = {};
+      
+      if (period !== 'all') {
+        const now = new Date();
+        let startDate = new Date();
+        
+        switch (period) {
+          case 'day':
+            startDate.setHours(0, 0, 0, 0);
+            break;
+          case 'week':
+            startDate.setDate(now.getDate() - 7);
+            break;
+          case 'month':
+            startDate.setDate(now.getDate() - 30);
+            break;
+        }
+        
+        matchStage = {
           $match: {
-            createdAt: { $gte: today, $lt: tomorrow },
+            createdAt: { $gte: startDate },
           },
-        },
+        };
+      }
+
+      const pipeline: any[] = [];
+      
+      // Only add match stage if period is not 'all'
+      if (period !== 'all') {
+        pipeline.push(matchStage);
+      }
+      
+      pipeline.push(
         {
           $addFields: {
             numericAmount: {
-              $toDouble: {
-                $ifNull: ['$totalAmount', { $ifNull: ['$codAmount', '0'] }],
+              $cond: {
+                if: {
+                  $and: [
+                    { $ne: ['$totalAmount', ''] },
+                    { $ne: ['$totalAmount', null] },
+                  ],
+                },
+                then: {
+                  $convert: {
+                    input: '$totalAmount',
+                    to: 'double',
+                    onError: 0,
+                    onNull: 0,
+                  },
+                },
+                else: {
+                  $cond: {
+                    if: {
+                      $and: [
+                        { $ne: ['$codAmount', ''] },
+                        { $ne: ['$codAmount', null] },
+                      ],
+                    },
+                    then: {
+                      $convert: {
+                        input: '$codAmount',
+                        to: 'double',
+                        onError: 0,
+                        onNull: 0,
+                      },
+                    },
+                    else: 0,
+                  },
+                },
               },
             },
           },
@@ -259,9 +325,14 @@ export class AdminDashboardService {
           $limit: limit,
         },
         {
+          $addFields: {
+            userObjectId: { $toObjectId: '$_id' },
+          },
+        },
+        {
           $lookup: {
             from: 'agencies',
-            localField: '_id',
+            localField: 'userObjectId',
             foreignField: '_id',
             as: 'franchiseDetails',
           },
@@ -280,8 +351,10 @@ export class AdminDashboardService {
             orderCount: 1,
             totalValue: { $round: ['$totalValue', 2] },
           },
-        },
-      ]);
+        }
+      );
+      
+      const topFranchises = await Shipment.aggregate(pipeline);
 
       return {
         success: true,
@@ -353,6 +426,77 @@ export class AdminDashboardService {
       return {
         success: false,
         message: error.message || 'Error fetching wallet statistics',
+      };
+    }
+  }
+
+  // Get simple orders statistics - total count and per day breakdown
+  async getOrdersStatistics(): Promise<ServiceResponse> {
+    try {
+      // 1. Total orders (all time)
+      const totalOrders = await Shipment.countDocuments();
+
+      // 2. Today's orders
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const todayOrders = await Shipment.countDocuments({
+        createdAt: { $gte: todayStart },
+      });
+
+      // 3. Orders per day (all time)
+      const ordersPerDay = await Shipment.aggregate([
+        {
+          $group: {
+            _id: {
+              year: { $year: '$createdAt' },
+              month: { $month: '$createdAt' },
+              day: { $dayOfMonth: '$createdAt' },
+            },
+            count: { $sum: 1 },
+          },
+        },
+        {
+          $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 },
+        },
+        {
+          $project: {
+            _id: 0,
+            date: {
+              $dateFromParts: {
+                year: '$_id.year',
+                month: '$_id.month',
+                day: '$_id.day',
+              },
+            },
+            count: 1,
+          },
+        },
+      ]);
+
+      // 4. Calculate average orders per day
+      const firstOrder = await Shipment.findOne().sort({ createdAt: 1 }).select('createdAt');
+      let averagePerDay = 0;
+      
+      if (firstOrder && firstOrder.createdAt) {
+        const daysSinceFirst = Math.ceil(
+          (new Date().getTime() - firstOrder.createdAt.getTime()) / (1000 * 60 * 60 * 24)
+        ) || 1;
+        averagePerDay = parseFloat((totalOrders / daysSinceFirst).toFixed(2));
+      }
+
+      return {
+        success: true,
+        data: {
+          totalOrders,
+          todayOrders,
+          averagePerDay,
+          ordersPerDay,
+        },
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Error fetching orders statistics',
       };
     }
   }

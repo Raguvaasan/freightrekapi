@@ -45,6 +45,12 @@ curl -X GET "https://freightrekapi.vercel.app/admin/dashboard?period=week" \
         "currentPeriod": 45,
         "percentageChange": "+12.5"
       },
+      "totalOrders": {
+        "allTime": 250,
+        "today": 12,
+        "currentPeriod": 45,
+        "averagePerDay": 6.43
+      },
       "revenue": {
         "total": 125000,
         "percentageChange": "+8.3",
@@ -60,6 +66,16 @@ curl -X GET "https://freightrekapi.vercel.app/admin/dashboard?period=week" \
       {
         "date": "2026-02-02T00:00:00.000Z",
         "revenue": 18000
+      }
+    ],
+    "ordersPerDay": [
+      {
+        "date": "2026-02-01T00:00:00.000Z",
+        "count": 25
+      },
+      {
+        "date": "2026-02-02T00:00:00.000Z",
+        "count": 30
       }
     ],
     "shipmentTypeDistribution": [
@@ -107,10 +123,31 @@ curl -X GET "https://freightrekapi.vercel.app/admin/dashboard?period=week" \
 
 **Query Parameters:**
 - `limit` (optional): Number of franchises to return (default: `5`)
+- `period` (optional): Time period - `day`, `week`, `month`, `all` (default: `all`)
 
-**cURL Example:**
+**cURL Examples:**
+
+**All-time data (default):**
 ```bash
 curl -X GET "https://freightrekapi.vercel.app/admin/dashboard/top-franchises?limit=10" \
+  -H "Authorization: Bearer YOUR_ADMIN_JWT_TOKEN"
+```
+
+**Today's data:**
+```bash
+curl -X GET "https://freightrekapi.vercel.app/admin/dashboard/top-franchises?limit=10&period=day" \
+  -H "Authorization: Bearer YOUR_ADMIN_JWT_TOKEN"
+```
+
+**Last 7 days:**
+```bash
+curl -X GET "https://freightrekapi.vercel.app/admin/dashboard/top-franchises?limit=10&period=week" \
+  -H "Authorization: Bearer YOUR_ADMIN_JWT_TOKEN"
+```
+
+**Last 30 days:**
+```bash
+curl -X GET "https://freightrekapi.vercel.app/admin/dashboard/top-franchises?limit=10&period=month" \
   -H "Authorization: Bearer YOUR_ADMIN_JWT_TOKEN"
 ```
 
@@ -122,20 +159,20 @@ curl -X GET "https://freightrekapi.vercel.app/admin/dashboard/top-franchises?lim
     {
       "franchiseId": "507f191e810c19729de860ea",
       "franchiseName": "Chennai Logistics",
-      "shipmentCount": 85,
-      "totalRevenue": 425000
+      "orderCount": 85,
+      "totalValue": 425000
     },
     {
       "franchiseId": "507f191e810c19729de860eb",
       "franchiseName": "Mumbai Freight Services",
-      "shipmentCount": 72,
-      "totalRevenue": 360000
+      "orderCount": 72,
+      "totalValue": 360000
     },
     {
       "franchiseId": "507f191e810c19729de860ec",
       "franchiseName": "Delhi Express",
-      "shipmentCount": 68,
-      "totalRevenue": 340000
+      "orderCount": 68,
+      "totalValue": 340000
     }
   ]
 }

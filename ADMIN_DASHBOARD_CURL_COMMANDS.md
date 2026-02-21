@@ -65,6 +65,12 @@ curl -X GET "https://freightrekapi.vercel.app/admin/dashboard?period=year" \
         "currentPeriod": 16,
         "percentageChange": "0.0"
       },
+      "totalOrders": {
+        "allTime": 16,
+        "today": 5,
+        "currentPeriod": 16,
+        "averagePerDay": 2.29
+      },
       "revenue": {
         "total": 123.4,
         "percentageChange": "0.0",
@@ -80,6 +86,16 @@ curl -X GET "https://freightrekapi.vercel.app/admin/dashboard?period=year" \
       {
         "date": "2026-02-09T00:00:00.000Z",
         "revenue": 43.13
+      }
+    ],
+    "ordersPerDay": [
+      {
+        "date": "2026-02-08T00:00:00.000Z",
+        "count": 10
+      },
+      {
+        "date": "2026-02-09T00:00:00.000Z",
+        "count": 6
       }
     ],
     "shipmentTypeDistribution": [
@@ -111,24 +127,37 @@ Get franchises ranked by revenue
 
 **Query Parameters:**
 - `limit` (optional): Number of franchises to return (default: `5`)
+- `period` (optional): Time period - `day` | `week` | `month` | `all` (default: `all`)
 
 ### cURL Commands
 
-**Top 5 Franchises:**
+**Top 5 Franchises (All-time):**
 ```bash
 curl -X GET "https://freightrekapi.vercel.app/admin/dashboard/top-franchises?limit=5" \
   -H "Authorization: Bearer YOUR_ADMIN_JWT_TOKEN"
 ```
 
-**Top 10 Franchises:**
+**Top 10 Franchises (All-time):**
 ```bash
 curl -X GET "https://freightrekapi.vercel.app/admin/dashboard/top-franchises?limit=10" \
   -H "Authorization: Bearer YOUR_ADMIN_JWT_TOKEN"
 ```
 
-**All Top Franchises:**
+**Top 5 Franchises (Today):**
 ```bash
-curl -X GET "https://freightrekapi.vercel.app/admin/dashboard/top-franchises?limit=100" \
+curl -X GET "https://freightrekapi.vercel.app/admin/dashboard/top-franchises?limit=5&period=day" \
+  -H "Authorization: Bearer YOUR_ADMIN_JWT_TOKEN"
+```
+
+**Top 5 Franchises (Last 7 Days):**
+```bash
+curl -X GET "https://freightrekapi.vercel.app/admin/dashboard/top-franchises?limit=5&period=week" \
+  -H "Authorization: Bearer YOUR_ADMIN_JWT_TOKEN"
+```
+
+**Top 5 Franchises (Last 30 Days):**
+```bash
+curl -X GET "https://freightrekapi.vercel.app/admin/dashboard/top-franchises?limit=5&period=month" \
   -H "Authorization: Bearer YOUR_ADMIN_JWT_TOKEN"
 ```
 
@@ -140,20 +169,20 @@ curl -X GET "https://freightrekapi.vercel.app/admin/dashboard/top-franchises?lim
     {
       "franchiseId": "507f191e810c19729de860ea",
       "franchiseName": "Chennai Logistics",
-      "shipmentCount": 85,
-      "totalRevenue": 425000
+      "orderCount": 85,
+      "totalValue": 425000
     },
     {
       "franchiseId": "507f191e810c19729de860eb",
       "franchiseName": "Mumbai Freight Services",
-      "shipmentCount": 72,
-      "totalRevenue": 360000
+      "orderCount": 72,
+      "totalValue": 360000
     },
     {
       "franchiseId": "507f191e810c19729de860ec",
       "franchiseName": "Delhi Express",
-      "shipmentCount": 68,
-      "totalRevenue": 340000
+      "orderCount": 68,
+      "totalValue": 340000
     }
   ]
 }
@@ -195,7 +224,54 @@ curl -X GET "https://freightrekapi.vercel.app/admin/dashboard/wallet-statistics"
 
 ---
 
-## 🔧 Quick Examples
+## � 4. Get Orders Statistics (Simple)
+
+Get simple order statistics - total count and per day breakdown (no period filter needed)
+
+**Endpoint:** `GET /admin/dashboard/orders-statistics`
+
+### cURL Command
+
+```bash
+curl -X GET "https://freightrekapi.vercel.app/admin/dashboard/orders-statistics" \
+  -H "Authorization: Bearer YOUR_ADMIN_JWT_TOKEN"
+```
+
+### Response Example
+```json
+{
+  "success": true,
+  "data": {
+    "totalOrders": 18,
+    "todayOrders": 0,
+    "averagePerDay": 1.2,
+    "ordersPerDay": [
+      {
+        "date": "2026-02-04T00:00:00.000Z",
+        "count": 2
+      },
+      {
+        "date": "2026-02-05T00:00:00.000Z",
+        "count": 3
+      },
+      {
+        "date": "2026-02-08T00:00:00.000Z",
+        "count": 9
+      }
+    ]
+  }
+}
+```
+
+**Data Explained:**
+- `totalOrders`: Total orders created (all time)
+- `todayOrders`: Orders created today
+- `averagePerDay`: Average orders per day since first order
+- `ordersPerDay`: Array of daily order counts (all time)
+
+---
+
+## �🔧 Quick Examples
 
 ### Using Variables
 
