@@ -20,8 +20,8 @@ export const dashboardService = {
         codOrders,
         todaysCodOrders,
         recentBookings,
-        roadFreight,
-        airFreight
+        surfaceCount,
+        expressCount
       ] = await Promise.all([
         Shipment.countDocuments({ userId }),
         Shipment.countDocuments({ userId, status: { $in: ['pending', 'created', 'in-transit'] } }),
@@ -44,12 +44,25 @@ export const dashboardService = {
         franchise: booking.pickupLocation?.name || 'N/A',
         amount: booking.codAmount || booking.totalAmount || '0',
         status: booking.status,
+        date: booking.createdAt, // Booking date
+        dropLocation: booking.city && booking.state ? `${booking.city}, ${booking.state}` : booking.city || 'N/A', // Drop location
         createdAt: booking.createdAt,
       }));
 
-      // Shipment Type Distribution
-      const oceanFreight = 0; // Not implemented yet
-      const railFreight = 0; // Not implemented yet
+      // Shipment Type Distribution (matching admin dashboard format)
+      const totalShipmentTypeCount = surfaceCount + expressCount || 1; // Avoid division by zero
+      const shipmentTypeDistribution = [
+        { 
+          type: 'Surface', 
+          count: surfaceCount,
+          percentage: ((surfaceCount / totalShipmentTypeCount) * 100).toFixed(1)
+        },
+        { 
+          type: 'Express', 
+          count: expressCount,
+          percentage: ((expressCount / totalShipmentTypeCount) * 100).toFixed(1)
+        },
+      ];
 
       return {
         success: true,
@@ -83,13 +96,7 @@ export const dashboardService = {
             },
           },
           recentBookings: formattedBookings,
-          shipmentType: {
-            roadFreight,
-            oceanFreight,
-            airFreight,
-            railFreight,
-            total: totalShipments,
-          },
+          shipmentTypeDistribution: shipmentTypeDistribution,
         },
       };
     } catch (error: any) {
