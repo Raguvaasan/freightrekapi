@@ -436,12 +436,14 @@ class AdminDashboardService {
         }
     }
     // Get franchise-wise report data for dashboard/report page
-    async getFranchiseReport(period = 'month') {
+    async getFranchiseReport(period = 'month', isPreviousPeriod = false) {
         try {
             const now = new Date();
             let startDate = new Date();
             let previousStartDate = new Date();
             let previousEndDate = new Date(now);
+            let compareStartDate = new Date();
+            let compareEndDate = new Date(now);
             // determine date windows based on period
             switch (period) {
                 case 'day':
@@ -450,40 +452,55 @@ class AdminDashboardService {
                     previousStartDate.setHours(0, 0, 0, 0);
                     previousEndDate.setDate(now.getDate() - 1);
                     previousEndDate.setHours(23, 59, 59, 999);
+                    compareStartDate.setDate(now.getDate() - 2);
+                    compareStartDate.setHours(0, 0, 0, 0);
+                    compareEndDate.setDate(now.getDate() - 2);
+                    compareEndDate.setHours(23, 59, 59, 999);
                     break;
                 case 'week':
                     startDate.setDate(now.getDate() - 7);
                     previousStartDate.setDate(now.getDate() - 14);
                     previousEndDate.setDate(now.getDate() - 7);
+                    compareStartDate.setDate(now.getDate() - 21);
+                    compareEndDate.setDate(now.getDate() - 14);
                     break;
                 case 'month':
                     startDate.setDate(now.getDate() - 30);
                     previousStartDate.setDate(now.getDate() - 60);
                     previousEndDate.setDate(now.getDate() - 30);
+                    compareStartDate.setDate(now.getDate() - 90);
+                    compareEndDate.setDate(now.getDate() - 60);
                     break;
                 case 'year':
                     startDate.setFullYear(now.getFullYear() - 1);
                     previousStartDate.setFullYear(now.getFullYear() - 2);
                     previousEndDate.setFullYear(now.getFullYear() - 1);
+                    compareStartDate.setFullYear(now.getFullYear() - 3);
+                    compareEndDate.setFullYear(now.getFullYear() - 2);
                     break;
             }
+            // Use previous period dates if isPreviousPeriod is true
+            const queryStartDate = isPreviousPeriod ? previousStartDate : startDate;
+            const queryEndDate = isPreviousPeriod ? previousEndDate : now;
+            const compareStart = isPreviousPeriod ? compareStartDate : previousStartDate;
+            const compareEnd = isPreviousPeriod ? compareEndDate : previousEndDate;
             // overall counts for overview cards
             const [totalFranchises, currentPeriodShipments, deliveredCount, revenueShipments] = await Promise.all([
                 agency_model_1.Agency.countDocuments({ status: 'Active' }),
-                shipment_model_1.Shipment.countDocuments({ createdAt: { $gte: startDate, $lte: now } }),
+                shipment_model_1.Shipment.countDocuments({ createdAt: { $gte: queryStartDate, $lte: queryEndDate } }),
                 shipment_model_1.Shipment.countDocuments({
-                    createdAt: { $gte: startDate, $lte: now },
+                    createdAt: { $gte: queryStartDate, $lte: queryEndDate },
                     status: 'delivered',
                 }),
-                shipment_model_1.Shipment.find({ createdAt: { $gte: startDate, $lte: now } }).lean(),
+                shipment_model_1.Shipment.find({ createdAt: { $gte: queryStartDate, $lte: queryEndDate } }).lean(),
             ]);
             const totalRevenue = revenueShipments.reduce((sum, s) => {
                 return sum + parseFloat(s.totalAmount || s.codAmount || '0');
             }, 0);
-            // aggregation per franchise for current period
+            // aggregation per franchise for current/previous period
             const currentPipeline = [
                 {
-                    $match: { createdAt: { $gte: startDate, $lte: now } },
+                    $match: { createdAt: { $gte: queryStartDate, $lte: queryEndDate } },
                 },
                 {
                     $group: {
@@ -533,7 +550,7 @@ class AdminDashboardService {
             const previousPipeline = [
                 {
                     $match: {
-                        createdAt: { $gte: previousStartDate, $lte: previousEndDate },
+                        createdAt: { $gte: compareStart, $lte: compareEnd },
                     },
                 },
                 {
@@ -571,6 +588,7 @@ class AdminDashboardService {
                     growth: growth,
                 };
             });
+            const displayPeriod = isPreviousPeriod ? `previous_${period}` : period;
             return {
                 success: true,
                 data: {
@@ -579,7 +597,7 @@ class AdminDashboardService {
                         totalOrders: currentPeriodShipments,
                         delivered: deliveredCount,
                         revenue: totalRevenue,
-                        period,
+                        period: displayPeriod,
                     },
                     franchisePerformance,
                 },

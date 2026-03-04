@@ -103,7 +103,8 @@ export const getOrdersStatistics = async (req: Request, res: Response) => {
 export const getFranchiseReport = async (req: Request, res: Response) => {
   try {
     const period = (req.query.period as 'day' | 'week' | 'month' | 'year') || 'month';
-    const result = await dashboardService.getFranchiseReport(period);
+    const isPreviousPeriod = req.query.type === 'previous' || req.query.isPrevious === 'true';
+    const result = await dashboardService.getFranchiseReport(period, isPreviousPeriod);
 
     if (!result.success) {
       return res.status(400).json({ success: false, message: result.message });
