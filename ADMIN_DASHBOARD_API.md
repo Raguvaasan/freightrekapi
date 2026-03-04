@@ -125,6 +125,62 @@ curl -X GET "https://freightrekapi.vercel.app/admin/dashboard?period=week" \
 - `limit` (optional): Number of franchises to return (default: `5`)
 - `period` (optional): Time period - `day`, `week`, `month`, `all` (default: `all`)
 
+---
+
+## 3. Get Franchise-wise Report
+
+**Endpoint:** `GET /admin/dashboard/franchise-report`
+
+**Description:** Summary and per-franchise statistics for use on reports page. Returns overall totals and a breakdown for each franchise including orders, delivered/pending/RTO counts, revenue, and growth vs previous period.
+
+**Query Parameters:**
+- `period` (optional): `day`, `week`, `month`, `year` (default: `month`)
+
+**cURL Example:**
+```bash
+curl -X GET "https://freightrekapi.vercel.app/admin/dashboard/franchise-report?period=month" \
+  -H "Authorization: Bearer YOUR_ADMIN_JWT_TOKEN"
+```
+
+**Sample response structure:**
+```json
+{
+  "success": true,
+  "data": {
+    "overview": {
+      "totalFranchises": 4,
+      "totalOrders": 6925,
+      "delivered": 6590,
+      "revenue": 693000,
+      "period": "month"
+    },
+    "franchisePerformance": [
+      {
+        "franchiseId": "507f...",
+        "franchiseName": "Chennai Central",
+        "totalOrders": 1245,
+        "delivered": 1180,
+        "pending": 45,
+        "rto": 20,
+        "revenue": 125000,
+        "growth": "12.5"
+      },
+      ...
+    ]
+  }
+}
+```
+
+
+## 4. Get Wallet Statistics
+
+**Endpoint:** `GET /admin/dashboard/wallet-statistics`
+
+**Description:** Get overall wallet and transaction statistics
+
+**Query Parameters:**
+- none
+
 **cURL Examples:**
 
 **All-time data (default):**

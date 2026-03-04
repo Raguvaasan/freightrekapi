@@ -6,6 +6,7 @@ import {
   getTopFranchises,
   getWalletStatistics,
   getOrdersStatistics,
+  getFranchiseReport
 } from '../../controllers/admin/dashboard.controller';
 
 const router = Router();
@@ -42,5 +43,13 @@ router.get('/wallet-statistics', getWalletStatistics);
  * @access  Admin only
  */
 router.get('/orders-statistics', getOrdersStatistics);
+
+/**
+ * @route   GET /admin/dashboard/franchise-report
+ * @desc    Get franchise-wise performance data for reports
+ * @query   period - 'day' | 'week' | 'month' | 'year' (default: 'month')
+ * @access  Admin only
+ */
+router.get('/franchise-report', getFranchiseReport);
 
 export default router;

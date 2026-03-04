@@ -500,4 +500,174 @@ console.log('Recent Bookings Data:', recentBookingsData);
       };
     }
   }
+
+  // Get franchise-wise report data for dashboard/report page
+  async getFranchiseReport(period: 'day' | 'week' | 'month' | 'year' = 'month'): Promise<ServiceResponse> {
+    try {
+      const now = new Date();
+      let startDate = new Date();
+      let previousStartDate = new Date();
+      let previousEndDate = new Date(now);
+
+      // determine date windows based on period
+      switch (period) {
+        case 'day':
+          startDate.setHours(0, 0, 0, 0);
+          previousStartDate.setDate(now.getDate() - 1);
+          previousStartDate.setHours(0, 0, 0, 0);
+          previousEndDate.setDate(now.getDate() - 1);
+          previousEndDate.setHours(23, 59, 59, 999);
+          break;
+        case 'week':
+          startDate.setDate(now.getDate() - 7);
+          previousStartDate.setDate(now.getDate() - 14);
+          previousEndDate.setDate(now.getDate() - 7);
+          break;
+        case 'month':
+          startDate.setDate(now.getDate() - 30);
+          previousStartDate.setDate(now.getDate() - 60);
+          previousEndDate.setDate(now.getDate() - 30);
+          break;
+        case 'year':
+          startDate.setFullYear(now.getFullYear() - 1);
+          previousStartDate.setFullYear(now.getFullYear() - 2);
+          previousEndDate.setFullYear(now.getFullYear() - 1);
+          break;
+      }
+
+      // overall counts for overview cards
+      const [totalFranchises, currentPeriodShipments, deliveredCount, revenueShipments] =
+        await Promise.all([
+          Agency.countDocuments({ status: 'Active' }),
+          Shipment.countDocuments({ createdAt: { $gte: startDate, $lte: now } }),
+          Shipment.countDocuments({
+            createdAt: { $gte: startDate, $lte: now },
+            status: 'delivered',
+          }),
+          Shipment.find({ createdAt: { $gte: startDate, $lte: now } }).lean(),
+        ]);
+
+      const totalRevenue = revenueShipments.reduce((sum, s) => {
+        return sum + parseFloat(s.totalAmount || s.codAmount || '0');
+      }, 0);
+
+      // aggregation per franchise for current period
+      const currentPipeline: any[] = [
+        {
+          $match: { createdAt: { $gte: startDate, $lte: now } },
+        },
+        {
+          $group: {
+            _id: '$userId',
+            totalOrders: { $sum: 1 },
+            delivered: {
+              $sum: {
+                $cond: [{ $eq: ['$status', 'delivered'] }, 1, 0],
+              },
+            },
+            pending: {
+              $sum: {
+                $cond: [{ $eq: ['$status', 'pending'] }, 1, 0],
+              },
+            },
+            rto: {
+              $sum: {
+                $cond: [{ $eq: ['$status', 'rto'] }, 1, 0],
+              },
+            },
+            revenue: {
+              $sum: {
+                $cond: [
+                  {
+                    $or: [
+                      { $eq: ['$totalAmount', null] },
+                      { $eq: ['$totalAmount', ''] },
+                      { $eq: ['$codAmount', null] },
+                      { $eq: ['$codAmount', ''] },
+                    ],
+                  },
+                  0,
+                  {
+                    $convert: {
+                      input: { $ifNull: ['$totalAmount', '$codAmount'] },
+                      to: 'double',
+                      onError: 0,
+                      onNull: 0,
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      ];
+
+      const previousPipeline: any[] = [
+        {
+          $match: {
+            createdAt: { $gte: previousStartDate, $lte: previousEndDate },
+          },
+        },
+        {
+          $group: {
+            _id: '$userId',
+            totalOrders: { $sum: 1 },
+          },
+        },
+      ];
+
+      const [currentAgg, previousAgg] = await Promise.all([
+        Shipment.aggregate(currentPipeline),
+        Shipment.aggregate(previousPipeline),
+      ]);
+
+      const prevMap = new Map<string, number>();
+      previousAgg.forEach((item: any) => {
+        prevMap.set(item._id?.toString() || '', item.totalOrders);
+      });
+
+      // fetch franchise names
+      const franchiseIds = currentAgg.map((i: any) => i._id).filter(Boolean);
+      const agencies = await Agency.find({ _id: { $in: franchiseIds } }, 'agencyName');
+      const agencyMap = new Map(agencies.map(a => [a._id.toString(), a.agencyName]));
+
+      const franchisePerformance = currentAgg.map((item: any) => {
+        const prevCount = prevMap.get(item._id?.toString() || '') || 0;
+        const growth =
+          prevCount > 0
+            ? (((item.totalOrders - prevCount) / prevCount) * 100).toFixed(1)
+            : '0.0';
+        return {
+          franchiseId: item._id,
+          franchiseName: agencyMap.get(item._id.toString()) || 'Unknown',
+          totalOrders: item.totalOrders,
+          delivered: item.delivered,
+          pending: item.pending,
+          rto: item.rto,
+          revenue: item.revenue,
+          growth: growth,
+        };
+      });
+
+      return {
+        success: true,
+        data: {
+          overview: {
+            totalFranchises,
+            totalOrders: currentPeriodShipments,
+            delivered: deliveredCount,
+            revenue: totalRevenue,
+            period,
+          },
+          franchisePerformance,
+        },
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Error fetching franchise report',
+      };
+    }
+  }
 }
+

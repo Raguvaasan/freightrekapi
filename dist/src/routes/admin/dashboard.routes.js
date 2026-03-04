@@ -26,4 +26,17 @@ router.get('/top-franchises', dashboard_controller_1.getTopFranchises);
  * @access  Admin only
  */
 router.get('/wallet-statistics', dashboard_controller_1.getWalletStatistics);
+/**
+ * @route   GET /admin/dashboard/orders-statistics
+ * @desc    Get orders statistics - total count and per day breakdown
+ * @access  Admin only
+ */
+router.get('/orders-statistics', dashboard_controller_1.getOrdersStatistics);
+/**
+ * @route   GET /admin/dashboard/franchise-report
+ * @desc    Get franchise-wise performance data for reports
+ * @query   period - 'day' | 'week' | 'month' | 'year' (default: 'month')
+ * @access  Admin only
+ */
+router.get('/franchise-report', dashboard_controller_1.getFranchiseReport);
 exports.default = router;

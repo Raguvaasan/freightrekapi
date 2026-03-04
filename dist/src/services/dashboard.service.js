@@ -11,62 +11,45 @@ exports.dashboardService = {
             today.setHours(0, 0, 0, 0);
             const tomorrow = new Date(today);
             tomorrow.setDate(tomorrow.getDate() + 1);
-            // Total Shipments
-            const totalShipments = await shipment_model_1.Shipment.countDocuments({ userId });
-            // Active Shipments (pending, created, in-transit)
-            const activeShipments = await shipment_model_1.Shipment.countDocuments({
-                userId,
-                status: { $in: ['pending', 'created', 'in-transit'] },
-            });
-            // Today's Shipments
-            const todaysShipments = await shipment_model_1.Shipment.countDocuments({
-                userId,
-                createdAt: { $gte: today, $lt: tomorrow },
-            });
-            // Wallet Balance
-            const wallet = await wallet_model_1.Wallet.findOne({ userId });
+            // Run independent queries in parallel
+            const [totalShipments, activeShipments, todaysShipments, wallet, codOrders, todaysCodOrders, recentBookings, surfaceCount, expressCount] = await Promise.all([
+                shipment_model_1.Shipment.countDocuments({ userId }),
+                shipment_model_1.Shipment.countDocuments({ userId, status: { $in: ['pending', 'created', 'in-transit'] } }),
+                shipment_model_1.Shipment.countDocuments({ userId, createdAt: { $gte: today, $lt: tomorrow } }),
+                wallet_model_1.Wallet.findOne({ userId }).lean(),
+                shipment_model_1.Shipment.find({ userId, paymentMode: 'COD' }).lean(),
+                shipment_model_1.Shipment.find({ userId, paymentMode: 'COD', createdAt: { $gte: today, $lt: tomorrow } }).lean(),
+                shipment_model_1.Shipment.find({ userId }).sort({ createdAt: -1 }).limit(5).lean(),
+                shipment_model_1.Shipment.countDocuments({ userId, shippingMode: 'Surface' }),
+                shipment_model_1.Shipment.countDocuments({ userId, shippingMode: 'Express' })
+            ]);
             const walletBalance = wallet?.balance || 0;
-            // COD Revenue (sum of all COD orders)
-            const codOrders = await shipment_model_1.Shipment.find({
-                userId,
-                paymentMode: 'COD',
-            }).lean();
-            const codRevenue = codOrders.reduce((sum, order) => {
-                return sum + parseFloat(order.codAmount || '0');
-            }, 0);
-            // Today's Revenue (sum of today's COD orders)
-            const todaysCodOrders = await shipment_model_1.Shipment.find({
-                userId,
-                paymentMode: 'COD',
-                createdAt: { $gte: today, $lt: tomorrow },
-            }).lean();
-            const todaysRevenue = todaysCodOrders.reduce((sum, order) => {
-                return sum + parseFloat(order.codAmount || '0');
-            }, 0);
-            // Recent Bookings (last 5)
-            const recentBookings = await shipment_model_1.Shipment.find({ userId })
-                .sort({ createdAt: -1 })
-                .limit(5)
-                .lean();
+            const codRevenue = codOrders.reduce((sum, order) => sum + parseFloat(order.codAmount || '0'), 0);
+            const todaysRevenue = todaysCodOrders.reduce((sum, order) => sum + parseFloat(order.codAmount || '0'), 0);
             const formattedBookings = recentBookings.map((booking) => ({
                 bookingId: booking.waybill || booking.orderId,
-                orderId: booking.orderId,
+                orderId: booking.order, // Use franchise API orderId
                 franchise: booking.pickupLocation?.name || 'N/A',
                 amount: booking.codAmount || booking.totalAmount || '0',
                 status: booking.status,
+                date: booking.createdAt, // Booking date
+                dropLocation: booking.city && booking.state ? `${booking.city}, ${booking.state}` : booking.city || 'N/A', // Drop location
                 createdAt: booking.createdAt,
             }));
-            // Shipment Type Distribution
-            const roadFreight = await shipment_model_1.Shipment.countDocuments({
-                userId,
-                shippingMode: 'Surface',
-            });
-            const oceanFreight = 0; // Not implemented yet
-            const airFreight = await shipment_model_1.Shipment.countDocuments({
-                userId,
-                shippingMode: 'Express',
-            });
-            const railFreight = 0; // Not implemented yet
+            // Shipment Type Distribution (matching admin dashboard format)
+            const totalShipmentTypeCount = surfaceCount + expressCount || 1; // Avoid division by zero
+            const shipmentTypeDistribution = [
+                {
+                    type: 'Surface',
+                    count: surfaceCount,
+                    percentage: ((surfaceCount / totalShipmentTypeCount) * 100).toFixed(1)
+                },
+                {
+                    type: 'Express',
+                    count: expressCount,
+                    percentage: ((expressCount / totalShipmentTypeCount) * 100).toFixed(1)
+                },
+            ];
             return {
                 success: true,
                 data: {
@@ -99,13 +82,7 @@ exports.dashboardService = {
                         },
                     },
                     recentBookings: formattedBookings,
-                    shipmentType: {
-                        roadFreight,
-                        oceanFreight,
-                        airFreight,
-                        railFreight,
-                        total: totalShipments,
-                    },
+                    shipmentTypeDistribution: shipmentTypeDistribution,
                 },
             };
         }

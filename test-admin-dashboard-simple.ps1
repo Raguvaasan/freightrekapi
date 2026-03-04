@@ -85,6 +85,21 @@ try {
     Write-Host "[ERROR] Top Franchises API error: $($_.Exception.Message)" -ForegroundColor Red
 }
 
+# Step 3.5: Test Franchise Report API
+Write-Host "`n[3.5/4] Testing Franchise Report API..." -ForegroundColor Yellow
+try {
+    $reportResponse = Invoke-RestMethod -Uri "$baseUrl/admin/dashboard/franchise-report?period=month" -Method Get -Headers $headers
+    if ($reportResponse.success) {
+        Write-Host "[SUCCESS] Franchise Report API working!" -ForegroundColor Green
+        Write-Host "  Total Orders (overview): $($reportResponse.data.overview.totalOrders)" -ForegroundColor Gray
+        Write-Host "  Total Franchises: $($reportResponse.data.overview.totalFranchises)" -ForegroundColor Gray
+    } else {
+        Write-Host "[FAILED] Franchise Report API failed: $($reportResponse.message)" -ForegroundColor Red
+    }
+} catch {
+    Write-Host "[ERROR] Franchise Report API error: $($_.Exception.Message)" -ForegroundColor Red
+}
+
 # Step 4: Test Wallet Statistics
 Write-Host "`n[4/4] Testing Wallet Statistics API..." -ForegroundColor Yellow
 try {

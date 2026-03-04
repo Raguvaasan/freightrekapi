@@ -99,3 +99,18 @@ export const getOrdersStatistics = async (req: Request, res: Response) => {
     });
   }
 };
+
+export const getFranchiseReport = async (req: Request, res: Response) => {
+  try {
+    const period = (req.query.period as 'day' | 'week' | 'month' | 'year') || 'month';
+    const result = await dashboardService.getFranchiseReport(period);
+
+    if (!result.success) {
+      return res.status(400).json({ success: false, message: result.message });
+    }
+
+    return res.status(200).json({ success: true, data: result.data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message || 'Error fetching franchise report' });
+  }
+};
