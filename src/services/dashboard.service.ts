@@ -107,4 +107,148 @@ export const dashboardService = {
       };
     }
   },
+
+  async getOrdersReport(userId: string, period: string = 'thisMonth', startDate?: string, endDate?: string, role?: string) {
+    try {
+      // Normalize period string to avoid case mismatches from the client
+      const p = period ? period.toString().toLowerCase() : 'thismonth';
+
+      // Determine date range based on period
+      let dateFilter: any = {};
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (p === 'today') {
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        dateFilter = { $gte: today, $lt: tomorrow };
+      } else if (p === 'yesterday') {
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const tomorrowPrev = new Date(yesterday);
+        tomorrowPrev.setDate(tomorrowPrev.getDate() + 1);
+        dateFilter = { $gte: yesterday, $lt: tomorrowPrev };
+      } else if (p === 'thisweek') {
+        const dayOfWeek = today.getDay();
+        const startOfWeek = new Date(today);
+        startOfWeek.setDate(today.getDate() - dayOfWeek);
+        startOfWeek.setHours(0, 0, 0, 0);
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 7);
+        dateFilter = { $gte: startOfWeek, $lt: endOfWeek };
+      } else if (p === 'lastmonth') {
+        const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 1);
+        dateFilter = { $gte: lastMonthStart, $lt: lastMonthEnd };
+      } else if (p === 'customrange' && startDate && endDate) {
+        dateFilter = {
+          $gte: new Date(startDate),
+          $lt: new Date(new Date(endDate).setDate(new Date(endDate).getDate() + 1)),
+        };
+      } else {
+        // Default: This Month
+        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+        const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+        dateFilter = { $gte: monthStart, $lt: monthEnd };
+      }
+
+      // Build base query; admins should see everything
+      const baseQuery: any = { createdAt: dateFilter };
+      if (!role || role.toLowerCase() !== 'admin') {
+        baseQuery.userId = userId;
+      }
+
+      // Get counts by status
+      const [
+        totalOrders,
+        deliveredOrders,
+        inTransitOrders,
+        pendingOrders,
+        rtoOrders,
+        allOrders
+      ] = await Promise.all([
+        Shipment.countDocuments(baseQuery),
+        Shipment.countDocuments({ ...baseQuery, status: 'delivered' }),
+        Shipment.countDocuments({ ...baseQuery, status: 'in_transit' }),
+        Shipment.countDocuments({ ...baseQuery, status: 'pending' }),
+        Shipment.countDocuments({ ...baseQuery, status: 'failed' }), // RTO = failed
+        Shipment.find(baseQuery)
+          .select('createdAt status')
+          .lean()
+      ]);
+
+      // Calculate percentages
+      const totalCount = totalOrders || 1;
+      const deliveredPercentage = ((deliveredOrders / totalCount) * 100).toFixed(1);
+      const inTransitPercentage = ((inTransitOrders / totalCount) * 100).toFixed(1);
+      const pendingPercentage = ((pendingOrders / totalCount) * 100).toFixed(1);
+      const rtoPercentage = ((rtoOrders / totalCount) * 100).toFixed(1);
+
+      // Calculate success rate
+      const successRate = ((deliveredOrders / totalCount) * 100).toFixed(1);
+
+      // Generate daily trend data based on the dateFilter range.
+      // This ensures the trend reflects the requested period (e.g. last month vs this month)
+      const dailyTrend: { [key: string]: number } = {};
+      // determine start/end from the filter
+      const startDateObj = new Date(dateFilter.$gte);
+      const endDateObj = new Date(dateFilter.$lt);
+      // make endDate inclusive (subtract one day)
+      endDateObj.setHours(0, 0, 0, 0);
+      endDateObj.setDate(endDateObj.getDate() - 1);
+
+      const iter = new Date(startDateObj);
+      while (iter <= endDateObj) {
+        const dateStr = iter.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        dailyTrend[dateStr] = 0;
+        iter.setDate(iter.getDate() + 1);
+      }
+
+      // Count orders by date
+      allOrders.forEach((order: any) => {
+        const orderDate = new Date(order.createdAt);
+        orderDate.setHours(0, 0, 0, 0);
+        const dateStr = orderDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        if (dailyTrend[dateStr] !== undefined) {
+          dailyTrend[dateStr]++;
+        }
+      });
+
+      return {
+        success: true,
+        data: {
+          summary: {
+            totalOrders,
+            period: period || 'thisMonth',
+          },
+          statusBreakdown: {
+            delivered: {
+              count: deliveredOrders,
+              percentage: parseFloat(deliveredPercentage),
+            },
+            inTransit: {
+              count: inTransitOrders,
+              percentage: parseFloat(inTransitPercentage),
+            },
+            pending: {
+              count: pendingOrders,
+              percentage: parseFloat(pendingPercentage),
+            },
+            rto: {
+              count: rtoOrders,
+              percentage: parseFloat(rtoPercentage),
+            },
+          },
+          successRate: parseFloat(successRate),
+          dailyTrend: dailyTrend,
+        },
+      };
+    } catch (error: any) {
+      console.error('Orders report service error:', error);
+      return {
+        success: false,
+        message: error.message || 'Failed to fetch orders report',
+      };
+    }
+  },
 };

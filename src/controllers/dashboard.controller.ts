@@ -29,3 +29,40 @@ export const getFranchiseDashboard = async (req: Request, res: Response) => {
     });
   }
 };
+
+/**
+ * Get orders report (analytics)
+ */
+export const getOrdersReport = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const userRole = (req.user as any)?.role; // may be undefined
+    const { period, startDate, endDate } = req.query;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated',
+      });
+    }
+
+    const result = await dashboardService.getOrdersReport(
+      userId,
+      period as string,
+      startDate as string,
+      endDate as string,
+      userRole as string
+    );
+
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    return res.status(200).json(result);
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to fetch orders report',
+    });
+  }
+};

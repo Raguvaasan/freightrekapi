@@ -115,3 +115,40 @@ export const getFranchiseReport = async (req: Request, res: Response) => {
     return res.status(500).json({ success: false, message: err.message || 'Error fetching franchise report' });
   }
 };
+
+// total revenue report for admin reports page
+export const getTotalRevenueReport = async (req: Request, res: Response) => {
+  try {
+    const period = (req.query.period as string) || 'thisMonth';
+    const startDate = req.query.startDate as string;
+    const endDate = req.query.endDate as string;
+
+    const result = await dashboardService.getTotalRevenueReport(period, startDate, endDate);
+
+    if (!result.success) {
+      return res.status(400).json({ success: false, message: result.message });
+    }
+
+    return res.status(200).json({ success: true, data: result.data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message || 'Error fetching revenue report' });
+  }
+};
+
+export const getDeliveryPerformanceReport = async (req: Request, res: Response) => {
+  try {
+    const period = (req.query.period as string) || 'thisMonth';
+    const startDate = req.query.startDate as string;
+    const endDate = req.query.endDate as string;
+
+    const result = await dashboardService.getDeliveryPerformance(period, startDate, endDate);
+
+    if (!result.success) {
+      return res.status(400).json({ success: false, message: result.message });
+    }
+
+    return res.status(200).json({ success: true, data: result.data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message || 'Error fetching delivery performance' });
+  }
+};

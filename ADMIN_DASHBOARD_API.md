@@ -133,6 +133,26 @@ curl -X GET "https://freightrekapi.vercel.app/admin/dashboard?period=week" \
 
 **Description:** Summary and per-franchise statistics for use on reports page. Returns overall totals and a breakdown for each franchise including orders, delivered/pending/RTO counts, revenue, and growth vs previous period.
 
+### Total Revenue Report
+
+**Endpoint:** `GET /admin/reports/total-revenue`
+
+Returns aggregated revenue numbers broken down by shipping, COD and "other" charges along with a trend for charting and payment-method split. Accepts the same period values shown on the report page. Admins must have the `reports` permission.
+
+_Query parameters:_
+- `period` - see list above (case-insensitive)
+- `startDate`, `endDate` - ISO date strings required if `period=customRange`
+
+### Delivery Performance Report
+
+**Endpoint:** `GET /admin/reports/delivery-performance`
+
+Provides delivery‑related analytics: on‑time percentage, average delivery time, first‑attempt success rate, CSAT score placeholder, total delivered count, SLA compliance, zone‑wise breakdown, attempt analysis, and delivery time distribution. Currently metrics are stubbed or calculated from `delivered` shipments.
+
+_Query parameters:_
+- `period` - same options as total revenue (case-insensitive)
+- `startDate`, `endDate` - required for `customRange` period
+
 **Query Parameters:**
 - `period` (optional): `day`, `week`, `month`, `year` (default: `month`)
 

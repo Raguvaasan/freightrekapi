@@ -418,6 +418,17 @@ curl -X GET "$BASE_URL/admin/dashboard?period=month" \
   -H "Authorization: Bearer $TOKEN" | jq '.data.overview'
 ```
 
+#### Total Revenue Report
+```bash
+curl -X GET "$BASE_URL/admin/reports/total-revenue?period=thisMonth" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+#### Delivery Performance Report
+```bash
+curl -X GET "$BASE_URL/admin/reports/delivery-performance?period=thisMonth" \
+  -H "Authorization: Bearer $TOKEN"
+```
 ---
 
 ## 🔐 Security Notes

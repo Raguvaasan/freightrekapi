@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getFranchiseReport = exports.getOrdersStatistics = exports.getWalletStatistics = exports.getTopFranchises = exports.getAdminDashboard = void 0;
+exports.getDeliveryPerformanceReport = exports.getTotalRevenueReport = exports.getFranchiseReport = exports.getOrdersStatistics = exports.getWalletStatistics = exports.getTopFranchises = exports.getAdminDashboard = void 0;
 const dashboard_service_1 = require("../../services/admin/dashboard.service");
 const dashboardService = new dashboard_service_1.AdminDashboardService();
 const getAdminDashboard = async (req, res) => {
@@ -109,3 +109,36 @@ const getFranchiseReport = async (req, res) => {
     }
 };
 exports.getFranchiseReport = getFranchiseReport;
+// total revenue report for admin reports page
+const getTotalRevenueReport = async (req, res) => {
+    try {
+        const period = req.query.period || 'thisMonth';
+        const startDate = req.query.startDate;
+        const endDate = req.query.endDate;
+        const result = await dashboardService.getTotalRevenueReport(period, startDate, endDate);
+        if (!result.success) {
+            return res.status(400).json({ success: false, message: result.message });
+        }
+        return res.status(200).json({ success: true, data: result.data });
+    }
+    catch (err) {
+        return res.status(500).json({ success: false, message: err.message || 'Error fetching revenue report' });
+    }
+};
+exports.getTotalRevenueReport = getTotalRevenueReport;
+const getDeliveryPerformanceReport = async (req, res) => {
+    try {
+        const period = req.query.period || 'thisMonth';
+        const startDate = req.query.startDate;
+        const endDate = req.query.endDate;
+        const result = await dashboardService.getDeliveryPerformance(period, startDate, endDate);
+        if (!result.success) {
+            return res.status(400).json({ success: false, message: result.message });
+        }
+        return res.status(200).json({ success: true, data: result.data });
+    }
+    catch (err) {
+        return res.status(500).json({ success: false, message: err.message || 'Error fetching delivery performance' });
+    }
+};
+exports.getDeliveryPerformanceReport = getDeliveryPerformanceReport;

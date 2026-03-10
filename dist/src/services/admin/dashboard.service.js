@@ -6,6 +6,72 @@ const agency_model_1 = require("../../models/admin/agency.model");
 const wallet_model_1 = require("../../models/wallet/wallet.model");
 const transaction_model_1 = require("../../models/wallet/transaction.model");
 class AdminDashboardService {
+    // Internal helper to compute a Mongo date filter from a period string
+    getDateFilter(period, startDate, endDate) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const p = period ? period.toString().toLowerCase() : 'thismonth';
+        let range;
+        switch (p) {
+            case 'today': {
+                const tomorrow = new Date(today);
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                range = { $gte: today, $lt: tomorrow };
+                break;
+            }
+            case 'thisweek': {
+                const dayOfWeek = today.getDay();
+                const startOfWeek = new Date(today);
+                startOfWeek.setDate(today.getDate() - dayOfWeek);
+                startOfWeek.setHours(0, 0, 0, 0);
+                const endOfWeek = new Date(startOfWeek);
+                endOfWeek.setDate(startOfWeek.getDate() + 7);
+                range = { $gte: startOfWeek, $lt: endOfWeek };
+                break;
+            }
+            case 'thismonth': {
+                const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+                const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+                range = { $gte: monthStart, $lt: monthEnd };
+                break;
+            }
+            case 'lastmonth': {
+                const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 1);
+                range = { $gte: lastMonthStart, $lt: lastMonthEnd };
+                break;
+            }
+            case 'thisquarter': {
+                const quarter = Math.floor(today.getMonth() / 3);
+                const quarterStart = new Date(today.getFullYear(), quarter * 3, 1);
+                const quarterEnd = new Date(today.getFullYear(), quarter * 3 + 3, 1);
+                range = { $gte: quarterStart, $lt: quarterEnd };
+                break;
+            }
+            case 'thisyear': {
+                const yearStart = new Date(today.getFullYear(), 0, 1);
+                const yearEnd = new Date(today.getFullYear() + 1, 0, 1);
+                range = { $gte: yearStart, $lt: yearEnd };
+                break;
+            }
+            case 'customrange':
+                if (startDate && endDate) {
+                    const s = new Date(startDate);
+                    const e = new Date(endDate);
+                    e.setDate(e.getDate() + 1);
+                    range = { $gte: s, $lt: e };
+                    break;
+                }
+            // fallthrough to default if dates missing
+            default: {
+                // default to this month
+                const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+                const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+                range = { $gte: monthStart, $lt: monthEnd };
+            }
+        }
+        return range;
+    }
     // Get admin dashboard statistics (aggregated across all franchises)
     async getAdminDashboard(period = 'week') {
         try {
@@ -191,6 +257,135 @@ class AdminDashboardService {
             return {
                 success: false,
                 message: error.message || 'Error fetching admin dashboard data',
+            };
+        }
+    }
+    // Generate revenue report used by the Total Revenue page
+    async getTotalRevenueReport(period = 'thisMonth', startDate, endDate) {
+        try {
+            const dateFilter = this.getDateFilter(period, startDate, endDate);
+            const shipments = await shipment_model_1.Shipment.find({ createdAt: dateFilter }).lean();
+            const totalRevenue = shipments.reduce((sum, s) => {
+                return sum + parseFloat(s.totalAmount || s.codAmount || '0');
+            }, 0);
+            const shippingCharges = shipments.reduce((sum, s) => {
+                // assume prepaid totalAmount represents shipping charge
+                return sum + (s.paymentMode === 'Prepaid' ? parseFloat(s.totalAmount || '0') : 0);
+            }, 0);
+            const codCharges = shipments.reduce((sum, s) => {
+                return sum + (s.paymentMode === 'COD' ? parseFloat(s.codAmount || '0') : 0);
+            }, 0);
+            const otherCharges = totalRevenue - shippingCharges - codCharges;
+            // Build revenue trend grouping by day or month depending on range length
+            const trendMap = new Map();
+            // decide whether to group monthly (more than 60 days)
+            const start = new Date(dateFilter.$gte);
+            const end = new Date(dateFilter.$lt);
+            const diffDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+            if (diffDays > 60) {
+                // monthly buckets
+                let d = new Date(start.getFullYear(), start.getMonth(), 1);
+                while (d < end) {
+                    const key = d.toLocaleDateString('en-US', { month: 'short' });
+                    trendMap.set(key, 0);
+                    d.setMonth(d.getMonth() + 1);
+                }
+                shipments.forEach(s => {
+                    const d = new Date(s.createdAt);
+                    const key = d.toLocaleDateString('en-US', { month: 'short' });
+                    if (trendMap.has(key)) {
+                        trendMap.set(key, trendMap.get(key) + parseFloat(s.totalAmount || s.codAmount || '0'));
+                    }
+                });
+            }
+            else {
+                // daily buckets
+                let d = new Date(start);
+                while (d < end) {
+                    const key = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    trendMap.set(key, 0);
+                    d.setDate(d.getDate() + 1);
+                }
+                shipments.forEach(s => {
+                    const d = new Date(s.createdAt);
+                    d.setHours(0, 0, 0, 0);
+                    const key = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    if (trendMap.has(key)) {
+                        trendMap.set(key, trendMap.get(key) + parseFloat(s.totalAmount || s.codAmount || '0'));
+                    }
+                });
+            }
+            const revenueTrend = Array.from(trendMap.entries()).map(([date, revenue]) => ({ date, revenue }));
+            // compute percentages
+            const pct = (val) => totalRevenue ? parseFloat(((val / totalRevenue) * 100).toFixed(1)) : 0;
+            const paymentSplit = [
+                { method: 'Prepaid', amount: shippingCharges, percentage: pct(shippingCharges) },
+                { method: 'COD', amount: codCharges, percentage: pct(codCharges) },
+            ];
+            const revenueBySource = [
+                { source: 'Shipping', amount: shippingCharges, percentage: pct(shippingCharges) },
+                { source: 'COD', amount: codCharges, percentage: pct(codCharges) },
+                { source: 'Other', amount: otherCharges, percentage: pct(otherCharges) },
+            ];
+            return {
+                success: true,
+                data: {
+                    overview: {
+                        totalRevenue,
+                        shippingCharges,
+                        codCharges,
+                        otherCharges,
+                    },
+                    revenueTrend,
+                    revenueBySource,
+                    paymentMethodSplit: paymentSplit,
+                    period,
+                },
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                message: error.message || 'Error generating revenue report',
+            };
+        }
+    }
+    // delivery performance metrics (stubbed for now)
+    async getDeliveryPerformance(period = 'thisMonth', startDate, endDate) {
+        try {
+            const dateFilter = this.getDateFilter(period, startDate, endDate);
+            const totalDelivered = await shipment_model_1.Shipment.countDocuments({ status: 'delivered', createdAt: dateFilter });
+            return {
+                success: true,
+                data: {
+                    overview: {
+                        onTimePercentage: 0,
+                        avgTimeDays: 0,
+                        firstAttemptPercentage: 0,
+                        csatScore: 0,
+                        totalDelivered,
+                        slaMetPercentage: 0,
+                    },
+                    zonePerformance: [],
+                    deliveryAttemptAnalysis: {
+                        firstAttempt: 0,
+                        secondAttempt: 0,
+                        thirdPlus: 0,
+                    },
+                    deliveryTimeDistribution: {
+                        within1day: 0,
+                        '1-2days': 0,
+                        '2-3days': 0,
+                        '3+days': 0,
+                    },
+                    period,
+                },
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                message: error.message || 'Error generating delivery performance',
             };
         }
     }

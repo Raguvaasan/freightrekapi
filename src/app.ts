@@ -12,6 +12,9 @@ import shipmentRoutes from "./routes/shipment.routes";
 import franchiseRoleRoutes from "./routes/admin/franchiseRole.routes";
 import dashboardRoutes from "./routes/dashboard.routes";
 import adminDashboardRoutes from "./routes/admin/dashboard.routes";
+import adminReportsRoutes from "./routes/admin/reports.routes";
+import jobPostingRoutes from "./routes/jobPosting.routes";
+import careerApplicationRoutes from "./routes/careerApplication.routes";
 import { cashfreeWebhook } from "./controllers/wallet.controller";
 
 const app = express();
@@ -105,11 +108,14 @@ app.get("/health", (req, res) => {
 app.use("/admin", authRoutes);
 app.use("/admin/franchise/role", franchiseRoleRoutes);
 app.use("/admin/dashboard", adminDashboardRoutes);
+app.use("/admin/reports", adminReportsRoutes);
 app.use("/location", locationRoutes);
 app.use("/api/v1/settings", markupRoutes);
 app.use("/api/wallet", walletRoutes);
 app.use("/api/shipment", shipmentRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/careers", jobPostingRoutes);
+app.use("/api/applications", careerApplicationRoutes);
 
 // Webhook endpoint (no auth, verified by signature)
 app.post("/webhook/cashfree", cashfreeWebhook);
