@@ -68,7 +68,7 @@ export const getFranchiseRoleById = async (req: Request, res: Response) => {
       });
     }
 
-    const result = await franchiseRoleService.getFranchiseRoleById(franchiseId, roleId);
+    const result = await franchiseRoleService.getFranchiseRoleById(franchiseId, roleId as string);
     
     if (!result.success) {
       const status = result.message === 'Role not found' ? 404 : 400;
@@ -96,7 +96,7 @@ export const updateFranchiseRole = async (req: Request, res: Response) => {
       });
     }
 
-    const result = await franchiseRoleService.updateFranchiseRole(franchiseId, roleId, req.body);
+    const result = await franchiseRoleService.updateFranchiseRole(franchiseId, roleId as string, req.body);
     
     if (!result.success) {
       const status = result.message === 'Role not found' ? 404 : 400;
@@ -124,7 +124,7 @@ export const deleteFranchiseRole = async (req: Request, res: Response) => {
       });
     }
 
-    const result = await franchiseRoleService.deleteFranchiseRole(franchiseId, roleId);
+    const result = await franchiseRoleService.deleteFranchiseRole(franchiseId, roleId as string);
     
     if (!result.success) {
       const status = result.message === 'Role not found' ? 404 : 400;

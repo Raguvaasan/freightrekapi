@@ -41,7 +41,7 @@ export const getAllCustomers = async (req: Request, res: Response) => {
 export const getCustomerById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const result = await customerService.getCustomerById(id);
+    const result = await customerService.getCustomerById(id as string);
 
     if (!result.success) {
       return res.status(404).json({ success: false, message: result.message });
@@ -56,7 +56,7 @@ export const getCustomerById = async (req: Request, res: Response) => {
 export const updateCustomer = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const result = await customerService.updateCustomer(id, req.body);
+    const result = await customerService.updateCustomer(id as string, req.body);
 
     if (!result.success) {
       return res.status(400).json({ success: false, message: result.message });
@@ -75,7 +75,7 @@ export const updateCustomer = async (req: Request, res: Response) => {
 export const deleteCustomer = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const result = await customerService.deleteCustomer(id);
+    const result = await customerService.deleteCustomer(id as string);
 
     if (!result.success) {
       return res.status(404).json({ success: false, message: result.message });

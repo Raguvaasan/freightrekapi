@@ -53,13 +53,19 @@ interface CreateShipmentData {
 
 export const shipmentService = {
   async createShipment(data: CreateShipmentData) {
+    let walletDebited = false;
+    let debitAmount = 0;
+    let debitUserId = '';
+    let debitOrderId = '';
+
     try {
       const { userId, ...shipmentData } = data;
 
       // Generate unique order ID if not provided
       const orderId = `ORD_${userId}_${Date.now()}`;
+      debitOrderId = orderId;
 
-      // Handle Prepaid payment - Deduct from wallet
+      // Handle Prepaid payment
       if (shipmentData.paymentMode === 'Prepaid') {
         const amount = parseFloat(shipmentData.totalAmount || '0');
         
@@ -71,42 +77,47 @@ export const shipmentService = {
           };
         }
 
-        // Check wallet balance
         let wallet = await Wallet.findOne({ userId });
         if (!wallet) {
           wallet = await Wallet.create({ userId, balance: 0 });
         }
 
-        console.log(`💰 Wallet check - Balance: ₹${wallet.balance}, Required: ₹${amount}`);
-
         if (wallet.balance < amount) {
-          console.log(`❌ Insufficient wallet balance - Available: ₹${wallet.balance}, Required: ₹${amount}`);
           return {
             success: false,
-            message: `Insufficient wallet balance. Available: ₹${wallet.balance}, Required: ₹${amount}`,
+            message: 'Insufficient wallet balance',
+            data: {
+              requiredAmount: amount,
+              availableBalance: wallet.balance,
+            },
           };
         }
 
-        // Deduct amount from wallet
         const balanceBefore = wallet.balance;
         wallet.balance -= amount;
         await wallet.save();
 
-        // Create debit transaction
-        const transactionId = `TXN_${orderId}_${Date.now()}`;
         await Transaction.create({
-          transactionId,
+          transactionId: `TXN_DEBIT_${orderId}_${Date.now()}`,
           userId,
           orderId,
           amount,
           type: 'debit',
           status: 'completed',
-          description: `Prepaid order - ${orderId}`,
+          description: `Shipment payment deducted - ${orderId}`,
           paymentMethod: 'wallet',
           balanceBefore,
           balanceAfter: wallet.balance,
+          metadata: {
+            source: 'shipment_create',
+          },
         });
+
+        walletDebited = true;
+        debitAmount = amount;
+        debitUserId = userId;
       }
+
 
       // Fetch pickup location details from Hub or Agency if not provided
       if (shipmentData.pickupLocation && (!shipmentData.pickupLocation.address || !shipmentData.pickupLocation.pincode)) {
@@ -177,8 +188,11 @@ export const shipmentService = {
       };
 
       // Call Delhivery API
-      const delhiveryUrl = process.env.DELHIVERY_API_URL || 'https://staging-express.delhivery.com';
-      const delhiveryToken = process.env.DELHIVERY_API_TOKEN;
+      const delhiveryUrl =
+        process.env.DELHIVERY_API_URL ||
+        process.env.DELHIVERY_API_BASE_URL ||
+        'https://staging-express.delhivery.com';
+      const delhiveryToken = process.env.DELHIVERY_API_TOKEN || process.env.DELHIVERY_API_KEY;
 
       if (!delhiveryToken) {
         throw new Error('Delhivery API token not configured');
@@ -197,7 +211,11 @@ export const shipmentService = {
       );
 
       // Update shipment with Delhivery response
-      if (response.data.success) {
+      const isDelhiveryCreated =
+        response.data?.success === true ||
+        (Array.isArray(response.data?.packages) && response.data.packages.length > 0);
+
+      if (isDelhiveryCreated) {
         shipment.status = 'created';
         shipment.delhiveryResponse = response.data;
         
@@ -209,6 +227,14 @@ export const shipmentService = {
       } else {
         shipment.status = 'failed';
         shipment.delhiveryResponse = response.data;
+        await shipment.save();
+
+        throw new Error(
+          response.data?.remarks ||
+          response.data?.message ||
+          response.data?.error ||
+          'Delhivery shipment creation failed'
+        );
       }
 
       await shipment.save();
@@ -224,6 +250,37 @@ export const shipmentService = {
         },
       };
     } catch (error: any) {
+      if (walletDebited && debitAmount > 0 && debitUserId) {
+        try {
+          let wallet = await Wallet.findOne({ userId: debitUserId });
+          if (!wallet) {
+            wallet = await Wallet.create({ userId: debitUserId, balance: 0 });
+          }
+
+          const balanceBefore = wallet.balance;
+          wallet.balance += debitAmount;
+          await wallet.save();
+
+          await Transaction.create({
+            transactionId: `TXN_REVERSAL_${debitOrderId}_${Date.now()}`,
+            userId: debitUserId,
+            orderId: debitOrderId,
+            amount: debitAmount,
+            type: 'reversal',
+            status: 'completed',
+            description: `Wallet debit reversed for failed shipment - ${debitOrderId}`,
+            paymentMethod: 'wallet',
+            balanceBefore,
+            balanceAfter: wallet.balance,
+            metadata: {
+              source: 'shipment_create_failure',
+            },
+          });
+        } catch (reversalError) {
+          console.error('Wallet reversal failed after shipment error:', reversalError);
+        }
+      }
+
       console.error('Create shipment error:', error.response?.data || error);
       return {
         success: false,
@@ -377,7 +434,10 @@ export const shipmentService = {
             shippingMode: s.shippingMode,
             weight: s.weight,
           },
-          amount: s.codAmount || s.totalAmount || '0',
+          amount:
+            s.paymentMode === 'COD'
+              ? (s.codAmount || '0')
+              : (s.totalAmount || s.codAmount || '0'),
           pickupLocation: {
             name: s.pickupLocation?.name,
             address: s.pickupLocation?.address || pickupDetails?.address,
@@ -422,8 +482,11 @@ export const shipmentService = {
       }
 
       // Call Delhivery tracking API
-      const delhiveryUrl = process.env.DELHIVERY_API_URL || 'https://staging-express.delhivery.com';
-      const delhiveryToken = process.env.DELHIVERY_API_TOKEN;
+      const delhiveryUrl =
+        process.env.DELHIVERY_API_URL ||
+        process.env.DELHIVERY_API_BASE_URL ||
+        'https://staging-express.delhivery.com';
+      const delhiveryToken = process.env.DELHIVERY_API_TOKEN || process.env.DELHIVERY_API_KEY;
 
       if (!delhiveryToken) {
         throw new Error('Delhivery API token not configured');

@@ -87,7 +87,7 @@ export const getAllAgencies = async (req: Request, res: Response) => {
 export const getAgencyById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const result = await agencyService.getAgencyById(id);
+    const result = await agencyService.getAgencyById(String(id));
 
     if (!result.success) {
       return res.status(404).json({
@@ -111,7 +111,7 @@ export const getAgencyById = async (req: Request, res: Response) => {
 export const updateAgency = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const result = await agencyService.updateAgency(id, req.body);
+    const result = await agencyService.updateAgency(id as string, req.body);
 
     if (!result.success) {
       return res.status(400).json({
@@ -136,7 +136,7 @@ export const updateAgency = async (req: Request, res: Response) => {
 export const deleteAgency = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const result = await agencyService.deleteAgency(id);
+    const result = await agencyService.deleteAgency(id as string);
 
     if (!result.success) {
       return res.status(404).json({
@@ -177,7 +177,7 @@ export const updateAgencyStatus = async (req: Request, res: Response) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    const result = await agencyService.updateAgencyStatus(id, status);
+    const result = await agencyService.updateAgencyStatus(id as string, status);
 
     if (!result.success) {
       return res.status(400).json({
