@@ -8,7 +8,7 @@ if (!JWT_SECRET) {
 
 export const generateToken = (userId: string): string => {
   const options: SignOptions = {
-    expiresIn: JWT_EXPIRES_IN as any,
+    expiresIn: (JWT_EXPIRES_IN || '7d') as SignOptions['expiresIn'],
   };
 
   return jwt.sign({ id: userId }, JWT_SECRET, options);

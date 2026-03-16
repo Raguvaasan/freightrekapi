@@ -45,7 +45,7 @@ export interface IShipment {
     address?: string;
     pincode?: string;
   };
-  status: 'pending' | 'created' | 'in_transit' | 'delivered' | 'failed' | 'cancelled';
+  status: 'pending' | 'created' | 'Active' | 'in_transit' | 'delivered' | 'failed' | 'cancelled';
   delhiveryResponse?: any;
   trackingUrl?: string;
   createdAt: Date;
@@ -158,7 +158,7 @@ const shipmentSchema = new Schema<IShipment>(
     },
     status: {
       type: String,
-      enum: ['pending', 'created', 'in_transit', 'delivered', 'failed', 'cancelled'],
+      enum: ['pending', 'created', 'Active', 'in_transit', 'delivered', 'failed', 'cancelled'],
       default: 'pending',
       index: true,
     },

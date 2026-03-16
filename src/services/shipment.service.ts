@@ -48,6 +48,10 @@ interface CreateShipmentData {
     name: string;
     address?: string;
     pincode?: string;
+    city?: string;
+    state?: string;
+    country?: string;
+    phone?: string;
   };
 }
 
@@ -126,12 +130,18 @@ export const shipmentService = {
         if (hub) {
           shipmentData.pickupLocation.address = hub.address;
           shipmentData.pickupLocation.pincode = hub.pincode.toString();
+          shipmentData.pickupLocation.city = shipmentData.pickupLocation.city || hub.city;
+          shipmentData.pickupLocation.state = shipmentData.pickupLocation.state || hub.state;
+          shipmentData.pickupLocation.phone = shipmentData.pickupLocation.phone || hub.phoneNo?.toString();
         } else {
           // If not found in Hub, try to find in Agency collection
           const agency = await Agency.findOne({ agencyName: shipmentData.pickupLocation.name });
           if (agency) {
             shipmentData.pickupLocation.address = agency.address;
             shipmentData.pickupLocation.pincode = agency.pincode;
+            shipmentData.pickupLocation.city = shipmentData.pickupLocation.city || agency.city;
+            shipmentData.pickupLocation.state = shipmentData.pickupLocation.state || agency.state;
+            shipmentData.pickupLocation.phone = shipmentData.pickupLocation.phone || agency.phone;
           }
         }
       }
@@ -161,30 +171,39 @@ export const shipmentService = {
             phone: shipmentData.phone,
             order: shipmentData.order,
             payment_mode: shipmentData.paymentMode,
-            return_pin: shipmentData.returnPin || '',
-            return_city: shipmentData.returnCity || '',
-            return_phone: shipmentData.returnPhone || '',
-            return_add: shipmentData.returnAdd || '',
-            return_state: shipmentData.returnState || '',
-            return_country: shipmentData.returnCountry || '',
+            return_pin: shipmentData.returnPin || shipmentData.pickupLocation.pincode || '',
+            return_city: shipmentData.returnCity || shipmentData.pickupLocation.city || '',
+            return_phone: shipmentData.returnPhone || shipmentData.pickupLocation.phone || '',
+            return_add: shipmentData.returnAdd || shipmentData.pickupLocation.address || '',
+            return_state: shipmentData.returnState || shipmentData.pickupLocation.state || '',
+            return_country: shipmentData.returnCountry || 'India',
             products_desc: shipmentData.productsDesc || '',
             hsn_code: shipmentData.hsnCode || '',
-            cod_amount: shipmentData.codAmount || '',
-            order_date: shipmentData.orderDate || null,
-            total_amount: shipmentData.totalAmount || '',
-            seller_add: shipmentData.sellerAdd || '',
-            seller_name: shipmentData.sellerName || '',
+            cod_amount: shipmentData.codAmount || '0',
+            order_date: shipmentData.orderDate
+              ? new Date(shipmentData.orderDate).toISOString().slice(0, 10)
+              : new Date().toISOString().slice(0, 10),
+            total_amount: shipmentData.totalAmount || '0',
+            seller_add: shipmentData.sellerAdd || shipmentData.pickupLocation.address || '',
+            seller_name: shipmentData.sellerName || shipmentData.pickupLocation.name || '',
             seller_inv: shipmentData.sellerInv || '',
-            quantity: shipmentData.quantity || '',
+            quantity: shipmentData.quantity || '1',
             waybill: shipmentData.waybill || '',
-            shipment_width: shipmentData.shipmentWidth || '100',
-            shipment_height: shipmentData.shipmentHeight || '100',
-            weight: shipmentData.weight || '',
+            shipment_width: shipmentData.shipmentWidth || '10',
+            shipment_height: shipmentData.shipmentHeight || '10',
+            weight: shipmentData.weight || '0.5',
             shipping_mode: shipmentData.shippingMode || 'Surface',
-            address_type: shipmentData.addressType || '',
+            address_type: shipmentData.addressType || 'home',
           },
         ],
-        pickup_location: shipmentData.pickupLocation,
+        pickup_location: {
+          name: shipmentData.pickupLocation.name,
+          add: shipmentData.pickupLocation.address || '',
+          city: shipmentData.pickupLocation.city || '',
+          pin_code: shipmentData.pickupLocation.pincode || '',
+          country: shipmentData.pickupLocation.country || 'India',
+          phone: shipmentData.pickupLocation.phone || '',
+        },
       };
 
       // Call Delhivery API
@@ -192,7 +211,7 @@ export const shipmentService = {
         process.env.DELHIVERY_API_URL ||
         process.env.DELHIVERY_API_BASE_URL ||
         'https://staging-express.delhivery.com';
-      const delhiveryToken = process.env.DELHIVERY_API_TOKEN || process.env.DELHIVERY_API_KEY;
+      const delhiveryToken = (process.env.DELHIVERY_API_TOKEN || process.env.DELHIVERY_API_KEY || '').trim();
 
       if (!delhiveryToken) {
         throw new Error('Delhivery API token not configured');
@@ -200,12 +219,12 @@ export const shipmentService = {
 
       const response = await axios.post(
         `${delhiveryUrl}/api/cmu/create.json`,
-        `format=json&data=${JSON.stringify(delhiveryPayload)}`,
+        `format=json&data=${encodeURIComponent(JSON.stringify(delhiveryPayload))}`,
         {
           headers: {
             Accept: 'application/json',
             Authorization: `Token ${delhiveryToken}`,
-            'Content-Type': 'application/json',
+            'Content-Type': 'application/x-www-form-urlencoded',
           },
         }
       );
@@ -216,7 +235,7 @@ export const shipmentService = {
         (Array.isArray(response.data?.packages) && response.data.packages.length > 0);
 
       if (isDelhiveryCreated) {
-        shipment.status = 'created';
+        shipment.status = 'Active';
         shipment.delhiveryResponse = response.data;
         
         // Extract waybill if available
@@ -229,12 +248,16 @@ export const shipmentService = {
         shipment.delhiveryResponse = response.data;
         await shipment.save();
 
-        throw new Error(
-          response.data?.remarks ||
-          response.data?.message ||
-          response.data?.error ||
-          'Delhivery shipment creation failed'
-        );
+        return {
+          success: false,
+          message: response.data?.rmk || response.data?.remarks || response.data?.message || 'Delhivery shipment creation failed',
+          data: {
+            orderId: shipment.orderId,
+            waybill: '',
+            status: 'failed',
+            delhiveryResponse: response.data,
+          },
+        };
       }
 
       await shipment.save();
@@ -486,7 +509,7 @@ export const shipmentService = {
         process.env.DELHIVERY_API_URL ||
         process.env.DELHIVERY_API_BASE_URL ||
         'https://staging-express.delhivery.com';
-      const delhiveryToken = process.env.DELHIVERY_API_TOKEN || process.env.DELHIVERY_API_KEY;
+      const delhiveryToken = (process.env.DELHIVERY_API_TOKEN || process.env.DELHIVERY_API_KEY || '').trim();
 
       if (!delhiveryToken) {
         throw new Error('Delhivery API token not configured');
