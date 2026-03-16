@@ -61,7 +61,7 @@ export const getFranchiseStaffById = async (req: Request, res: Response) => {
       });
     }
 
-    const result = await staffService.getStaffById(id);
+    const result = await staffService.getStaffById(id as string);
 
     if (!result.success) {
       return res.status(404).json({
@@ -144,7 +144,7 @@ export const updateFranchiseStaff = async (req: Request, res: Response) => {
     }
 
     // First verify the staff belongs to this franchise
-    const staffResult = await staffService.getStaffById(id);
+    const staffResult = await staffService.getStaffById(id as string);
     if (!staffResult.success) {
       return res.status(404).json({
         success: false,
@@ -163,7 +163,7 @@ export const updateFranchiseStaff = async (req: Request, res: Response) => {
     const updateData = { ...req.body };
     delete updateData.franchiseId;
 
-    const result = await staffService.updateStaff(id, updateData);
+    const result = await staffService.updateStaff(id as string, updateData);
 
     if (!result.success) {
       return res.status(400).json({
@@ -200,7 +200,7 @@ export const updateFranchiseStaffStatus = async (req: Request, res: Response) =>
     }
 
     // First verify the staff belongs to this franchise
-    const staffResult = await staffService.getStaffById(id);
+    const staffResult = await staffService.getStaffById(id as string);
     if (!staffResult.success) {
       return res.status(404).json({
         success: false,
@@ -215,7 +215,7 @@ export const updateFranchiseStaffStatus = async (req: Request, res: Response) =>
       });
     }
 
-    const result = await staffService.updateStaffStatus(id, status);
+    const result = await staffService.updateStaffStatus(id as string, status);
 
     if (!result.success) {
       return res.status(400).json({
@@ -251,7 +251,7 @@ export const deleteFranchiseStaff = async (req: Request, res: Response) => {
     }
 
     // First verify the staff belongs to this franchise
-    const staffResult = await staffService.getStaffById(id);
+    const staffResult = await staffService.getStaffById(id as string);
     if (!staffResult.success) {
       return res.status(404).json({
         success: false,
@@ -266,7 +266,7 @@ export const deleteFranchiseStaff = async (req: Request, res: Response) => {
       });
     }
 
-    const result = await staffService.deleteStaff(id);
+    const result = await staffService.deleteStaff(id as string);
 
     if (!result.success) {
       return res.status(400).json({

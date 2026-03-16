@@ -140,7 +140,7 @@ export const getAllStaff = async (req: Request, res: Response) => {
 export const getStaffById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const result = await staffService.getStaffById(id);
+    const result = await staffService.getStaffById(id as string);
 
     if (!result.success) {
       return res.status(404).json({
@@ -164,7 +164,7 @@ export const getStaffById = async (req: Request, res: Response) => {
 export const updateStaff = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const result = await staffService.updateStaff(id, req.body);
+    const result = await staffService.updateStaff(id as string, req.body);
 
     if (!result.success) {
       return res.status(400).json({
@@ -189,7 +189,7 @@ export const updateStaff = async (req: Request, res: Response) => {
 export const deleteStaff = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const result = await staffService.deleteStaff(id);
+    const result = await staffService.deleteStaff(id as string);
 
     if (!result.success) {
       return res.status(404).json({
@@ -214,7 +214,7 @@ export const updateStaffStatus = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
-    const result = await staffService.updateStaffStatus(id, status);
+    const result = await staffService.updateStaffStatus(id as string, status);
 
     if (!result.success) {
       return res.status(400).json({

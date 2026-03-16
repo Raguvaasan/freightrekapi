@@ -79,7 +79,7 @@ exports.getAllAgencies = getAllAgencies;
 const getAgencyById = async (req, res) => {
     try {
         const { id } = req.params;
-        const result = await agency_service_1.agencyService.getAgencyById(id);
+        const result = await agency_service_1.agencyService.getAgencyById(String(id));
         if (!result.success) {
             return res.status(404).json({
                 success: false,

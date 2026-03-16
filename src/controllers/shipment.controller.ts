@@ -71,7 +71,7 @@ export const getShipment = async (req: Request, res: Response) => {
       isAdmin = role.isRoot === true;
     }
 
-    const result = await shipmentService.getShipment(orderId, userId, isAdmin);
+    const result = await shipmentService.getShipment(orderId as string, userId, isAdmin);
 
     if (!result.success) {
       return res.status(404).json(result);
@@ -159,7 +159,7 @@ export const trackShipment = async (req: Request, res: Response) => {
       isAdmin = role.isRoot === true;
     }
 
-    const result = await shipmentService.trackShipment(waybill, userId, isAdmin);
+    const result = await shipmentService.trackShipment(waybill as string, userId, isAdmin);
 
     if (!result.success) {
       return res.status(404).json(result);
@@ -202,7 +202,7 @@ export const updateShipment = async (req: Request, res: Response) => {
       isAdmin = role.isRoot === true;
     }
 
-    const result = await shipmentService.updateShipment(orderId, userId, updateData, isAdmin);
+    const result = await shipmentService.updateShipment(orderId as string, userId, updateData, isAdmin);
 
     if (!result.success) {
       return res.status(400).json(result);
@@ -244,7 +244,7 @@ export const deleteShipment = async (req: Request, res: Response) => {
       isAdmin = role.isRoot === true;
     }
 
-    const result = await shipmentService.deleteShipment(orderId, userId, isAdmin);
+    const result = await shipmentService.deleteShipment(orderId as string, userId, isAdmin);
 
     if (!result.success) {
       return res.status(400).json(result);

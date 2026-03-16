@@ -37,7 +37,7 @@ export const getJobPostingById = async (req: Request, res: Response) => {
       });
     }
 
-    const result = await jobPostingService.getJobPostingById(id);
+    const result = await jobPostingService.getJobPostingById(id as string);
 
     if (!result.success) {
       return res.status(400).json({
@@ -95,7 +95,7 @@ export const updateJobPosting = async (req: Request, res: Response) => {
       });
     }
 
-    const result = await jobPostingService.updateJobPosting(id, req.body);
+    const result = await jobPostingService.updateJobPosting(id as string, req.body );
 
     if (!result.success) {
       return res.status(400).json({
@@ -129,7 +129,7 @@ export const deleteJobPosting = async (req: Request, res: Response) => {
       });
     }
 
-    const result = await jobPostingService.deleteJobPosting(id);
+    const result = await jobPostingService.deleteJobPosting(id as string);
 
     if (!result.success) {
       return res.status(400).json({

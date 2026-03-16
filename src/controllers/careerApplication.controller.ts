@@ -46,7 +46,7 @@ export const getApplicationById = async (req: Request, res: Response) => {
       });
     }
 
-    const result = await careerApplicationService.getApplicationById(id);
+    const result = await careerApplicationService.getApplicationById(id as string);
 
     if (!result.success) {
       return res.status(404).json({
@@ -112,7 +112,7 @@ export const updateApplication = async (req: Request, res: Response) => {
       });
     }
 
-    const result = await careerApplicationService.updateApplication(id, req.body);
+    const result = await careerApplicationService.updateApplication(id as string, req.body);
 
     if (!result.success) {
       return res.status(404).json({
@@ -146,7 +146,7 @@ export const deleteApplication = async (req: Request, res: Response) => {
       });
     }
 
-    const result = await careerApplicationService.deleteApplication(id);
+    const result = await careerApplicationService.deleteApplication(id as string);
 
     if (!result.success) {
       return res.status(404).json({
@@ -179,7 +179,7 @@ export const getApplicationsByJobPosting = async (req: Request, res: Response) =
       });
     }
 
-    const result = await careerApplicationService.getApplicationsByJobPosting(jobPostingId);
+    const result = await careerApplicationService.getApplicationsByJobPosting(jobPostingId as string);
 
     if (!result.success) {
       return res.status(400).json({
