@@ -18,9 +18,32 @@ const dashboard_routes_2 = __importDefault(require("./routes/admin/dashboard.rou
 const reports_routes_1 = __importDefault(require("./routes/admin/reports.routes"));
 const jobPosting_routes_1 = __importDefault(require("./routes/jobPosting.routes"));
 const careerApplication_routes_1 = __importDefault(require("./routes/careerApplication.routes"));
+const customer_routes_1 = __importDefault(require("./routes/customer/customer.routes"));
 const wallet_controller_1 = require("./controllers/wallet.controller");
 const app = (0, express_1.default)();
 app.use(express_1.default.json());
+// CORS configuration for frontend API access
+const configuredOrigins = (process.env.CORS_ORIGIN || '*')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+app.use((req, res, next) => {
+    const requestOrigin = req.headers.origin;
+    const allowAllOrigins = configuredOrigins.includes('*');
+    if (allowAllOrigins) {
+        res.header('Access-Control-Allow-Origin', '*');
+    }
+    else if (requestOrigin && configuredOrigins.includes(requestOrigin)) {
+        res.header('Access-Control-Allow-Origin', requestOrigin);
+        res.header('Vary', 'Origin');
+    }
+    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(204);
+    }
+    return next();
+});
 // Serve static files (for HTML page)
 app.use(express_1.default.static(path_1.default.join(__dirname, '../public')));
 // Serve swagger spec as JSON (from pre-generated static file)
@@ -110,6 +133,7 @@ app.use("/api/shipment", shipment_routes_1.default);
 app.use("/api/dashboard", dashboard_routes_1.default);
 app.use("/api/careers", jobPosting_routes_1.default);
 app.use("/api/applications", careerApplication_routes_1.default);
+app.use("/api/customers", customer_routes_1.default);
 // Webhook endpoint (no auth, verified by signature)
 app.post("/webhook/cashfree", wallet_controller_1.cashfreeWebhook);
 exports.default = app;

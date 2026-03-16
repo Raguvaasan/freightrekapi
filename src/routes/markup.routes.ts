@@ -13,6 +13,9 @@ import { adminModule } from '../config/adminModule';
 
 const router = Router();
 
+// Public Route for Frontend (No Token Required)
+router.get('/public/rate-card-markup', getRateCardMarkup);
+
 // Rate Calculator Markup Routes
 router.get(
   '/rate-calculator-markup',

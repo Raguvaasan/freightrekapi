@@ -22,6 +22,33 @@ const app = express();
 
 app.use(express.json());
 
+// CORS configuration for frontend API access
+const configuredOrigins = (process.env.CORS_ORIGIN || '*')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+app.use((req, res, next) => {
+  const requestOrigin = req.headers.origin;
+  const allowAllOrigins = configuredOrigins.includes('*');
+
+  if (allowAllOrigins) {
+    res.header('Access-Control-Allow-Origin', '*');
+  } else if (requestOrigin && configuredOrigins.includes(requestOrigin)) {
+    res.header('Access-Control-Allow-Origin', requestOrigin);
+    res.header('Vary', 'Origin');
+  }
+
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+
+  return next();
+});
+
 // Serve static files (for HTML page)
 app.use(express.static(path.join(__dirname, '../public')));
 
