@@ -1,4 +1,6 @@
+import bcrypt from 'bcryptjs';
 import { Customer } from '../models/customer/customer.model';
+import { AppCustomer } from '../models/customer/appCustomer.model';
 
 interface ServiceResponse {
   success: boolean;
@@ -46,6 +48,24 @@ export class CustomerService {
 
       const customer = new Customer(data);
       await customer.save();
+
+      // Also create in appcustomers collection if not already exists
+      const existingAppCustomer = await AppCustomer.findOne({ email: data.email });
+      if (!existingAppCustomer) {
+        const nameParts = data.name.trim().split(/\s+/);
+        const firstName = nameParts[0];
+        const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : nameParts[0];
+        const tempPassword = await bcrypt.hash(Math.random().toString(36).slice(-8), 10);
+        await AppCustomer.create({
+          firstName,
+          lastName,
+          email: data.email,
+          phone: data.phone,
+          countryCode: '+91',
+          password: tempPassword,
+          status: data.status || 'Active',
+        });
+      }
 
       return {
         success: true,
