@@ -37,3 +37,37 @@ export const customerRegisterSchema = yup.object({
       .max(128, 'Password must not exceed 128 characters'),
   }),
 });
+
+export const sendOtpSchema = yup.object({
+  body: yup.object({
+    countryCode: yup
+      .string()
+      .required('Country code is required')
+      .matches(/^\+\d{1,4}$/, 'Country code must be in format +1 to +9999')
+      .trim(),
+    phone: yup
+      .string()
+      .required('Phone number is required')
+      .matches(/^\d{7,15}$/, 'Phone number must be 7–15 digits')
+      .trim(),
+  }),
+});
+
+export const verifyOtpSchema = yup.object({
+  body: yup.object({
+    countryCode: yup
+      .string()
+      .required('Country code is required')
+      .matches(/^\+\d{1,4}$/, 'Country code must be in format +1 to +9999')
+      .trim(),
+    phone: yup
+      .string()
+      .required('Phone number is required')
+      .matches(/^\d{7,15}$/, 'Phone number must be 7–15 digits')
+      .trim(),
+    otp: yup
+      .string()
+      .required('OTP is required')
+      .matches(/^\d{6}$/, 'OTP must be exactly 6 digits'),
+  }),
+});
