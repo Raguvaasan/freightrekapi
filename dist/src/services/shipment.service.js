@@ -10,6 +10,24 @@ const wallet_model_1 = require("../models/wallet/wallet.model");
 const transaction_model_1 = require("../models/wallet/transaction.model");
 const agency_model_1 = require("../models/admin/agency.model");
 const hub_model_1 = require("../models/hub/hub.model");
+// Find nearest hub based on customer pincode → city → state → any active hub
+async function findNearestHub(pin, city, state) {
+    // 1. Same pincode
+    let hub = await hub_model_1.HubModel.findOne({ pincode: parseInt(pin), status: true });
+    if (hub)
+        return hub;
+    // 2. Same city (case-insensitive)
+    hub = await hub_model_1.HubModel.findOne({ city: { $regex: new RegExp(`^${city}$`, 'i') }, status: true });
+    if (hub)
+        return hub;
+    // 3. Same state (case-insensitive)
+    hub = await hub_model_1.HubModel.findOne({ state: { $regex: new RegExp(`^${state}$`, 'i') }, status: true });
+    if (hub)
+        return hub;
+    // 4. Any active hub
+    hub = await hub_model_1.HubModel.findOne({ status: true });
+    return hub;
+}
 exports.shipmentService = {
     async createShipment(data) {
         let walletDebited = false;
@@ -67,6 +85,24 @@ exports.shipmentService = {
                 debitAmount = amount;
                 debitUserId = userId;
             }
+            // Auto-assign nearest hub if pickupLocation not provided
+            if (!shipmentData.pickupLocation || !shipmentData.pickupLocation.name) {
+                const nearestHub = await findNearestHub(shipmentData.pin, shipmentData.city, shipmentData.state);
+                if (nearestHub) {
+                    shipmentData.pickupLocation = {
+                        name: nearestHub.hubName,
+                        address: nearestHub.address,
+                        pincode: nearestHub.pincode.toString(),
+                        city: nearestHub.city,
+                        state: nearestHub.state,
+                        phone: nearestHub.phoneNo?.toString(),
+                    };
+                    shipmentData.assignedHubId = nearestHub._id.toString();
+                }
+                else {
+                    return { success: false, message: 'No active hub available. Please try again later.' };
+                }
+            }
             // Fetch pickup location details from Hub or Agency if not provided
             if (shipmentData.pickupLocation && (!shipmentData.pickupLocation.address || !shipmentData.pickupLocation.pincode)) {
                 // First try to find in Hub collection
@@ -77,6 +113,10 @@ exports.shipmentService = {
                     shipmentData.pickupLocation.city = shipmentData.pickupLocation.city || hub.city;
                     shipmentData.pickupLocation.state = shipmentData.pickupLocation.state || hub.state;
                     shipmentData.pickupLocation.phone = shipmentData.pickupLocation.phone || hub.phoneNo?.toString();
+                    // Assign hub ID if not already set
+                    if (!shipmentData.assignedHubId) {
+                        shipmentData.assignedHubId = hub._id.toString();
+                    }
                 }
                 else {
                     // If not found in Hub, try to find in Agency collection
@@ -99,6 +139,7 @@ exports.shipmentService = {
                 shippingMode: shipmentData.shippingMode || 'Surface',
                 shipmentWidth: shipmentData.shipmentWidth || '100',
                 shipmentHeight: shipmentData.shipmentHeight || '100',
+                assignedHubId: shipmentData.assignedHubId || undefined,
                 status: 'Active',
             });
             // Try Delhivery API to get waybill (optional - order is already created)
@@ -206,6 +247,7 @@ exports.shipmentService = {
                     shippingMode: shipment.shippingMode,
                     // Pickup
                     pickupLocation: shipment.pickupLocation,
+                    assignedHubId: shipment.assignedHubId || null,
                     // Timestamps
                     createdAt: shipment.createdAt,
                 },
@@ -320,12 +362,16 @@ exports.shipmentService = {
             };
         }
     },
-    async getShipments(userId, page = 1, limit = 20, status, isAdmin, franchiseUserIds) {
+    async getShipments(userId, page = 1, limit = 20, status, isAdmin, franchiseUserIds, assignedHubId) {
         try {
             // If admin, show all franchise orders (not admin's own)
             // Otherwise, filter by logged-in userId
             const query = {};
-            if (isAdmin && franchiseUserIds && franchiseUserIds.length > 0) {
+            if (assignedHubId) {
+                // Hub staff: show orders assigned to their hub
+                query.assignedHubId = assignedHubId;
+            }
+            else if (isAdmin && franchiseUserIds && franchiseUserIds.length > 0) {
                 // Admin: show only franchise orders
                 query.userId = { $in: franchiseUserIds };
             }

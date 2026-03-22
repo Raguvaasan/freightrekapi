@@ -86,8 +86,8 @@ exports.createShipmentSchema = yup.object().shape({
         .default('Surface'),
     addressType: yup.string(),
     pickupLocation: yup.object().shape({
-        name: yup.string().required('Pickup location name is required'),
-    }),
+        name: yup.string().optional(),
+    }).optional(),
 });
 exports.getShipmentsSchema = yup.object().shape({
     page: yup.number().min(1, 'Page must be at least 1'),

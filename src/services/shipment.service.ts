@@ -44,7 +44,7 @@ interface CreateShipmentData {
   weight?: string;
   shippingMode?: 'Surface' | 'Express';
   addressType?: string;
-  pickupLocation: {
+  pickupLocation?: {
     name: string;
     address?: string;
     pincode?: string;
@@ -53,6 +53,25 @@ interface CreateShipmentData {
     country?: string;
     phone?: string;
   };
+}
+
+// Find nearest hub based on customer pincode → city → state → any active hub
+async function findNearestHub(pin: string, city: string, state: string) {
+  // 1. Same pincode
+  let hub = await HubModel.findOne({ pincode: parseInt(pin), status: true });
+  if (hub) return hub;
+
+  // 2. Same city (case-insensitive)
+  hub = await HubModel.findOne({ city: { $regex: new RegExp(`^${city}$`, 'i') }, status: true });
+  if (hub) return hub;
+
+  // 3. Same state (case-insensitive)
+  hub = await HubModel.findOne({ state: { $regex: new RegExp(`^${state}$`, 'i') }, status: true });
+  if (hub) return hub;
+
+  // 4. Any active hub
+  hub = await HubModel.findOne({ status: true });
+  return hub;
 }
 
 export const shipmentService = {
@@ -123,6 +142,24 @@ export const shipmentService = {
       }
 
 
+      // Auto-assign nearest hub if pickupLocation not provided
+      if (!shipmentData.pickupLocation || !shipmentData.pickupLocation.name) {
+        const nearestHub = await findNearestHub(shipmentData.pin, shipmentData.city, shipmentData.state);
+        if (nearestHub) {
+          shipmentData.pickupLocation = {
+            name: nearestHub.hubName,
+            address: nearestHub.address,
+            pincode: nearestHub.pincode.toString(),
+            city: nearestHub.city,
+            state: nearestHub.state,
+            phone: nearestHub.phoneNo?.toString(),
+          };
+          (shipmentData as any).assignedHubId = nearestHub._id.toString();
+        } else {
+          return { success: false, message: 'No active hub available. Please try again later.' };
+        }
+      }
+
       // Fetch pickup location details from Hub or Agency if not provided
       if (shipmentData.pickupLocation && (!shipmentData.pickupLocation.address || !shipmentData.pickupLocation.pincode)) {
         // First try to find in Hub collection
@@ -133,6 +170,10 @@ export const shipmentService = {
           shipmentData.pickupLocation.city = shipmentData.pickupLocation.city || hub.city;
           shipmentData.pickupLocation.state = shipmentData.pickupLocation.state || hub.state;
           shipmentData.pickupLocation.phone = shipmentData.pickupLocation.phone || hub.phoneNo?.toString();
+          // Assign hub ID if not already set
+          if (!(shipmentData as any).assignedHubId) {
+            (shipmentData as any).assignedHubId = hub._id.toString();
+          }
         } else {
           // If not found in Hub, try to find in Agency collection
           const agency = await Agency.findOne({ agencyName: shipmentData.pickupLocation.name });
@@ -155,6 +196,7 @@ export const shipmentService = {
         shippingMode: shipmentData.shippingMode || 'Surface',
         shipmentWidth: shipmentData.shipmentWidth || '100',
         shipmentHeight: shipmentData.shipmentHeight || '100',
+        assignedHubId: (shipmentData as any).assignedHubId || undefined,
         status: 'Active',
       });
 
@@ -272,6 +314,7 @@ export const shipmentService = {
           shippingMode: shipment.shippingMode,
           // Pickup
           pickupLocation: shipment.pickupLocation,
+          assignedHubId: shipment.assignedHubId || null,
           // Timestamps
           createdAt: shipment.createdAt,
         },
@@ -392,13 +435,16 @@ export const shipmentService = {
     }
   },
 
-  async getShipments(userId: string, page: number = 1, limit: number = 20, status?: string, isAdmin?: boolean, franchiseUserIds?: string[]) {
+  async getShipments(userId: string, page: number = 1, limit: number = 20, status?: string, isAdmin?: boolean, franchiseUserIds?: string[], assignedHubId?: string) {
     try {
       // If admin, show all franchise orders (not admin's own)
       // Otherwise, filter by logged-in userId
       const query: any = {};
-      
-      if (isAdmin && franchiseUserIds && franchiseUserIds.length > 0) {
+
+      if (assignedHubId) {
+        // Hub staff: show orders assigned to their hub
+        query.assignedHubId = assignedHubId;
+      } else if (isAdmin && franchiseUserIds && franchiseUserIds.length > 0) {
         // Admin: show only franchise orders
         query.userId = { $in: franchiseUserIds };
       } else {

@@ -20,6 +20,7 @@ const jobPosting_routes_1 = __importDefault(require("./routes/jobPosting.routes"
 const careerApplication_routes_1 = __importDefault(require("./routes/careerApplication.routes"));
 const customer_routes_1 = __importDefault(require("./routes/customer/customer.routes"));
 const auth_routes_1 = __importDefault(require("./routes/customer/auth.routes"));
+const order_routes_1 = __importDefault(require("./routes/hub/order.routes"));
 const wallet_controller_1 = require("./controllers/wallet.controller");
 const app = (0, express_1.default)();
 app.use(express_1.default.json());
@@ -136,6 +137,7 @@ app.use("/api/careers", jobPosting_routes_1.default);
 app.use("/api/applications", careerApplication_routes_1.default);
 app.use("/api/customers", customer_routes_1.default);
 app.use("/api/customer/auth", auth_routes_1.default);
+app.use("/hub/orders", order_routes_1.default);
 // Webhook endpoint (no auth, verified by signature)
 app.post("/webhook/cashfree", wallet_controller_1.cashfreeWebhook);
 exports.default = app;

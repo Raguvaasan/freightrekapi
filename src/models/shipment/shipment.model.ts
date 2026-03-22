@@ -46,6 +46,7 @@ export interface IShipment {
     pincode?: string;
   };
   status: 'pending' | 'created' | 'Active' | 'in_transit' | 'delivered' | 'failed' | 'cancelled';
+  assignedHubId?: string;
   delhiveryResponse?: any;
   trackingUrl?: string;
   createdAt: Date;
@@ -166,6 +167,10 @@ const shipmentSchema = new Schema<IShipment>(
       type: Schema.Types.Mixed,
     },
     trackingUrl: String,
+    assignedHubId: {
+      type: String,
+      index: true,
+    },
   },
   { timestamps: true }
 );

@@ -51,8 +51,8 @@ export const createShipmentSchema = yup.object().shape({
     .default('Surface'),
   addressType: yup.string(),
   pickupLocation: yup.object().shape({
-    name: yup.string().required('Pickup location name is required'),
-  }),
+    name: yup.string().optional(),
+  }).optional(),
 });
 
 export const getShipmentsSchema = yup.object().shape({

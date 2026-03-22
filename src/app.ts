@@ -17,6 +17,7 @@ import jobPostingRoutes from "./routes/jobPosting.routes";
 import careerApplicationRoutes from "./routes/careerApplication.routes";
 import customerRoutes from "./routes/customer/customer.routes";
 import customerAuthRoutes from "./routes/customer/auth.routes";
+import hubOrderRoutes from "./routes/hub/order.routes";
 import { cashfreeWebhook } from "./controllers/wallet.controller";
 
 const app = express();
@@ -147,6 +148,7 @@ app.use("/api/careers", jobPostingRoutes);
 app.use("/api/applications", careerApplicationRoutes);
 app.use("/api/customers", customerRoutes);
 app.use("/api/customer/auth", customerAuthRoutes);
+app.use("/hub/orders", hubOrderRoutes);
 
 // Webhook endpoint (no auth, verified by signature)
 app.post("/webhook/cashfree", cashfreeWebhook);

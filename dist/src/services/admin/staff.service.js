@@ -11,6 +11,7 @@ const agency_model_1 = require("../../models/admin/agency.model");
 const hub_model_1 = require("../../models/hub/hub.model");
 const mongoose_1 = require("mongoose");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
+const jwt_1 = require("../../utils/jwt");
 class StaffService {
     // Staff Login (Generic - for backward compatibility)
     async loginStaff(username, password) {
@@ -214,7 +215,8 @@ class StaffService {
             }
             const staffData = staff.toObject();
             delete staffData.password;
-            return { success: true, message: 'Hub staff login successful', data: staffData };
+            const token = (0, jwt_1.generateToken)(staff._id.toString());
+            return { success: true, message: 'Hub staff login successful', data: { ...staffData, token } };
         }
         catch (error) {
             return { success: false, message: error.message || 'Error during login' };

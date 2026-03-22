@@ -5,6 +5,7 @@ import { Agency } from '../../models/admin/agency.model';
 import { HubModel as Hub } from '../../models/hub/hub.model';
 import { Types } from 'mongoose';
 import bcrypt from 'bcryptjs';
+import { generateToken } from '../../utils/jwt';
 
 interface ServiceResponse {
   success: boolean;
@@ -271,7 +272,9 @@ export class StaffService {
       const staffData: any = staff.toObject();
       delete staffData.password;
 
-      return { success: true, message: 'Hub staff login successful', data: staffData };
+      const token = generateToken(staff._id.toString());
+
+      return { success: true, message: 'Hub staff login successful', data: { ...staffData, token } };
     } catch (error: any) {
       return { success: false, message: error.message || 'Error during login' };
     }

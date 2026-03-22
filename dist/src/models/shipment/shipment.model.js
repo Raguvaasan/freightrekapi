@@ -115,6 +115,10 @@ const shipmentSchema = new mongoose_1.Schema({
         type: mongoose_1.Schema.Types.Mixed,
     },
     trackingUrl: String,
+    assignedHubId: {
+        type: String,
+        index: true,
+    },
 }, { timestamps: true });
 // Create compound index for user queries
 shipmentSchema.index({ userId: 1, createdAt: -1 });
