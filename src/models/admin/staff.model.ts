@@ -4,10 +4,11 @@ export interface IStaff {
   name: string;
   email: string;
   phone: string;
-  type: 'head_quarter' | 'franchise';
+  type: 'head_quarter' | 'franchise' | 'hub';
   roleId?: Types.ObjectId;
   status: 'Active' | 'Inactive';
   franchiseId?: Types.ObjectId;
+  hubId?: Types.ObjectId;
   username: string;
   password: string;
   createdAt: Date;
@@ -35,7 +36,7 @@ const staffSchema = new Schema<IStaff>(
     },
     type: {
       type: String,
-      enum: ['head_quarter', 'franchise'],
+      enum: ['head_quarter', 'franchise', 'hub'],
       required: [true, 'Type is required'],
     },
     roleId: {
@@ -51,6 +52,11 @@ const staffSchema = new Schema<IStaff>(
     franchiseId: {
       type: Schema.Types.ObjectId,
       ref: 'Agency',
+      required: false,
+    },
+    hubId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Hub',
       required: false,
     },
     username: {
@@ -74,6 +80,7 @@ const staffSchema = new Schema<IStaff>(
 staffSchema.index({ email: 1 });
 staffSchema.index({ username: 1 });
 staffSchema.index({ franchiseId: 1 });
+staffSchema.index({ hubId: 1 });
 staffSchema.index({ roleId: 1 });
 staffSchema.index({ status: 1 });
 

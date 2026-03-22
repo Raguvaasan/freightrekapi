@@ -367,6 +367,17 @@ export const shipmentService = {
               height: shipment.shipmentHeight,
             },
           },
+          amount:
+            shipment.paymentMode == 'COD'
+              ? (shipment.codAmount || '0')
+              : (shipment.totalAmount || '0'),
+          totalAmount: shipment.totalAmount || '0',
+          codAmount: shipment.codAmount || '0',
+          productsDesc: shipment.productsDesc || '',
+          quantity: shipment.quantity || '1',
+          sellerName: shipment.sellerName || '',
+          sellerInv: shipment.sellerInv || '',
+          hsnCode: shipment.hsnCode || '',
           pickupLocation: shipment.pickupLocation,
           createdAt: shipment.createdAt,
           updatedAt: shipment.updatedAt,
@@ -397,6 +408,9 @@ export const shipmentService = {
       
       if (status) {
         query.status = status;
+      } else {
+        // Exclude soft-deleted (cancelled) orders unless explicitly requested
+        query.status = { $ne: 'cancelled' };
       }
 
       const skip = (page - 1) * limit;

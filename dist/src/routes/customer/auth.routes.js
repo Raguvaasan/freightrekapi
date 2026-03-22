@@ -1,14 +1,10 @@
-import { Router } from 'express';
-import { register, sendOtp, verifyOtp } from '../../controllers/customer/auth.controller';
-import { validate } from '../../middleware/validate.middleware';
-import {
-  customerRegisterSchema,
-  sendOtpSchema,
-  verifyOtpSchema,
-} from '../../validators/customerAuth.validator';
-
-const router = Router();
-
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const auth_controller_1 = require("../../controllers/customer/auth.controller");
+const validate_middleware_1 = require("../../middleware/validate.middleware");
+const customerAuth_validator_1 = require("../../validators/customerAuth.validator");
+const router = (0, express_1.Router)();
 /**
  * @swagger
  * /api/customer/auth/register:
@@ -63,8 +59,7 @@ const router = Router();
  *       500:
  *         description: Internal server error
  */
-router.post('/register', validate(customerRegisterSchema), register);
-
+router.post('/register', (0, validate_middleware_1.validate)(customerAuth_validator_1.customerRegisterSchema), auth_controller_1.register);
 /**
  * @swagger
  * /api/customer/auth/send-otp:
@@ -95,8 +90,7 @@ router.post('/register', validate(customerRegisterSchema), register);
  *       500:
  *         description: Internal server error
  */
-router.post('/send-otp', validate(sendOtpSchema), sendOtp);
-
+router.post('/send-otp', (0, validate_middleware_1.validate)(customerAuth_validator_1.sendOtpSchema), auth_controller_1.sendOtp);
 /**
  * @swagger
  * /api/customer/auth/verify-otp:
@@ -131,6 +125,5 @@ router.post('/send-otp', validate(sendOtpSchema), sendOtp);
  *       500:
  *         description: Internal server error
  */
-router.post('/verify-otp', validate(verifyOtpSchema), verifyOtp);
-
-export default router;
+router.post('/verify-otp', (0, validate_middleware_1.validate)(customerAuth_validator_1.verifyOtpSchema), auth_controller_1.verifyOtp);
+exports.default = router;

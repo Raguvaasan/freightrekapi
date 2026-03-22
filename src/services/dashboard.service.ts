@@ -42,7 +42,10 @@ export const dashboardService = {
         bookingId: booking.waybill || booking.orderId,
         orderId: booking.order, // Use franchise API orderId
         franchise: booking.pickupLocation?.name || 'N/A',
-        amount: booking.codAmount || booking.totalAmount || '0',
+        amount:
+          booking.paymentMode == 'COD'
+            ? (booking.codAmount || '0')
+            : (booking.totalAmount || booking.codAmount || '0'),
         status: booking.status,
         date: booking.createdAt, // Booking date
         dropLocation: booking.city && booking.state ? `${booking.city}, ${booking.state}` : booking.city || 'N/A', // Drop location

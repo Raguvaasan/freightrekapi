@@ -1474,6 +1474,48 @@
         }
       }
     },
+    "/admin/staff/login/hub": {
+      "post": {
+        "summary": "Hub staff login (only for hub staff)",
+        "tags": [
+          "Staff Management"
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "username",
+                  "password"
+                ],
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "example": "hubstaff"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password",
+                    "example": "password123"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Hub staff login successful"
+          },
+          "401": {
+            "description": "Invalid credentials or not a hub staff"
+          }
+        }
+      }
+    },
     "/admin/staff": {
       "get": {
         "summary": "Get all staff with pagination (Public)",

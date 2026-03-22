@@ -107,7 +107,7 @@ const shipmentSchema = new mongoose_1.Schema({
     },
     status: {
         type: String,
-        enum: ['pending', 'created', 'in_transit', 'delivered', 'failed', 'cancelled'],
+        enum: ['pending', 'created', 'Active', 'in_transit', 'delivered', 'failed', 'cancelled'],
         default: 'pending',
         index: true,
     },

@@ -58,7 +58,7 @@ exports.createStaffSchema = yup.object({
         type: yup
             .string()
             .required('Type is required')
-            .oneOf(['head_quarter', 'franchise'], 'Type must be either head_quarter or franchise'),
+            .oneOf(['head_quarter', 'franchise', 'hub'], 'Type must be head_quarter, franchise, or hub'),
         roleId: yup
             .string()
             .matches(/^[0-9a-fA-F]{24}$/, 'Invalid role ID')
@@ -73,7 +73,15 @@ exports.createStaffSchema = yup.object({
             .when('type', {
             is: 'franchise',
             then: (schema) => schema.required('Franchise is required for franchise staff'),
-            otherwise: (schema) => schema.test('no-franchise-for-hq', 'Franchise should not be provided for head quarter staff', (value) => !value),
+            otherwise: (schema) => schema.optional(),
+        }),
+        hubId: yup
+            .string()
+            .matches(/^[0-9a-fA-F]{24}$/, 'Invalid hub ID')
+            .when('type', {
+            is: 'hub',
+            then: (schema) => schema.required('Hub is required for hub staff'),
+            otherwise: (schema) => schema.optional(),
         }),
         username: yup
             .string()
@@ -110,7 +118,7 @@ exports.updateStaffSchema = yup.object({
             .optional(),
         type: yup
             .string()
-            .oneOf(['head_quarter', 'franchise'], 'Type must be either head_quarter or franchise')
+            .oneOf(['head_quarter', 'franchise', 'hub'], 'Type must be head_quarter, franchise, or hub')
             .optional(),
         roleId: yup
             .string()
@@ -123,6 +131,10 @@ exports.updateStaffSchema = yup.object({
         franchiseId: yup
             .string()
             .matches(/^[0-9a-fA-F]{24}$/, 'Invalid franchise ID')
+            .optional(),
+        hubId: yup
+            .string()
+            .matches(/^[0-9a-fA-F]{24}$/, 'Invalid hub ID')
             .optional(),
         username: yup
             .string()

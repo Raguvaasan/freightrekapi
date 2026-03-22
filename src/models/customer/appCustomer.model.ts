@@ -6,8 +6,8 @@ export interface IAppCustomer {
   email: string;
   phone: string;
   countryCode: string;
-  password: string;
-  status: 'Active' | 'Inactive';
+  password?: string;
+  status: 'Active' | 'Inactive' | 'Pending';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -44,12 +44,12 @@ const appCustomerSchema = new Schema<IAppCustomer>(
     },
     password: {
       type: String,
-      required: [true, 'Password is required'],
+      required: false,
       select: false,
     },
     status: {
       type: String,
-      enum: ['Active', 'Inactive'],
+      enum: ['Active', 'Inactive', 'Pending'],
       default: 'Active',
     },
   },

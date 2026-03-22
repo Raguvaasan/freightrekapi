@@ -11,7 +11,7 @@ if (!JWT_SECRET) {
 }
 const generateToken = (userId) => {
     const options = {
-        expiresIn: JWT_EXPIRES_IN,
+        expiresIn: (JWT_EXPIRES_IN || '7d'),
     };
     return jsonwebtoken_1.default.sign({ id: userId }, JWT_SECRET, options);
 };

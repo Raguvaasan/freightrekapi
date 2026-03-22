@@ -103,6 +103,37 @@ router.post('/login/franchise', (0, validate_middleware_1.validate)(staff_valida
 router.post('/login/headquarter', (0, validate_middleware_1.validate)(staff_validator_1.staffLoginSchema), staff_controller_1.loginHeadQuarterStaff);
 /**
  * @swagger
+ * /admin/staff/login/hub:
+ *   post:
+ *     summary: Hub staff login (only for hub staff)
+ *     tags: [Staff Management]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *               - password
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 example: hubstaff
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 example: password123
+ *     responses:
+ *       200:
+ *         description: Hub staff login successful
+ *       401:
+ *         description: Invalid credentials or not a hub staff
+ */
+router.post('/login/hub', (0, validate_middleware_1.validate)(staff_validator_1.staffLoginSchema), staff_controller_1.loginHubStaff);
+/**
+ * @swagger
  * /admin/staff:
  *   get:
  *     summary: Get all staff with pagination (Public)

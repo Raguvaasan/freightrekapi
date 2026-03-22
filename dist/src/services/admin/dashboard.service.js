@@ -116,11 +116,11 @@ class AdminDashboardService {
                 shipment_model_1.Shipment.countDocuments({ createdAt: { $gte: startDate, $lte: now } }),
                 shipment_model_1.Shipment.countDocuments({ createdAt: { $gte: previousStartDate, $lte: previousEndDate } }),
                 agency_model_1.Agency.countDocuments({ status: 'Active' }),
-                shipment_model_1.Shipment.find().lean(),
-                shipment_model_1.Shipment.find({ createdAt: { $gte: todayStart } }).lean(),
-                shipment_model_1.Shipment.find({ createdAt: { $gte: startDate, $lte: now } }).lean(),
-                shipment_model_1.Shipment.find({ createdAt: { $gte: previousStartDate, $lte: previousEndDate } }).lean(),
-                shipment_model_1.Shipment.find({ createdAt: { $gte: startDate, $lte: now } }).lean(),
+                shipment_model_1.Shipment.find({ status: 'Active' }).lean(),
+                shipment_model_1.Shipment.find({ status: 'Active', createdAt: { $gte: todayStart } }).lean(),
+                shipment_model_1.Shipment.find({ status: 'Active', createdAt: { $gte: startDate, $lte: now } }).lean(),
+                shipment_model_1.Shipment.find({ status: 'Active', createdAt: { $gte: previousStartDate, $lte: previousEndDate } }).lean(),
+                shipment_model_1.Shipment.find({ status: 'Active', createdAt: { $gte: startDate, $lte: now } }).lean(),
                 shipment_model_1.Shipment.aggregate([
                     { $group: { _id: '$shippingMode', count: { $sum: 1 } } },
                     { $project: { _id: 0, type: '$_id', count: 1 } },
@@ -264,7 +264,7 @@ class AdminDashboardService {
     async getTotalRevenueReport(period = 'thisMonth', startDate, endDate) {
         try {
             const dateFilter = this.getDateFilter(period, startDate, endDate);
-            const shipments = await shipment_model_1.Shipment.find({ createdAt: dateFilter }).lean();
+            const shipments = await shipment_model_1.Shipment.find({ status: 'Active', createdAt: dateFilter }).lean();
             const totalRevenue = shipments.reduce((sum, s) => {
                 return sum + parseFloat(s.totalAmount || s.codAmount || '0');
             }, 0);

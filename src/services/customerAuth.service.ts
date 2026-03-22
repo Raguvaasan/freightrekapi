@@ -1,4 +1,3 @@
-import bcrypt from 'bcryptjs';
 import axios from 'axios';
 import { AppCustomer } from '../models/customer/appCustomer.model';
 import { Customer } from '../models/customer/customer.model';
@@ -17,70 +16,81 @@ interface RegisterInput {
   email: string;
   phone: string;
   countryCode: string;
-  password: string;
 }
 
 export const customerAuthService = {
   async register(input: RegisterInput): Promise<ServiceResponse> {
-    const { firstName, lastName, email, phone, countryCode, password } = input;
+    const { firstName, lastName, email, phone, countryCode } = input;
 
-    const existingEmail = await AppCustomer.findOne({ email });
+    // Block if an active account already exists with same email or phone
+    const existingEmail = await AppCustomer.findOne({ email, status: 'Active' });
     if (existingEmail) {
-      return { success: false, message: 'An account with this email already exists' };
+      return { success: false, message: 'An account with this email already exists. Please login' };
     }
 
-    const existingPhone = await AppCustomer.findOne({ phone, countryCode });
+    const existingPhone = await AppCustomer.findOne({ phone, countryCode, status: 'Active' });
     if (existingPhone) {
-      return { success: false, message: 'An account with this phone number already exists' };
+      return { success: false, message: 'An account with this phone number already exists. Please login' };
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Remove any stale pending registrations for same phone/email
+    await AppCustomer.deleteMany({
+      $or: [{ email }, { phone, countryCode }],
+      status: 'Pending',
+    });
 
-    const customer = await AppCustomer.create({
+    // Create customer as Pending (activated after OTP verification)
+    await AppCustomer.create({
       firstName,
       lastName,
       email,
       phone,
       countryCode,
-      password: hashedPassword,
+      status: 'Pending',
     });
 
-    // Also add to admin customers collection (name = firstName + lastName)
-    const existingAdminCustomer = await Customer.findOne({ email });
-    if (!existingAdminCustomer) {
-      await Customer.create({
-        name: `${firstName} ${lastName}`,
-        email,
-        phone,
-        status: 'Active',
-      });
-    }
+    // Generate and save OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
-    const token = generateToken(customer._id.toString());
+    await Otp.deleteMany({ phone });
+    await Otp.create({ phone, countryCode, otp, expiresAt });
+
+    // Send SMS via Ping4SMS
+    const apiKey = process.env.PING4SMS_API_KEY;
+    const sender = process.env.PING4SMS_SENDER;
+    const templateId = process.env.PING4SMS_TEMPLATE_ID;
+    const route = process.env.PING4SMS_ROUTE || '2';
+    const fullPhone = `${countryCode.replace('+', '')}${phone}`;
+    const message = `Dear Customer,${otp} is your verification code -PNGOTP`;
+
+    const url = `https://site.ping4sms.com/api/smsapi?key=${apiKey}&route=${route}&sender=${sender}&number=${fullPhone}&sms=${encodeURIComponent(message)}&templateid=${templateId}`;
+
+    console.log('[Ping4SMS] URL:', url);
+    const smsResponse = await axios.get(url);
+    console.log('[Ping4SMS] Response:', JSON.stringify(smsResponse.data));
+
+    const responseData = smsResponse.data;
+    const responseStr = typeof responseData === 'string' ? responseData : JSON.stringify(responseData);
+
+    if (responseStr.includes('-1') || responseStr.includes('-2') || responseStr.toLowerCase().includes('error') || responseStr.includes('INVALID')) {
+      console.error('[Ping4SMS] SMS failed:', responseStr);
+      // Rollback pending customer creation on SMS failure
+      await AppCustomer.deleteMany({ phone, countryCode, status: 'Pending' });
+      return { success: false, message: `SMS sending failed: ${responseStr}` };
+    }
 
     return {
       success: true,
-      message: 'Registration successful',
-      data: {
-        token,
-        customer: {
-          id: customer._id,
-          firstName: customer.firstName,
-          lastName: customer.lastName,
-          email: customer.email,
-          phone: customer.phone,
-          countryCode: customer.countryCode,
-          status: customer.status,
-        },
-      },
+      message: 'OTP sent to your phone. Please verify to complete registration',
     };
   },
 
   async sendOtp(phone: string, countryCode: string): Promise<ServiceResponse> {
-    // Check if account exists before sending OTP (search by phone only)
-    const customer = await AppCustomer.findOne({ phone });
+    // Only Active accounts can use login OTP; Pending accounts must use /register flow
+    const customer = await AppCustomer.findOne({ phone, status: 'Active' });
     if (!customer) {
-      return { success: false, message: 'No account found with this phone number. Please register first' };
+      return { success: false, message: 'No active account found with this phone number. Please register first' };
     }
 
     // Generate 6-digit OTP
@@ -141,17 +151,37 @@ export const customerAuthService = {
     record.used = true;
     await record.save();
 
-    // Find customer account (search by phone only)
+    // Find customer account (Pending = completing registration, Active = login)
     const customer = await AppCustomer.findOne({ phone });
     if (!customer) {
       return { success: false, message: 'No account found with this phone number. Please register first' };
+    }
+
+    let responseMessage = 'Login successful';
+
+    if (customer.status === 'Pending') {
+      // Complete registration: activate account and sync to admin customers collection
+      customer.status = 'Active';
+      await customer.save();
+
+      const existingAdminCustomer = await Customer.findOne({ email: customer.email });
+      if (!existingAdminCustomer) {
+        await Customer.create({
+          name: `${customer.firstName} ${customer.lastName}`,
+          email: customer.email,
+          phone: customer.phone,
+          status: 'Active',
+        });
+      }
+
+      responseMessage = 'Registration successful';
     }
 
     const token = generateToken(customer._id.toString());
 
     return {
       success: true,
-      message: 'Login successful',
+      message: responseMessage,
       data: {
         token,
         customer: {

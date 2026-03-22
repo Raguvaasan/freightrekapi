@@ -30,11 +30,6 @@ export const customerRegisterSchema = yup.object({
       .email('Invalid email format')
       .max(100, 'Email must not exceed 100 characters')
       .trim(),
-    password: yup
-      .string()
-      .required('Password is required')
-      .min(6, 'Password must be at least 6 characters')
-      .max(128, 'Password must not exceed 128 characters'),
   }),
 });
 

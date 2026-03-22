@@ -22,7 +22,7 @@ const staffSchema = new mongoose_1.Schema({
     },
     type: {
         type: String,
-        enum: ['head_quarter', 'franchise'],
+        enum: ['head_quarter', 'franchise', 'hub'],
         required: [true, 'Type is required'],
     },
     roleId: {
@@ -38,6 +38,11 @@ const staffSchema = new mongoose_1.Schema({
     franchiseId: {
         type: mongoose_1.Schema.Types.ObjectId,
         ref: 'Agency',
+        required: false,
+    },
+    hubId: {
+        type: mongoose_1.Schema.Types.ObjectId,
+        ref: 'Hub',
         required: false,
     },
     username: {
@@ -58,6 +63,7 @@ const staffSchema = new mongoose_1.Schema({
 staffSchema.index({ email: 1 });
 staffSchema.index({ username: 1 });
 staffSchema.index({ franchiseId: 1 });
+staffSchema.index({ hubId: 1 });
 staffSchema.index({ roleId: 1 });
 staffSchema.index({ status: 1 });
 exports.Staff = (0, mongoose_1.model)('Staff', staffSchema);

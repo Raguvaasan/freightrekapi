@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateStaffStatus = exports.deleteStaff = exports.updateStaff = exports.getStaffById = exports.getAllStaff = exports.createStaff = exports.loginHeadQuarterStaff = exports.loginFranchiseStaff = exports.loginStaff = void 0;
+exports.updateStaffStatus = exports.deleteStaff = exports.updateStaff = exports.getStaffById = exports.getAllStaff = exports.createStaff = exports.loginHubStaff = exports.loginHeadQuarterStaff = exports.loginFranchiseStaff = exports.loginStaff = void 0;
 const staff_service_1 = require("../../services/admin/staff.service");
 const loginStaff = async (req, res) => {
     try {
@@ -74,6 +74,20 @@ const loginHeadQuarterStaff = async (req, res) => {
     }
 };
 exports.loginHeadQuarterStaff = loginHeadQuarterStaff;
+const loginHubStaff = async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        const result = await staff_service_1.staffService.loginHubStaff(username, password);
+        if (!result.success) {
+            return res.status(401).json({ success: false, message: result.message });
+        }
+        return res.status(200).json({ success: true, message: result.message, data: result.data });
+    }
+    catch (err) {
+        return res.status(500).json({ success: false, message: err.message || 'Internal server error' });
+    }
+};
+exports.loginHubStaff = loginHubStaff;
 const createStaff = async (req, res) => {
     try {
         const result = await staff_service_1.staffService.createStaff(req.body);

@@ -1,7 +1,12 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.customerService = exports.CustomerService = void 0;
+const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const customer_model_1 = require("../models/customer/customer.model");
+const appCustomer_model_1 = require("../models/customer/appCustomer.model");
 class CustomerService {
     // Create customer
     async createCustomer(data) {
@@ -16,6 +21,23 @@ class CustomerService {
             }
             const customer = new customer_model_1.Customer(data);
             await customer.save();
+            // Also create in appcustomers collection if not already exists
+            const existingAppCustomer = await appCustomer_model_1.AppCustomer.findOne({ email: data.email });
+            if (!existingAppCustomer) {
+                const nameParts = data.name.trim().split(/\s+/);
+                const firstName = nameParts[0];
+                const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : nameParts[0];
+                const tempPassword = await bcryptjs_1.default.hash(Math.random().toString(36).slice(-8), 10);
+                await appCustomer_model_1.AppCustomer.create({
+                    firstName,
+                    lastName,
+                    email: data.email,
+                    phone: data.phone,
+                    countryCode: '+91',
+                    password: tempPassword,
+                    status: data.status || 'Active',
+                });
+            }
             return {
                 success: true,
                 message: 'Customer created successfully',

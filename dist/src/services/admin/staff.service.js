@@ -8,6 +8,7 @@ const staff_model_1 = require("../../models/admin/staff.model");
 const role_model_1 = require("../../models/admin/role.model");
 const franchiseRole_model_1 = require("../../models/admin/franchiseRole.model");
 const agency_model_1 = require("../../models/admin/agency.model");
+const hub_model_1 = require("../../models/hub/hub.model");
 const mongoose_1 = require("mongoose");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 class StaffService {
@@ -189,6 +190,36 @@ class StaffService {
             };
         }
     }
+    // Hub Staff Login (Specific)
+    async loginHubStaff(username, password) {
+        try {
+            const staff = await staff_model_1.Staff.findOne({ username })
+                .select('+password')
+                .populate('hubId', 'hubName city');
+            if (!staff) {
+                return { success: false, message: 'Invalid credentials' };
+            }
+            if (staff.type !== 'hub') {
+                return { success: false, message: 'Invalid credentials. This is not a hub staff account.' };
+            }
+            if (!staff.hubId) {
+                return { success: false, message: 'Hub information missing. Contact administrator.' };
+            }
+            const isPasswordValid = await bcryptjs_1.default.compare(password, staff.password);
+            if (!isPasswordValid) {
+                return { success: false, message: 'Invalid credentials' };
+            }
+            if (staff.status !== 'Active') {
+                return { success: false, message: 'Staff account is inactive' };
+            }
+            const staffData = staff.toObject();
+            delete staffData.password;
+            return { success: true, message: 'Hub staff login successful', data: staffData };
+        }
+        catch (error) {
+            return { success: false, message: error.message || 'Error during login' };
+        }
+    }
     // Create new staff
     async createStaff(data) {
         try {
@@ -255,6 +286,22 @@ class StaffService {
                     }
                 }
             }
+            else if (data.type === 'hub') {
+                // Hub staff must have hubId
+                if (!data.hubId) {
+                    return { success: false, message: 'Hub is required for hub staff' };
+                }
+                const hubExists = await hub_model_1.HubModel.findById(data.hubId);
+                if (!hubExists) {
+                    return { success: false, message: 'Hub not found' };
+                }
+                if (data.roleId) {
+                    const roleExists = await role_model_1.Role.findById(data.roleId) || await franchiseRole_model_1.FranchiseRole.findById(data.roleId);
+                    if (!roleExists) {
+                        return { success: false, message: 'Role not found' };
+                    }
+                }
+            }
             // Hash password
             const salt = await bcryptjs_1.default.genSalt(10);
             const hashedPassword = await bcryptjs_1.default.hash(data.password, salt);
@@ -265,7 +312,8 @@ class StaffService {
             await staff.save();
             // Fetch created staff and manually populate roleId from correct collection
             const populatedStaff = await staff_model_1.Staff.findById(staff._id)
-                .populate('franchiseId', 'agencyName agencyOwner');
+                .populate('franchiseId', 'agencyName agencyOwner')
+                .populate('hubId', 'hubName city');
             // Manually populate roleId - check both AdminRole and FranchiseRole
             if (populatedStaff && populatedStaff.roleId) {
                 let roleData = await role_model_1.Role.findById(populatedStaff.roleId).select('name permissions').lean();
@@ -323,7 +371,8 @@ class StaffService {
                 .skip(skip)
                 .limit(limit)
                 .sort({ createdAt: -1 })
-                .populate('franchiseId', 'agencyName agencyOwner');
+                .populate('franchiseId', 'agencyName agencyOwner')
+                .populate('hubId', 'hubName city');
             // Manually populate roleId for each staff - check both AdminRole and FranchiseRole
             for (const s of staff) {
                 if (s.roleId) {
@@ -371,7 +420,8 @@ class StaffService {
                 };
             }
             const staff = await staff_model_1.Staff.findById(id)
-                .populate('franchiseId', 'agencyName agencyOwner');
+                .populate('franchiseId', 'agencyName agencyOwner')
+                .populate('hubId', 'hubName city');
             if (!staff) {
                 return {
                     success: false,
@@ -490,6 +540,20 @@ class StaffService {
                     }
                 }
             }
+            else if (staffType === 'hub') {
+                if (data.roleId) {
+                    const roleExists = await role_model_1.Role.findById(data.roleId) || await franchiseRole_model_1.FranchiseRole.findById(data.roleId);
+                    if (!roleExists) {
+                        return { success: false, message: 'Role not found' };
+                    }
+                }
+                if (data.hubId) {
+                    const hubExists = await hub_model_1.HubModel.findById(data.hubId);
+                    if (!hubExists) {
+                        return { success: false, message: 'Hub not found' };
+                    }
+                }
+            }
             // Hash password if being updated
             let updateData = { ...data };
             if (data.password) {
@@ -505,7 +569,8 @@ class StaffService {
             await staff.save();
             // Fetch updated staff and manually populate roleId from correct collection
             const updatedStaff = await staff_model_1.Staff.findById(id)
-                .populate('franchiseId', 'agencyName agencyOwner');
+                .populate('franchiseId', 'agencyName agencyOwner')
+                .populate('hubId', 'hubName city');
             // Manually populate roleId - check both AdminRole and FranchiseRole
             if (updatedStaff && updatedStaff.roleId) {
                 let roleData = await role_model_1.Role.findById(updatedStaff.roleId).select('name permissions').lean();
@@ -582,7 +647,8 @@ class StaffService {
             await staff.save();
             const updatedStaff = await staff_model_1.Staff.findById(id)
                 .populate('roleId', 'name permissions')
-                .populate('franchiseId', 'agencyName agencyOwner');
+                .populate('franchiseId', 'agencyName agencyOwner')
+                .populate('hubId', 'hubName city');
             return {
                 success: true,
                 message: 'Staff status updated successfully',

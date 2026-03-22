@@ -9,6 +9,7 @@ import {
   loginStaff,
   loginFranchiseStaff,
   loginHeadQuarterStaff,
+  loginHubStaff,
 } from '../../controllers/admin/staff.controller';
 import { authMiddleware } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validate.middleware';
@@ -120,6 +121,38 @@ router.post('/login/franchise', validate(staffLoginSchema), loginFranchiseStaff)
  *         description: Invalid credentials or not a head quarter staff
  */
 router.post('/login/headquarter', validate(staffLoginSchema), loginHeadQuarterStaff);
+
+/**
+ * @swagger
+ * /admin/staff/login/hub:
+ *   post:
+ *     summary: Hub staff login (only for hub staff)
+ *     tags: [Staff Management]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *               - password
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 example: hubstaff
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 example: password123
+ *     responses:
+ *       200:
+ *         description: Hub staff login successful
+ *       401:
+ *         description: Invalid credentials or not a hub staff
+ */
+router.post('/login/hub', validate(staffLoginSchema), loginHubStaff);
 
 /**
  * @swagger
