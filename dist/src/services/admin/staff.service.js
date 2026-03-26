@@ -664,6 +664,55 @@ class StaffService {
             };
         }
     }
+    // Collection Executive Login - works for all staff types (head_quarter, franchise, hub)
+    async loginCollectionExecutive(username, password) {
+        try {
+            const staff = await staff_model_1.Staff.findOne({ username })
+                .select('+password')
+                .populate('franchiseId', 'agencyName')
+                .populate('hubId', 'hubName city');
+            if (!staff) {
+                return { success: false, message: 'Invalid credentials' };
+            }
+            // Verify password
+            const isPasswordValid = await bcryptjs_1.default.compare(password, staff.password);
+            if (!isPasswordValid) {
+                return { success: false, message: 'Invalid credentials' };
+            }
+            // Check if staff is active
+            if (staff.status !== 'Active') {
+                return { success: false, message: 'Staff account is inactive' };
+            }
+            // Check if staff has a role assigned
+            if (!staff.roleId) {
+                return { success: false, message: 'No role assigned. Contact administrator.' };
+            }
+            // Check role from both AdminRole and FranchiseRole
+            let roleData = await role_model_1.Role.findById(staff.roleId).select('roleName permissions').lean();
+            if (!roleData) {
+                roleData = await franchiseRole_model_1.FranchiseRole.findById(staff.roleId).select('roleName permissions').lean();
+            }
+            if (!roleData) {
+                return { success: false, message: 'Role not found. Contact administrator.' };
+            }
+            // Verify role is "Collection Executive"
+            if (roleData.roleName !== 'Collection Executive') {
+                return { success: false, message: 'Access denied. Only Collection Executive staff can login here.' };
+            }
+            const staffData = staff.toObject();
+            delete staffData.password;
+            staffData.roleId = roleData;
+            const token = (0, jwt_1.generateToken)(staff._id.toString());
+            return {
+                success: true,
+                message: 'Collection Executive login successful',
+                data: { ...staffData, token },
+            };
+        }
+        catch (error) {
+            return { success: false, message: error.message || 'Error during login' };
+        }
+    }
 }
 exports.StaffService = StaffService;
 exports.staffService = new StaffService();

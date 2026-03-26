@@ -5,7 +5,38 @@ import { createHubSchema, updateHubSchema } from "../../validators/admin/hub.val
 import { authMiddleware } from "../../middleware/auth.middleware"
 import { checkPermission } from "../../middleware/checkPermission.middleware"
 import { adminModule } from "../../config/adminModule"
+import { staffLoginSchema } from "../../validators/admin/staff.validator";
 const router = Router();
+
+/**
+ * @swagger
+ * /admin/hub/login:
+ *   post:
+ *     summary: Hub direct login
+ *     tags: [Hub Management]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *               - password
+ *             properties:
+ *               username:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *                 format: password
+ *     responses:
+ *       200:
+ *         description: Hub login successful
+ *       401:
+ *         description: Invalid credentials
+ */
+router.post('/login', validate(staffLoginSchema), hubController.loginHub);
 
 /**
  * @swagger

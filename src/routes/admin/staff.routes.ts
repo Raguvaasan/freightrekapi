@@ -10,6 +10,7 @@ import {
   loginFranchiseStaff,
   loginHeadQuarterStaff,
   loginHubStaff,
+  loginCollectionExecutive,
 } from '../../controllers/admin/staff.controller';
 import { authMiddleware } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validate.middleware';
@@ -153,6 +154,38 @@ router.post('/login/headquarter', validate(staffLoginSchema), loginHeadQuarterSt
  *         description: Invalid credentials or not a hub staff
  */
 router.post('/login/hub', validate(staffLoginSchema), loginHubStaff);
+
+/**
+ * @swagger
+ * /admin/staff/login/collection-executive:
+ *   post:
+ *     summary: Collection Executive staff login (all types - HQ, franchise, hub)
+ *     tags: [Staff Management]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *               - password
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 example: collectionstaff
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 example: password123
+ *     responses:
+ *       200:
+ *         description: Collection Executive login successful
+ *       401:
+ *         description: Invalid credentials or not a Collection Executive
+ */
+router.post('/login/collection-executive', validate(staffLoginSchema), loginCollectionExecutive);
 
 /**
  * @swagger

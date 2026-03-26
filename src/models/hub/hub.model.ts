@@ -58,11 +58,12 @@ const hubSchema = new Schema<IHub>(
       type: String,
       required: true,
       trim: true,
+      unique: true,
     },
     password: {
       type: String,
       required: true,
-      trim: true,
+      select: false,
     },
   },
   { timestamps: true }

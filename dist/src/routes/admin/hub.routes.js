@@ -40,7 +40,37 @@ const hub_validator_1 = require("../../validators/admin/hub.validator");
 const auth_middleware_1 = require("../../middleware/auth.middleware");
 const checkPermission_middleware_1 = require("../../middleware/checkPermission.middleware");
 const adminModule_1 = require("../../config/adminModule");
+const staff_validator_1 = require("../../validators/admin/staff.validator");
 const router = (0, express_1.Router)();
+/**
+ * @swagger
+ * /admin/hub/login:
+ *   post:
+ *     summary: Hub direct login
+ *     tags: [Hub Management]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *               - password
+ *             properties:
+ *               username:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *                 format: password
+ *     responses:
+ *       200:
+ *         description: Hub login successful
+ *       401:
+ *         description: Invalid credentials
+ */
+router.post('/login', (0, validate_middleware_1.validate)(staff_validator_1.staffLoginSchema), hubController.loginHub);
 /**
  * @swagger
  * /admin/hub:

@@ -767,6 +767,65 @@ export class StaffService {
       };
     }
   }
+
+  // Collection Executive Login - works for all staff types (head_quarter, franchise, hub)
+  async loginCollectionExecutive(username: string, password: string): Promise<ServiceResponse> {
+    try {
+      const staff = await Staff.findOne({ username })
+        .select('+password')
+        .populate('franchiseId', 'agencyName')
+        .populate('hubId', 'hubName city');
+
+      if (!staff) {
+        return { success: false, message: 'Invalid credentials' };
+      }
+
+      // Verify password
+      const isPasswordValid = await bcrypt.compare(password, staff.password);
+      if (!isPasswordValid) {
+        return { success: false, message: 'Invalid credentials' };
+      }
+
+      // Check if staff is active
+      if (staff.status !== 'Active') {
+        return { success: false, message: 'Staff account is inactive' };
+      }
+
+      // Check if staff has a role assigned
+      if (!staff.roleId) {
+        return { success: false, message: 'No role assigned. Contact administrator.' };
+      }
+
+      // Check role from both AdminRole and FranchiseRole
+      let roleData: any = await Role.findById(staff.roleId).select('roleName permissions').lean();
+      if (!roleData) {
+        roleData = await FranchiseRole.findById(staff.roleId).select('roleName permissions').lean();
+      }
+
+      if (!roleData) {
+        return { success: false, message: 'Role not found. Contact administrator.' };
+      }
+
+      // Verify role is "Collection Executive"
+      if (roleData.roleName !== 'Collection Executive') {
+        return { success: false, message: 'Access denied. Only Collection Executive staff can login here.' };
+      }
+
+      const staffData: any = staff.toObject();
+      delete staffData.password;
+      staffData.roleId = roleData;
+
+      const token = generateToken(staff._id.toString());
+
+      return {
+        success: true,
+        message: 'Collection Executive login successful',
+        data: { ...staffData, token },
+      };
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Error during login' };
+    }
+  }
 }
 
 export const staffService = new StaffService();

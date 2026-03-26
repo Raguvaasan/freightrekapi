@@ -1,6 +1,19 @@
 import { Request, Response } from "express";
 import * as hubService from '../../services/admin/hub.service'
 
+export const loginHub = async (req: Request, res: Response) => {
+  try {
+    const { username, password } = req.body;
+    const result = await hubService.loginHub(username, password);
+    if (!result.success) {
+      return res.status(401).json({ success: false, message: result.message });
+    }
+    return res.status(200).json({ success: true, message: result.message, data: result.data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message || 'Internal server error' });
+  }
+};
+
 export const createHub = async (req: Request, res: Response) => {
   try {
     const hub = await hubService.createHub(req.body);

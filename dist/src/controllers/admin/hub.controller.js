@@ -33,8 +33,22 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteHub = exports.updateHub = exports.gethubById = exports.getHubs = exports.createHub = void 0;
+exports.deleteHub = exports.updateHub = exports.gethubById = exports.getHubs = exports.createHub = exports.loginHub = void 0;
 const hubService = __importStar(require("../../services/admin/hub.service"));
+const loginHub = async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        const result = await hubService.loginHub(username, password);
+        if (!result.success) {
+            return res.status(401).json({ success: false, message: result.message });
+        }
+        return res.status(200).json({ success: true, message: result.message, data: result.data });
+    }
+    catch (err) {
+        return res.status(500).json({ success: false, message: err.message || 'Internal server error' });
+    }
+};
+exports.loginHub = loginHub;
 const createHub = async (req, res) => {
     try {
         const hub = await hubService.createHub(req.body);

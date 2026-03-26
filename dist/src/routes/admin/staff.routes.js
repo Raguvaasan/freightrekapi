@@ -134,6 +134,37 @@ router.post('/login/headquarter', (0, validate_middleware_1.validate)(staff_vali
 router.post('/login/hub', (0, validate_middleware_1.validate)(staff_validator_1.staffLoginSchema), staff_controller_1.loginHubStaff);
 /**
  * @swagger
+ * /admin/staff/login/collection-executive:
+ *   post:
+ *     summary: Collection Executive staff login (all types - HQ, franchise, hub)
+ *     tags: [Staff Management]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *               - password
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 example: collectionstaff
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 example: password123
+ *     responses:
+ *       200:
+ *         description: Collection Executive login successful
+ *       401:
+ *         description: Invalid credentials or not a Collection Executive
+ */
+router.post('/login/collection-executive', (0, validate_middleware_1.validate)(staff_validator_1.staffLoginSchema), staff_controller_1.loginCollectionExecutive);
+/**
+ * @swagger
  * /admin/staff:
  *   get:
  *     summary: Get all staff with pagination (Public)

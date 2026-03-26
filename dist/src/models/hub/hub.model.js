@@ -46,11 +46,12 @@ const hubSchema = new mongoose_1.Schema({
         type: String,
         required: true,
         trim: true,
+        unique: true,
     },
     password: {
         type: String,
         required: true,
-        trim: true,
+        select: false,
     },
 }, { timestamps: true });
 exports.HubModel = (0, mongoose_1.model)("Hub", hubSchema);

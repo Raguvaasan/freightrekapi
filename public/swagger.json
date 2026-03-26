@@ -930,6 +930,46 @@
         }
       }
     },
+    "/admin/hub/login": {
+      "post": {
+        "summary": "Hub direct login",
+        "tags": [
+          "Hub Management"
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "username",
+                  "password"
+                ],
+                "properties": {
+                  "username": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Hub login successful"
+          },
+          "401": {
+            "description": "Invalid credentials"
+          }
+        }
+      }
+    },
     "/admin/hub": {
       "post": {
         "summary": "Create a new freight hub",
@@ -1512,6 +1552,48 @@
           },
           "401": {
             "description": "Invalid credentials or not a hub staff"
+          }
+        }
+      }
+    },
+    "/admin/staff/login/collection-executive": {
+      "post": {
+        "summary": "Collection Executive staff login (all types - HQ, franchise, hub)",
+        "tags": [
+          "Staff Management"
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "username",
+                  "password"
+                ],
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "example": "collectionstaff"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password",
+                    "example": "password123"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Collection Executive login successful"
+          },
+          "401": {
+            "description": "Invalid credentials or not a Collection Executive"
           }
         }
       }
