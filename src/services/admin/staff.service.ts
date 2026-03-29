@@ -246,7 +246,7 @@ export class StaffService {
     try {
       const staff = await Staff.findOne({ username })
         .select('+password')
-        .populate('hubId', 'hubName city');
+        .populate('hubId', 'hubName city pincode');
 
       if (!staff) {
         return { success: false, message: 'Invalid credentials' };

@@ -45,8 +45,10 @@ export interface IShipment {
     address?: string;
     pincode?: string;
   };
+  orderType: 'hub' | 'customer';
   status: 'pending' | 'created' | 'Active' | 'in_transit' | 'delivered' | 'failed' | 'cancelled';
   assignedHubId?: string;
+  assignedStaffId?: string;
   delhiveryResponse?: any;
   trackingUrl?: string;
   createdAt: Date;
@@ -157,6 +159,12 @@ const shipmentSchema = new Schema<IShipment>(
         type: String,
       },
     },
+    orderType: {
+      type: String,
+      enum: ['hub', 'customer'],
+      default: 'customer',
+      index: true,
+    },
     status: {
       type: String,
       enum: ['pending', 'created', 'Active', 'in_transit', 'delivered', 'failed', 'cancelled'],
@@ -168,6 +176,10 @@ const shipmentSchema = new Schema<IShipment>(
     },
     trackingUrl: String,
     assignedHubId: {
+      type: String,
+      index: true,
+    },
+    assignedStaffId: {
       type: String,
       index: true,
     },

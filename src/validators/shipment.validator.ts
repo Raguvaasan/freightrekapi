@@ -52,7 +52,15 @@ export const createShipmentSchema = yup.object().shape({
   addressType: yup.string(),
   pickupLocation: yup.object().shape({
     name: yup.string().optional(),
+    address: yup.string().optional(),
+    pincode: yup.string().optional(),
+    city: yup.string().optional(),
+    state: yup.string().optional(),
+    country: yup.string().optional(),
+    phone: yup.string().optional(),
   }).optional(),
+  assignedStaffId: yup.string().optional(),
+  orderType: yup.string().oneOf(['hub', 'customer'], 'Order type must be hub or customer').optional(),
 });
 
 export const getShipmentsSchema = yup.object().shape({

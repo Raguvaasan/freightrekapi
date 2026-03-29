@@ -1,4 +1,5 @@
 import { HubModel } from '../../models/hub/hub.model'
+import { Staff } from '../../models/admin/staff.model'
 import bcrypt from 'bcryptjs';
 import { generateToken } from '../../utils/jwt';
 
@@ -105,4 +106,63 @@ export const deleteHub = async (id: any) => {
     return { success: false, data: err.message };
   }
 
+};
+
+export const unifiedHubLogin = async (username: string, password: string) => {
+  try {
+    // Step 1: Try hub admin login
+    const hub = await HubModel.findOne({ username }).select('+password');
+    if (hub) {
+      if (!hub.status) {
+        return { success: false, message: 'Hub account is inactive' };
+      }
+
+      let isPasswordValid = false;
+      if (hub.password.startsWith('$2')) {
+        isPasswordValid = await bcrypt.compare(password, hub.password);
+      } else {
+        isPasswordValid = hub.password === password;
+      }
+
+      if (isPasswordValid) {
+        const hubData: any = hub.toObject();
+        delete hubData.password;
+        const token = generateToken(hub._id.toString());
+        return { success: true, message: 'Hub login successful', data: { ...hubData, token, loginType: 'hub' } };
+      }
+    }
+
+    // Step 2: Try hub staff login
+    const staff = await Staff.findOne({ username })
+      .select('+password')
+      .populate('hubId', 'hubName city pincode');
+
+    if (staff) {
+      if (staff.type !== 'hub') {
+        return { success: false, message: 'Invalid credentials' };
+      }
+
+      if (!staff.hubId) {
+        return { success: false, message: 'Hub information missing. Contact administrator.' };
+      }
+
+      const isPasswordValid = await bcrypt.compare(password, staff.password);
+      if (!isPasswordValid) {
+        return { success: false, message: 'Invalid credentials' };
+      }
+
+      if (staff.status !== 'Active') {
+        return { success: false, message: 'Staff account is inactive' };
+      }
+
+      const staffData: any = staff.toObject();
+      delete staffData.password;
+      const token = generateToken(staff._id.toString());
+      return { success: true, message: 'Hub staff login successful', data: { ...staffData, token, loginType: 'hub_staff' } };
+    }
+
+    return { success: false, message: 'Invalid credentials' };
+  } catch (err: any) {
+    return { success: false, message: err.message };
+  }
 };

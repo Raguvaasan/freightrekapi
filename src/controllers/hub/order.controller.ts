@@ -18,7 +18,28 @@ export const createHubOrder = async (req: Request, res: Response) => {
     const hubId = await getHubId(staffId);
     if (!hubId) return res.status(403).json({ success: false, message: 'Hub staff access required' });
 
-    const result = await shipmentService.createShipment({ userId: hubId, ...req.body });
+    // Validate orderType
+    const orderType = req.body.orderType || 'customer';
+
+    // If hub type, pickupLocation and from address fields are mandatory
+    if (orderType === 'hub') {
+      if (!req.body.pickupLocation || !req.body.pickupLocation.name) {
+        return res.status(400).json({ success: false, message: 'pickupLocation is required for hub order type' });
+      }
+      if (!req.body.fromName || !req.body.fromAdd || !req.body.fromPin || !req.body.fromCity || !req.body.fromState || !req.body.fromPhone) {
+        return res.status(400).json({ success: false, message: 'From address fields (fromName, fromAdd, fromPin, fromCity, fromState, fromPhone) are required for hub order type' });
+      }
+    }
+
+    // Validate assignedStaffId belongs to the same hub
+    if (req.body.assignedStaffId) {
+      const assignedStaff = await Staff.findById(req.body.assignedStaffId).select('hubId type');
+      if (!assignedStaff || assignedStaff.type !== 'hub' || !assignedStaff.hubId || assignedStaff.hubId.toString() !== hubId) {
+        return res.status(400).json({ success: false, message: 'Assigned staff must belong to the same hub' });
+      }
+    }
+
+    const result = await shipmentService.createShipment({ userId: hubId, ...req.body, orderType });
 
     if (!result.success) {
       return res.status(400).json({ success: false, message: result.message });

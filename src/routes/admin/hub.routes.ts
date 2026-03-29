@@ -40,6 +40,36 @@ router.post('/login', validate(staffLoginSchema), hubController.loginHub);
 
 /**
  * @swagger
+ * /admin/hub/unified-login:
+ *   post:
+ *     summary: Unified login for both Hub admin and Hub staff
+ *     tags: [Hub Management]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *               - password
+ *             properties:
+ *               username:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *                 format: password
+ *     responses:
+ *       200:
+ *         description: Login successful (returns loginType 'hub' or 'hub_staff')
+ *       401:
+ *         description: Invalid credentials
+ */
+router.post('/unified-login', validate(staffLoginSchema), hubController.unifiedHubLogin);
+
+/**
+ * @swagger
  * /admin/hub:
  *   post:
  *     summary: Create a new freight hub

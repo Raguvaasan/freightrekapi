@@ -53,6 +53,8 @@ interface CreateShipmentData {
     country?: string;
     phone?: string;
   };
+  assignedStaffId?: string;
+  orderType?: 'hub' | 'customer';
 }
 
 // Find nearest hub based on customer pincode → city → state → any active hub
@@ -197,6 +199,8 @@ export const shipmentService = {
         shipmentWidth: shipmentData.shipmentWidth || '100',
         shipmentHeight: shipmentData.shipmentHeight || '100',
         assignedHubId: (shipmentData as any).assignedHubId || undefined,
+        assignedStaffId: shipmentData.assignedStaffId || undefined,
+        orderType: shipmentData.orderType || 'customer',
         status: 'Active',
       });
 
@@ -315,6 +319,8 @@ export const shipmentService = {
           // Pickup
           pickupLocation: shipment.pickupLocation,
           assignedHubId: shipment.assignedHubId || null,
+          assignedStaffId: shipment.assignedStaffId || null,
+          orderType: shipment.orderType || 'customer',
           // Timestamps
           createdAt: shipment.createdAt,
         },
@@ -530,6 +536,8 @@ export const shipmentService = {
             address: s.pickupLocation?.address || pickupDetails?.address,
             pincode: s.pickupLocation?.pincode || pickupDetails?.pincode,
           },
+          assignedStaffId: s.assignedStaffId || null,
+          orderType: s.orderType || 'customer',
           createdAt: s.createdAt,
           updatedAt: s.updatedAt,
         };
