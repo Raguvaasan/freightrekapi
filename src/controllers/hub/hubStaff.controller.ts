@@ -96,3 +96,18 @@ export const updateAccountSettings = async (req: Request, res: Response) => {
     return res.status(500).json({ success: false, message: err.message || 'Internal server error' });
   }
 };
+
+// PUT /hub/staff/booking/:orderId/edit
+export const editOrder = async (req: Request, res: Response) => {
+  try {
+    const staffId = req.user?.id;
+    if (!staffId) return res.status(401).json({ success: false, message: 'Unauthorized' });
+
+    const { orderId } = req.params;
+    const result = await hubStaffService.editOrder(staffId, orderId, req.body);
+    if (!result.success) return res.status(400).json(result);
+    return res.status(200).json(result);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message || 'Internal server error' });
+  }
+};

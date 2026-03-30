@@ -17,8 +17,9 @@ export const createShipmentSchema = yup.object().shape({
   order: yup.string().required('Order reference is required'),
   paymentMode: yup
     .string()
-    .required('Payment mode is required')
-    .oneOf(['Prepaid', 'COD'], 'Payment mode must be Prepaid or COD'),
+    .transform((value) => (!value ? 'COD' : value))
+    .oneOf(['Prepaid', 'COD'], 'Payment mode must be Prepaid or COD')
+    .default('COD'),
   fromName: yup.string(),
   fromAdd: yup.string(),
   fromPin: yup.string().matches(/^\d{6}$/, 'From PIN code must be 6 digits'),

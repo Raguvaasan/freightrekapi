@@ -1,6 +1,20 @@
 import { Staff } from '../../models/admin/staff.model';
 import { Shipment } from '../../models/shipment/shipment.model';
+import { HubModel } from '../../models/hub/hub.model';
 import bcrypt from 'bcryptjs';
+
+// Helper: resolve hubId from hub direct or hub staff
+const resolveHubId = async (userId: string): Promise<string | null> => {
+  const staff = await Staff.findById(userId).select('hubId type');
+  if (staff && staff.type === 'hub' && staff.hubId) {
+    return staff.hubId.toString();
+  }
+  const hub = await HubModel.findById(userId);
+  if (hub) {
+    return hub._id.toString();
+  }
+  return null;
+};
 
 export const hubStaffService = {
 
@@ -50,12 +64,10 @@ export const hubStaffService = {
   // My Tasks - active/in-progress orders assigned to this hub
   async getMyTasks(staffId: string, page: number = 1, limit: number = 10) {
     try {
-      const staff = await Staff.findById(staffId).select('hubId type');
-      if (!staff || staff.type !== 'hub' || !staff.hubId) {
-        return { success: false, message: 'Hub staff access required' };
+      const hubId = await resolveHubId(staffId);
+      if (!hubId) {
+        return { success: false, message: 'Hub access required' };
       }
-
-      const hubId = staff.hubId.toString();
       const skip = (page - 1) * limit;
 
       const query = {
@@ -107,12 +119,10 @@ export const hubStaffService = {
   // Delivery History - completed orders
   async getDeliveryHistory(staffId: string, page: number = 1, limit: number = 10) {
     try {
-      const staff = await Staff.findById(staffId).select('hubId type');
-      if (!staff || staff.type !== 'hub' || !staff.hubId) {
-        return { success: false, message: 'Hub staff access required' };
+      const hubId = await resolveHubId(staffId);
+      if (!hubId) {
+        return { success: false, message: 'Hub access required' };
       }
-
-      const hubId = staff.hubId.toString();
       const skip = (page - 1) * limit;
 
       const query = {
@@ -165,12 +175,10 @@ export const hubStaffService = {
   // Booking Detail - full order detail with charges
   async getBookingDetail(staffId: string, orderId: string) {
     try {
-      const staff = await Staff.findById(staffId).select('hubId type');
-      if (!staff || staff.type !== 'hub' || !staff.hubId) {
-        return { success: false, message: 'Hub staff access required' };
+      const hubId = await resolveHubId(staffId);
+      if (!hubId) {
+        return { success: false, message: 'Hub access required' };
       }
-
-      const hubId = staff.hubId.toString();
 
       const order = await Shipment.findOne({ orderId, assignedHubId: hubId }).lean();
       if (!order) {
@@ -247,12 +255,10 @@ export const hubStaffService = {
   // Update order status (confirm pickup/delivery)
   async updateOrderStatus(staffId: string, orderId: string, status: string) {
     try {
-      const staff = await Staff.findById(staffId).select('hubId type');
-      if (!staff || staff.type !== 'hub' || !staff.hubId) {
-        return { success: false, message: 'Hub staff access required' };
+      const hubId = await resolveHubId(staffId);
+      if (!hubId) {
+        return { success: false, message: 'Hub access required' };
       }
-
-      const hubId = staff.hubId.toString();
       const validStatuses = ['Active', 'in_transit', 'delivered', 'failed'];
       if (!validStatuses.includes(status)) {
         return { success: false, message: `Invalid status. Allowed: ${validStatuses.join(', ')}` };
@@ -310,6 +316,149 @@ export const hubStaffService = {
       return { success: true, message: 'Account updated successfully', data: staffData };
     } catch (error: any) {
       return { success: false, message: error.message || 'Failed to update account' };
+    }
+  },
+
+  // Edit order details (verify & correct by staff)
+  async editOrder(staffId: string, orderId: string, updateData: {
+    weight?: string;
+    shipmentWidth?: string;
+    shipmentHeight?: string;
+    quantity?: string;
+    productsDesc?: string;
+    codAmount?: string;
+    totalAmount?: string;
+    name?: string;
+    add?: string;
+    pin?: string;
+    city?: string;
+    state?: string;
+    phone?: string;
+    paymentMode?: 'Prepaid' | 'COD';
+    shippingMode?: 'Surface' | 'Express';
+    assignedStaffId?: string;
+    status?: string;
+  }) {
+    try {
+      const hubId = await resolveHubId(staffId);
+      if (!hubId) {
+        return { success: false, message: 'Hub access required' };
+      }
+
+      const order = await Shipment.findOne({ orderId, assignedHubId: hubId });
+      if (!order) {
+        return { success: false, message: 'Order not found' };
+      }
+
+      if (order.status === 'delivered') {
+        return { success: false, message: 'Cannot edit delivered order' };
+      }
+      if (order.status === 'cancelled') {
+        return { success: false, message: 'Cannot edit cancelled order' };
+      }
+
+      // Validate assignedStaffId belongs to the same hub
+      if (updateData.assignedStaffId) {
+        const assignedStaff = await Staff.findById(updateData.assignedStaffId).select('hubId type status');
+        if (!assignedStaff || assignedStaff.type !== 'hub' || !assignedStaff.hubId || assignedStaff.hubId.toString() !== hubId) {
+          return { success: false, message: 'Assigned staff must belong to the same hub' };
+        }
+        if (assignedStaff.status !== 'Active') {
+          return { success: false, message: 'Assigned staff must be active' };
+        }
+      }
+
+      // Validate status if provided
+      if (updateData.status) {
+        const validStatuses = ['pending', 'Active', 'in_transit', 'delivered', 'failed'];
+        if (!validStatuses.includes(updateData.status)) {
+          return { success: false, message: `Invalid status. Allowed: ${validStatuses.join(', ')}` };
+        }
+      }
+
+      // Store original amounts for comparison
+      const originalAmount = parseFloat(
+        order.paymentMode === 'COD'
+          ? (order.codAmount || '0')
+          : (order.totalAmount || '0')
+      );
+      const originalTax = parseFloat((originalAmount * 0.046).toFixed(2));
+      const originalTotal = parseFloat((originalAmount + originalTax).toFixed(2));
+
+      // Apply editable fields
+      const editableFields: (keyof typeof updateData)[] = [
+        'weight', 'shipmentWidth', 'shipmentHeight', 'quantity',
+        'productsDesc', 'codAmount', 'totalAmount',
+        'name', 'add', 'pin', 'city', 'state', 'phone',
+        'paymentMode', 'shippingMode', 'assignedStaffId', 'status',
+      ];
+
+      for (const field of editableFields) {
+        if (updateData[field] !== undefined && updateData[field] !== '') {
+          (order as any)[field] = updateData[field];
+        }
+      }
+
+      await order.save();
+
+      // Recalculate charges after edit
+      const newAmount = parseFloat(
+        order.paymentMode === 'COD'
+          ? (order.codAmount || '0')
+          : (order.totalAmount || '0')
+      );
+      const newTax = parseFloat((newAmount * 0.046).toFixed(2));
+      const newTotal = parseFloat((newAmount + newTax).toFixed(2));
+
+      const extraAmount = parseFloat((newTotal - originalTotal).toFixed(2));
+
+      return {
+        success: true,
+        message: 'Order updated successfully',
+        data: {
+          orderId: order.orderId,
+          status: order.status,
+          // Updated package details
+          package: {
+            productsDesc: order.productsDesc,
+            weight: order.weight,
+            dimensions: {
+              width: order.shipmentWidth,
+              height: order.shipmentHeight,
+            },
+            quantity: order.quantity,
+          },
+          // Updated delivery details
+          delivery: {
+            name: order.name,
+            address: order.add,
+            city: order.city,
+            state: order.state,
+            pin: order.pin,
+            phone: order.phone,
+          },
+          deliveryType: {
+            shippingMode: order.shippingMode,
+            paymentMode: order.paymentMode,
+          },
+          // Charges comparison
+          originalCharges: {
+            deliveryCharge: originalAmount,
+            tax: originalTax,
+            totalAmount: originalTotal,
+          },
+          updatedCharges: {
+            deliveryCharge: newAmount,
+            tax: newTax,
+            totalAmount: newTotal,
+          },
+          extraAmount,
+          assignedStaffId: order.assignedStaffId || null,
+          updatedAt: order.updatedAt,
+        },
+      };
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to edit order' };
     }
   },
 };

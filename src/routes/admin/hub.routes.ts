@@ -189,6 +189,6 @@ router.get("/", authMiddleware, checkPermission(adminModule.hub_management, 'rea
  */
 router.get("/:id", authMiddleware, checkPermission(adminModule.hub_management, 'read'), hubController.gethubById);
 router.put("/:id", authMiddleware, checkPermission(adminModule.hub_management, 'update'), validate(updateHubSchema), hubController.updateHub);
-router.delete("/:id", checkPermission(adminModule.hub_management, 'delete'), authMiddleware, hubController.deleteHub);
+router.delete("/:id", authMiddleware, checkPermission(adminModule.hub_management, 'delete'), hubController.deleteHub);
 
 export default router;

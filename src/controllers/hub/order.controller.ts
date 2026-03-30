@@ -1,12 +1,21 @@
 import { Request, Response } from 'express';
 import { shipmentService } from '../../services/shipment.service';
 import { Staff } from '../../models/admin/staff.model';
+import { HubModel } from '../../models/hub/hub.model';
 
-// Helper: get hubId from the authenticated hub staff
-const getHubId = async (staffId: string): Promise<string | null> => {
-  const staff = await Staff.findById(staffId).select('hubId type');
-  if (!staff || staff.type !== 'hub' || !staff.hubId) return null;
-  return staff.hubId.toString();
+// Helper: get hubId from authenticated user (hub direct or hub staff)
+const getHubId = async (userId: string): Promise<string | null> => {
+  // First check if it's a hub staff
+  const staff = await Staff.findById(userId).select('hubId type');
+  if (staff && staff.type === 'hub' && staff.hubId) {
+    return staff.hubId.toString();
+  }
+  // Then check if it's a hub directly
+  const hub = await HubModel.findById(userId);
+  if (hub) {
+    return hub._id.toString();
+  }
+  return null;
 };
 
 // POST /hub/orders/create
@@ -39,7 +48,7 @@ export const createHubOrder = async (req: Request, res: Response) => {
       }
     }
 
-    const result = await shipmentService.createShipment({ userId: hubId, ...req.body, orderType });
+    const result = await shipmentService.createShipment({ userId: hubId, ...req.body, orderType, skipWalletCheck: true });
 
     if (!result.success) {
       return res.status(400).json({ success: false, message: result.message });

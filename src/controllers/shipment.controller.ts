@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { shipmentService } from '../services/shipment.service';
 import { AdminUser } from '../models/admin/adminUser.model';
 import { Agency } from '../models/admin/agency.model';
+import { Staff } from '../models/admin/staff.model';
+import { HubModel } from '../models/hub/hub.model';
 
 export const createShipment = async (req: Request, res: Response) => {
   try {
@@ -17,6 +19,7 @@ export const createShipment = async (req: Request, res: Response) => {
     const result = await shipmentService.createShipment({
       userId,
       ...req.body,
+      orderType: 'customer',
     });
 
     // Handle error responses (including insufficient wallet balance)
@@ -104,6 +107,7 @@ export const getShipments = async (req: Request, res: Response) => {
     // Check if user is admin
     let isAdmin = false;
     let franchiseUserIds: string[] = [];
+    let hubId: string | undefined;
     
     const user = await AdminUser.findById(userId).populate('roleId');
     if (user && user.roleId) {
@@ -117,7 +121,21 @@ export const getShipments = async (req: Request, res: Response) => {
       }
     }
 
-    const result = await shipmentService.getShipments(userId, page, limit, status, isAdmin, franchiseUserIds);
+    // Check if user is hub staff
+    if (!isAdmin) {
+      const staff = await Staff.findById(userId).select('hubId type');
+      if (staff && staff.type === 'hub' && staff.hubId) {
+        hubId = staff.hubId.toString();
+      } else {
+        // Check if user is hub directly
+        const hub = await HubModel.findById(userId);
+        if (hub) {
+          hubId = hub._id.toString();
+        }
+      }
+    }
+
+    const result = await shipmentService.getShipments(userId, page, limit, status, isAdmin, franchiseUserIds, hubId);
 
     if (!result.success) {
       return res.status(400).json(result);

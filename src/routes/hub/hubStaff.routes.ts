@@ -7,6 +7,7 @@ import {
   getBookingDetail,
   updateOrderStatus,
   updateAccountSettings,
+  editOrder,
 } from '../../controllers/hub/hubStaff.controller';
 
 const router = Router();
@@ -129,6 +130,44 @@ router.get('/booking/:orderId', getBookingDetail);
  *         description: Order status updated
  */
 router.patch('/booking/:orderId/status', updateOrderStatus);
+
+/**
+ * @swagger
+ * /hub/staff/booking/{orderId}/edit:
+ *   put:
+ *     summary: Edit order details (weight, dimensions, amount, address)
+ *     tags: [Hub Staff]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: orderId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               weight:
+ *                 type: string
+ *               shipmentWidth:
+ *                 type: string
+ *               shipmentHeight:
+ *                 type: string
+ *               quantity:
+ *                 type: string
+ *               totalAmount:
+ *                 type: string
+ *               codAmount:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Order updated with recalculated charges and extra amount
+ */
+router.put('/booking/:orderId/edit', editOrder);
 
 /**
  * @swagger

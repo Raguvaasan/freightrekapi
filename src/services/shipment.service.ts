@@ -55,6 +55,7 @@ interface CreateShipmentData {
   };
   assignedStaffId?: string;
   orderType?: 'hub' | 'customer';
+  skipWalletCheck?: boolean;
 }
 
 // Find nearest hub based on customer pincode → city → state → any active hub
@@ -91,7 +92,7 @@ export const shipmentService = {
       debitOrderId = orderId;
 
       // Handle Prepaid payment
-      if (shipmentData.paymentMode === 'Prepaid') {
+      if (shipmentData.paymentMode === 'Prepaid' && !shipmentData.skipWalletCheck) {
         const amount = parseFloat(shipmentData.totalAmount || '0');
         
         if (amount <= 0) {
@@ -201,7 +202,7 @@ export const shipmentService = {
         assignedHubId: (shipmentData as any).assignedHubId || undefined,
         assignedStaffId: shipmentData.assignedStaffId || undefined,
         orderType: shipmentData.orderType || 'customer',
-        status: 'Active',
+        status: shipmentData.orderType == 'hub' ? 'Active' : 'pending',
       });
 
       // Try Delhivery API to get waybill (optional - order is already created)
@@ -529,7 +530,7 @@ export const shipmentService = {
           },
           amount:
             s.paymentMode === 'COD'
-              ? (s.codAmount || '0')
+              ? (s.codAmount || s.totalAmount || '0')
               : (s.totalAmount || s.codAmount || '0'),
           pickupLocation: {
             name: s.pickupLocation?.name,
