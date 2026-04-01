@@ -444,7 +444,7 @@ export const shipmentService = {
 
   async getShipments(userId: string, page: number = 1, limit: number = 20, status?: string, isAdmin?: boolean, franchiseUserIds?: string[], assignedHubId?: string) {
     try {
-      // If admin, show all franchise orders (not admin's own)
+      // If admin, show all orders (franchise + hub)
       // Otherwise, filter by logged-in userId
       const query: any = {};
 
@@ -452,7 +452,7 @@ export const shipmentService = {
         // Hub staff: show orders assigned to their hub
         query.assignedHubId = assignedHubId;
       } else if (isAdmin && franchiseUserIds && franchiseUserIds.length > 0) {
-        // Admin: show only franchise orders
+        // Admin: show all orders (franchise + hub)
         query.userId = { $in: franchiseUserIds };
       } else {
         // Non-admin: show only their own orders

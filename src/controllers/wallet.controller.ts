@@ -15,6 +15,20 @@ export const getBalance = async (req: Request, res: Response) => {
       });
     }
 
+    // Check if user is admin
+    const user = await AdminUser.findById(userId).populate('roleId');
+    if (user && user.roleId) {
+      const role: any = user.roleId;
+      if (role.isRoot === true) {
+        // Admin: return total balance of all franchises
+        const result = await walletService.getAllFranchiseBalance();
+        if (!result.success) {
+          return res.status(400).json(result);
+        }
+        return res.status(200).json(result);
+      }
+    }
+
     const result = await walletService.getBalance(userId);
 
     if (!result.success) {

@@ -114,10 +114,14 @@ export const getShipments = async (req: Request, res: Response) => {
       const role: any = user.roleId;
       isAdmin = role.isRoot === true;
       
-      // If admin, get all franchise (Agency) user IDs
+      // If admin, get all franchise (Agency) AND hub user IDs
       if (isAdmin) {
         const agencies = await Agency.find({}, '_id');
-        franchiseUserIds = agencies.map(agency => agency._id.toString());
+        const hubs = await HubModel.find({}, '_id');
+        franchiseUserIds = [
+          ...agencies.map(agency => agency._id.toString()),
+          ...hubs.map(hub => hub._id.toString()),
+        ];
       }
     }
 
