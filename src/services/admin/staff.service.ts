@@ -219,7 +219,7 @@ export class StaffService {
       }
 
       // Populate roleId from AdminRole
-      let roleData: any = await Role.findById(staff.roleId).select('name permissions').lean();
+      let roleData: any = await Role.findById(staff.roleId).select('roleName permissions isRoot').lean();
       if (roleData) {
         (staff as any).roleId = roleData;
       }
@@ -228,10 +228,13 @@ export class StaffService {
       const staffData: any = staff.toObject();
       delete staffData.password;
 
+      // Generate JWT token for HQ staff (same as admin/hub staff)
+      const token = generateToken(staff._id.toString());
+
       return {
         success: true,
         message: 'Head quarter staff login successful',
-        data: staffData,
+        data: { ...staffData, token },
       };
     } catch (error: any) {
       return {
