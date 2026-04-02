@@ -4,6 +4,7 @@ import { AdminUser } from '../models/admin/adminUser.model';
 import { Agency } from '../models/admin/agency.model';
 import { Staff } from '../models/admin/staff.model';
 import { HubModel } from '../models/hub/hub.model';
+import { AppCustomer } from '../models/customer/appCustomer.model';
 
 export const createShipment = async (req: Request, res: Response) => {
   try {
@@ -114,13 +115,15 @@ export const getShipments = async (req: Request, res: Response) => {
       const role: any = user.roleId;
       isAdmin = role.isRoot === true;
       
-      // If admin, get all franchise (Agency) AND hub user IDs
+      // If admin, get all franchise (Agency), hub AND app customer user IDs
       if (isAdmin) {
         const agencies = await Agency.find({}, '_id');
         const hubs = await HubModel.find({}, '_id');
+        const customers = await AppCustomer.find({}, '_id');
         franchiseUserIds = [
           ...agencies.map(agency => agency._id.toString()),
           ...hubs.map(hub => hub._id.toString()),
+          ...customers.map(c => c._id.toString()),
         ];
       }
     }

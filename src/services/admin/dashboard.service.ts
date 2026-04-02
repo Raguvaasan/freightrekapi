@@ -576,10 +576,17 @@ console.log('Recent Bookings Data:', recentBookingsData);
     }
   }
 
-  // Get wallet statistics across all franchises
+  // Get wallet statistics across all franchises only
   async getWalletStatistics(): Promise<ServiceResponse> {
     try {
+      // Only consider franchise (Agency) wallets and transactions
+      const agencies = await Agency.find({}, '_id');
+      const franchiseIds = agencies.map(a => a._id.toString());
+
       const walletStats = await Wallet.aggregate([
+        {
+          $match: { userId: { $in: franchiseIds } },
+        },
         {
           $group: {
             _id: null,
@@ -591,7 +598,7 @@ console.log('Recent Bookings Data:', recentBookingsData);
 
       const totalCredits = await Transaction.aggregate([
         {
-          $match: { type: 'credit' },
+          $match: { type: 'credit', userId: { $in: franchiseIds } },
         },
         {
           $group: {
@@ -604,7 +611,7 @@ console.log('Recent Bookings Data:', recentBookingsData);
 
       const totalDebits = await Transaction.aggregate([
         {
-          $match: { type: 'debit' },
+          $match: { type: 'debit', userId: { $in: franchiseIds } },
         },
         {
           $group: {

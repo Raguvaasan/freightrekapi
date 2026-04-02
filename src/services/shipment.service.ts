@@ -3,6 +3,7 @@ import { Shipment } from '../models/shipment/shipment.model';
 import { Wallet } from '../models/wallet/wallet.model';
 import { Transaction } from '../models/wallet/transaction.model';
 import { Agency } from '../models/admin/agency.model';
+import { AppCustomer } from '../models/customer/appCustomer.model';
 import { HubModel } from '../models/hub/hub.model';
 
 interface CreateShipmentData {
@@ -476,10 +477,14 @@ export const shipmentService = {
 
       const total = await Shipment.countDocuments(query);
 
-      // Get unique userIds to fetch franchise names
+      // Get unique userIds to fetch franchise/customer names
       const userIds = [...new Set(shipments.map(s => s.userId))];
       const agencies = await Agency.find({ _id: { $in: userIds } }, 'agencyName');
       const agencyMap = new Map(agencies.map(agency => [agency._id.toString(), agency.agencyName]));
+
+      // Also lookup AppCustomer names for customer orders
+      const customers = await AppCustomer.find({ _id: { $in: userIds } }, 'firstName lastName');
+      const customerMap = new Map(customers.map(c => [c._id.toString(), `${c.firstName} ${c.lastName}`.trim()]));
 
       // Get unique pickup location names to fetch hub and agency details
       const pickupLocationNames = [...new Set(shipments.map(s => s.pickupLocation?.name).filter(Boolean))];
@@ -501,7 +506,7 @@ export const shipmentService = {
           return {
           orderId: s.orderId,
           userId: s.userId,
-          franchiseName: agencyMap.get(s.userId) || 'Unknown',
+          franchiseName: agencyMap.get(s.userId) || customerMap.get(s.userId) || 'Unknown',
           waybill: s.waybill,
           status: s.status,
           trackingUrl: s.trackingUrl,
