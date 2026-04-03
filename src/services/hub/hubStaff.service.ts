@@ -2,6 +2,7 @@ import { Staff } from '../../models/admin/staff.model';
 import { Shipment } from '../../models/shipment/shipment.model';
 import { HubModel } from '../../models/hub/hub.model';
 import bcrypt from 'bcryptjs';
+import axios from 'axios';
 
 // Helper: resolve hubId from hub direct or hub staff
 const resolveHubId = async (userId: string): Promise<string | null> => {
@@ -243,6 +244,7 @@ export const hubStaffService = {
           },
           pickupLocation: order.pickupLocation,
           assignedStaffId: order.assignedStaffId || null,
+          delhiveryResponse: order.delhiveryResponse || null,
           createdAt: order.createdAt,
           updatedAt: order.updatedAt,
         },
@@ -280,12 +282,108 @@ export const hubStaffService = {
       order.status = status as any;
       await order.save();
 
+      // If status changed to Active (confirmed) and no waybill yet, call Delhivery create API
+      let delhiveryResult: any = null;
+      if (status === 'Active' && !order.waybill) {
+        try {
+          const delhiveryUrl =
+            process.env.DELHIVERY_API_URL ||
+            process.env.DELHIVERY_API_BASE_URL ||
+            'https://staging-express.delhivery.com';
+          const delhiveryToken = (process.env.DELHIVERY_API_TOKEN || process.env.DELHIVERY_API_KEY || '').trim();
+
+          if (delhiveryToken) {
+            const pickup: any = order.pickupLocation || {};
+            const delhiveryPayload = {
+              shipments: [
+                {
+                  name: order.name,
+                  add: order.add,
+                  pin: order.pin,
+                  city: order.city,
+                  state: order.state,
+                  country: order.country || 'India',
+                  phone: order.phone,
+                  order: order.order,
+                  payment_mode: order.paymentMode,
+                  return_pin: order.returnPin || pickup.pincode || '',
+                  return_city: order.returnCity || pickup.city || '',
+                  return_phone: order.returnPhone || pickup.phone || '',
+                  return_add: order.returnAdd || pickup.address || '',
+                  return_state: order.returnState || pickup.state || '',
+                  return_country: order.returnCountry || 'India',
+                  products_desc: order.productsDesc || '',
+                  hsn_code: order.hsnCode || '',
+                  cod_amount: order.codAmount || '0',
+                  order_date: order.orderDate
+                    ? new Date(order.orderDate).toISOString().slice(0, 10)
+                    : new Date().toISOString().slice(0, 10),
+                  total_amount: order.totalAmount || '0',
+                  seller_add: order.sellerAdd || pickup.address || '',
+                  seller_name: order.sellerName || pickup.name || '',
+                  seller_inv: order.sellerInv || '',
+                  quantity: order.quantity || '1',
+                  waybill: '',
+                  shipment_width: order.shipmentWidth || '10',
+                  shipment_height: order.shipmentHeight || '10',
+                  weight: order.weight || '0.5',
+                  shipping_mode: order.shippingMode || 'Surface',
+                  address_type: order.addressType || 'home',
+                },
+              ],
+              pickup_location: {
+                name: pickup.name || '',
+                add: pickup.address || '',
+                city: pickup.city || '',
+                pin_code: pickup.pincode || '',
+                country: 'India',
+                phone: pickup.phone || '',
+              },
+            };
+
+            const response = await axios.post(
+              `${delhiveryUrl}/api/cmu/create.json`,
+              `format=json&data=${encodeURIComponent(JSON.stringify(delhiveryPayload))}`,
+              {
+                headers: {
+                  Accept: 'application/json',
+                  Authorization: `Token ${delhiveryToken}`,
+                  'Content-Type': 'application/x-www-form-urlencoded',
+                },
+              }
+            );
+
+            const isDelhiveryCreated =
+              response.data?.success === true ||
+              (Array.isArray(response.data?.packages) && response.data.packages.length > 0);
+
+            if (isDelhiveryCreated && response.data.packages?.[0]) {
+              order.waybill = response.data.packages[0].waybill;
+              order.trackingUrl = `${delhiveryUrl}/track/package/${order.waybill}`;
+              order.delhiveryResponse = response.data;
+            } else {
+              order.delhiveryResponse = response.data;
+            }
+            delhiveryResult = response.data;
+            await order.save();
+          }
+        } catch (delhiveryError: any) {
+          console.error('Delhivery API error on status confirm:', delhiveryError?.response?.data || delhiveryError?.message);
+          order.delhiveryResponse = { error: delhiveryError?.response?.data || delhiveryError?.message };
+          await order.save();
+          delhiveryResult = { error: delhiveryError?.response?.data || delhiveryError?.message };
+        }
+      }
+
       return {
         success: true,
         message: `Order status updated to ${status}`,
         data: {
           orderId: order.orderId,
+          waybill: order.waybill || null,
+          trackingUrl: order.trackingUrl || null,
           status: order.status,
+          delhiveryResponse: order.delhiveryResponse || null,
           updatedAt: order.updatedAt,
         },
       };

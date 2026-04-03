@@ -104,7 +104,7 @@ export const hubDashboardService = {
       const recentBookings = await Shipment.find({ ...hubFilter(hubId), ...periodFilter })
         .sort({ createdAt: -1 })
         .limit(10)
-        .select('orderId totalAmount createdAt status waybill')
+        .select('orderId order totalAmount codAmount paymentMode createdAt status waybill')
         .lean();
 
       return {
@@ -123,9 +123,9 @@ export const hubDashboardService = {
           },
           shipmentType,
           recentBookings: recentBookings.map(b => ({
-            orderId: b.orderId,
-            waybill: b.waybill,
-            amount: b.totalAmount,
+            orderId: b.order || b.orderId,
+            waybill: b.waybill || null,
+            amount: b.paymentMode === 'COD' ? (b.codAmount || b.totalAmount || '0') : (b.totalAmount || '0'),
             date: b.createdAt,
             status: b.status,
           })),

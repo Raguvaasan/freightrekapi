@@ -59,6 +59,101 @@ interface CreateShipmentData {
   skipWalletCheck?: boolean;
 }
 
+// Helper: Call Delhivery create API for an existing shipment and update it
+async function createDelhiveryShipment(shipment: any): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    const delhiveryUrl =
+      process.env.DELHIVERY_API_URL ||
+      process.env.DELHIVERY_API_BASE_URL ||
+      'https://staging-express.delhivery.com';
+    const delhiveryToken = (process.env.DELHIVERY_API_TOKEN || process.env.DELHIVERY_API_KEY || '').trim();
+
+    if (!delhiveryToken) {
+      return { success: false, error: 'Delhivery API token not configured' };
+    }
+
+    const delhiveryPayload = {
+      shipments: [
+        {
+          name: shipment.name,
+          add: shipment.add,
+          pin: shipment.pin,
+          city: shipment.city,
+          state: shipment.state,
+          country: shipment.country || 'India',
+          phone: shipment.phone,
+          order: shipment.order,
+          payment_mode: shipment.paymentMode,
+          return_pin: shipment.returnPin || shipment.pickupLocation?.pincode || '',
+          return_city: shipment.returnCity || shipment.pickupLocation?.city || '',
+          return_phone: shipment.returnPhone || shipment.pickupLocation?.phone || '',
+          return_add: shipment.returnAdd || shipment.pickupLocation?.address || '',
+          return_state: shipment.returnState || shipment.pickupLocation?.state || '',
+          return_country: shipment.returnCountry || 'India',
+          products_desc: shipment.productsDesc || '',
+          hsn_code: shipment.hsnCode || '',
+          cod_amount: shipment.codAmount || '0',
+          order_date: shipment.orderDate
+            ? new Date(shipment.orderDate).toISOString().slice(0, 10)
+            : new Date().toISOString().slice(0, 10),
+          total_amount: shipment.totalAmount || '0',
+          seller_add: shipment.sellerAdd || shipment.pickupLocation?.address || '',
+          seller_name: shipment.sellerName || shipment.pickupLocation?.name || '',
+          seller_inv: shipment.sellerInv || '',
+          quantity: shipment.quantity || '1',
+          waybill: shipment.waybill || '',
+          shipment_width: shipment.shipmentWidth || '10',
+          shipment_height: shipment.shipmentHeight || '10',
+          weight: shipment.weight || '0.5',
+          shipping_mode: shipment.shippingMode || 'Surface',
+          address_type: shipment.addressType || 'home',
+        },
+      ],
+      pickup_location: {
+        name: shipment.pickupLocation?.name || '',
+        add: shipment.pickupLocation?.address || '',
+        city: shipment.pickupLocation?.city || '',
+        pin_code: shipment.pickupLocation?.pincode || '',
+        country: shipment.pickupLocation?.country || 'India',
+        phone: shipment.pickupLocation?.phone || '',
+      },
+    };
+
+    const response = await axios.post(
+      `${delhiveryUrl}/api/cmu/create.json`,
+      `format=json&data=${encodeURIComponent(JSON.stringify(delhiveryPayload))}`,
+      {
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Token ${delhiveryToken}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      }
+    );
+
+    const isDelhiveryCreated =
+      response.data?.success === true ||
+      (Array.isArray(response.data?.packages) && response.data.packages.length > 0);
+
+    if (isDelhiveryCreated && response.data.packages?.[0]) {
+      shipment.waybill = response.data.packages[0].waybill;
+      shipment.trackingUrl = `${delhiveryUrl}/track/package/${shipment.waybill}`;
+      shipment.delhiveryResponse = response.data;
+      await shipment.save();
+      return { success: true, data: response.data };
+    } else {
+      shipment.delhiveryResponse = response.data;
+      await shipment.save();
+      return { success: true, data: response.data };
+    }
+  } catch (error: any) {
+    console.error('Delhivery API error:', error?.response?.data || error?.message);
+    shipment.delhiveryResponse = { error: error?.response?.data || error?.message };
+    await shipment.save();
+    return { success: false, error: error?.response?.data?.message || error?.message };
+  }
+}
+
 // Find nearest hub based on customer pincode → city → state → any active hub
 async function findNearestHub(pin: string, city: string, state: string) {
   // 1. Same pincode
@@ -430,6 +525,7 @@ export const shipmentService = {
           sellerInv: shipment.sellerInv || '',
           hsnCode: shipment.hsnCode || '',
           pickupLocation: shipment.pickupLocation,
+          delhiveryResponse: shipment.delhiveryResponse || null,
           createdAt: shipment.createdAt,
           updatedAt: shipment.updatedAt,
         },
@@ -544,6 +640,7 @@ export const shipmentService = {
           },
           assignedStaffId: s.assignedStaffId || null,
           orderType: s.orderType || 'customer',
+          delhiveryResponse: s.delhiveryResponse || null,
           createdAt: s.createdAt,
           updatedAt: s.updatedAt,
         };
@@ -647,6 +744,7 @@ export const shipmentService = {
       }
 
       // Update only provided fields
+      const previousStatus = shipment.status;
       Object.keys(updateData).forEach(key => {
         if (updateData[key] !== undefined) {
           (shipment as any)[key] = updateData[key];
@@ -655,6 +753,11 @@ export const shipmentService = {
 
       await shipment.save();
 
+      // If status changed to Active (confirmed) and no waybill yet, call Delhivery create API
+      if (shipment.status === 'Active' && previousStatus !== 'Active' && !shipment.waybill) {
+        await createDelhiveryShipment(shipment);
+      }
+
       return {
         success: true,
         message: 'Shipment updated successfully',
@@ -662,6 +765,8 @@ export const shipmentService = {
           orderId: shipment.orderId,
           waybill: shipment.waybill,
           status: shipment.status,
+          trackingUrl: shipment.trackingUrl,
+          delhiveryResponse: shipment.delhiveryResponse || null,
           updatedAt: shipment.updatedAt,
         },
       };
