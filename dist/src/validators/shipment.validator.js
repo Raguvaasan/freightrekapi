@@ -52,8 +52,9 @@ exports.createShipmentSchema = yup.object().shape({
     order: yup.string().required('Order reference is required'),
     paymentMode: yup
         .string()
-        .required('Payment mode is required')
-        .oneOf(['Prepaid', 'COD'], 'Payment mode must be Prepaid or COD'),
+        .transform((value) => (!value ? 'COD' : value))
+        .oneOf(['Prepaid', 'COD'], 'Payment mode must be Prepaid or COD')
+        .default('COD'),
     fromName: yup.string(),
     fromAdd: yup.string(),
     fromPin: yup.string().matches(/^\d{6}$/, 'From PIN code must be 6 digits'),
@@ -87,7 +88,15 @@ exports.createShipmentSchema = yup.object().shape({
     addressType: yup.string(),
     pickupLocation: yup.object().shape({
         name: yup.string().optional(),
+        address: yup.string().optional(),
+        pincode: yup.string().optional(),
+        city: yup.string().optional(),
+        state: yup.string().optional(),
+        country: yup.string().optional(),
+        phone: yup.string().optional(),
     }).optional(),
+    assignedStaffId: yup.string().optional(),
+    orderType: yup.string().oneOf(['hub', 'customer'], 'Order type must be hub or customer').optional(),
 });
 exports.getShipmentsSchema = yup.object().shape({
     page: yup.number().min(1, 'Page must be at least 1'),

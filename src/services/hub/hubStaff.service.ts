@@ -73,6 +73,7 @@ export const hubStaffService = {
 
       const query = {
         assignedHubId: hubId,
+        assignedStaffId: staffId,
         status: { $in: ['Active', 'in_transit', 'created', 'pending'] },
       };
 
@@ -88,6 +89,7 @@ export const hubStaffService = {
         success: true,
         data: orders.map((o) => ({
           orderId: o.orderId,
+          bookingId: o.order,
           status: o.status,
           assignedStaffId: o.assignedStaffId || null,
           consignee: {
@@ -128,6 +130,7 @@ export const hubStaffService = {
 
       const query = {
         assignedHubId: hubId,
+        assignedStaffId: staffId,
         status: { $in: ['delivered', 'cancelled', 'failed'] },
       };
 
@@ -143,6 +146,7 @@ export const hubStaffService = {
         success: true,
         data: orders.map((o) => ({
           orderId: o.orderId,
+          bookingId: o.order,
           status: o.status,
           assignedStaffId: o.assignedStaffId || null,
           consignee: {
@@ -189,7 +193,7 @@ export const hubStaffService = {
       // Charge breakdown
       const amount = parseFloat(
         order.paymentMode === 'COD'
-          ? (order.codAmount || '0')
+          ? (parseFloat(order.codAmount || '0') > 0 ? order.codAmount! : order.totalAmount || '0')
           : (order.totalAmount || '0')
       );
       const tax = parseFloat((amount * 0.046).toFixed(2)); // 4.6% GST
@@ -200,6 +204,7 @@ export const hubStaffService = {
         success: true,
         data: {
           orderId: order.orderId,
+          bookingId: order.order,
           waybill: order.waybill,
           status: order.status,
           trackingUrl: order.trackingUrl,
@@ -227,6 +232,7 @@ export const hubStaffService = {
             dimensions: {
               width: order.shipmentWidth,
               height: order.shipmentHeight,
+              length: order.shipmentLength,
             },
             quantity: order.quantity,
             hsnCode: order.hsnCode,
@@ -422,6 +428,7 @@ export const hubStaffService = {
     weight?: string;
     shipmentWidth?: string;
     shipmentHeight?: string;
+    shipmentLength?: string;
     quantity?: string;
     productsDesc?: string;
     codAmount?: string;
@@ -477,7 +484,7 @@ export const hubStaffService = {
       // Store original amounts for comparison
       const originalAmount = parseFloat(
         order.paymentMode === 'COD'
-          ? (order.codAmount || '0')
+          ? (parseFloat(order.codAmount || '0') > 0 ? order.codAmount! : order.totalAmount || '0')
           : (order.totalAmount || '0')
       );
       const originalTax = parseFloat((originalAmount * 0.046).toFixed(2));
@@ -485,7 +492,7 @@ export const hubStaffService = {
 
       // Apply editable fields
       const editableFields: (keyof typeof updateData)[] = [
-        'weight', 'shipmentWidth', 'shipmentHeight', 'quantity',
+        'weight', 'shipmentWidth', 'shipmentHeight', 'shipmentLength', 'quantity',
         'productsDesc', 'codAmount', 'totalAmount',
         'name', 'add', 'pin', 'city', 'state', 'phone',
         'paymentMode', 'shippingMode', 'assignedStaffId', 'status',
@@ -502,7 +509,7 @@ export const hubStaffService = {
       // Recalculate charges after edit
       const newAmount = parseFloat(
         order.paymentMode === 'COD'
-          ? (order.codAmount || '0')
+          ? (parseFloat(order.codAmount || '0') > 0 ? order.codAmount! : order.totalAmount || '0')
           : (order.totalAmount || '0')
       );
       const newTax = parseFloat((newAmount * 0.046).toFixed(2));
@@ -523,6 +530,7 @@ export const hubStaffService = {
             dimensions: {
               width: order.shipmentWidth,
               height: order.shipmentHeight,
+              length: order.shipmentLength,
             },
             quantity: order.quantity,
           },

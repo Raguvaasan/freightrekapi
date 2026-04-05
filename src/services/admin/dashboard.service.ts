@@ -2,6 +2,8 @@ import { Shipment } from '../../models/shipment/shipment.model';
 import { Agency } from '../../models/admin/agency.model';
 import { Wallet } from '../../models/wallet/wallet.model';
 import { Transaction } from '../../models/wallet/transaction.model';
+import { HubModel } from '../../models/hub/hub.model';
+import { Markup } from '../../models/markup/markup.model';
 
 interface ServiceResponse {
   success: boolean;
@@ -126,6 +128,7 @@ export class AdminDashboardService {
         currentPeriodShipments,
         previousPeriodShipments,
         activeAgencies,
+        totalHubs,
         allTimeRevenueData,
         todayRevenueData,
         currentPeriodRevenueData,
@@ -143,6 +146,7 @@ export class AdminDashboardService {
         Shipment.countDocuments({ createdAt: { $gte: startDate, $lte: now } }),
         Shipment.countDocuments({ createdAt: { $gte: previousStartDate, $lte: previousEndDate } }),
         Agency.countDocuments({ status: 'Active' }),
+        HubModel.countDocuments({ status: true }),
         Shipment.find({ status: 'Active' }).lean(),
         Shipment.find({ status: 'Active', createdAt: { $gte: todayStart } }).lean(),
         Shipment.find({ status: 'Active', createdAt: { $gte: startDate, $lte: now } }).lean(),
@@ -187,6 +191,27 @@ export class AdminDashboardService {
       const totalRevenue = allTimeRevenueData.reduce((sum, shipment) => {
         return sum + parseFloat(shipment.totalAmount || shipment.codAmount || '0');
       }, 0);
+
+      // Calculate revenue split: delhivery cost vs markup profit
+      const globalMarkup = await Markup.findOne({ markupCategory: 'rate_calculator', userId: null, franchiseId: null, isActive: true }).lean();
+      let delhiveryCost = 0;
+      let markupProfit = 0;
+      if (globalMarkup) {
+        if (globalMarkup.markupType === 'percentage') {
+          delhiveryCost = parseFloat((totalRevenue / (1 + globalMarkup.markupValue / 100)).toFixed(2));
+        } else {
+          // fixed: each shipment has a fixed markup added
+          const shipmentCount = allTimeRevenueData.length;
+          markupProfit = parseFloat((globalMarkup.markupValue * shipmentCount).toFixed(2));
+          delhiveryCost = parseFloat((totalRevenue - markupProfit).toFixed(2));
+        }
+        if (globalMarkup.markupType === 'percentage') {
+          markupProfit = parseFloat((totalRevenue - delhiveryCost).toFixed(2));
+        }
+      } else {
+        delhiveryCost = totalRevenue;
+        markupProfit = 0;
+      }
 
       // Calculate today's revenue
       const todayRevenue = todayRevenueData.reduce((sum, shipment) => {
@@ -281,11 +306,14 @@ console.log('Recent Bookings Data:', recentBookingsData);
             },
             revenue: {
               total: totalRevenue,
+              delhiveryCost: delhiveryCost,
+              markupProfit: markupProfit,
               today: todayRevenue,
               percentageChange: revenuePercentageChange,
               currency: '₹',
             },
             activeAgencies: activeAgencies,
+            totalHubs: totalHubs,
           },
           revenueTrend: revenueTrend,
           ordersPerDay: ordersPerDay,

@@ -73,6 +73,35 @@ const router = (0, express_1.Router)();
 router.post('/login', (0, validate_middleware_1.validate)(staff_validator_1.staffLoginSchema), hubController.loginHub);
 /**
  * @swagger
+ * /admin/hub/unified-login:
+ *   post:
+ *     summary: Unified login for both Hub admin and Hub staff
+ *     tags: [Hub Management]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *               - password
+ *             properties:
+ *               username:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *                 format: password
+ *     responses:
+ *       200:
+ *         description: Login successful (returns loginType 'hub' or 'hub_staff')
+ *       401:
+ *         description: Invalid credentials
+ */
+router.post('/unified-login', (0, validate_middleware_1.validate)(staff_validator_1.staffLoginSchema), hubController.unifiedHubLogin);
+/**
+ * @swagger
  * /admin/hub:
  *   post:
  *     summary: Create a new freight hub
@@ -191,5 +220,5 @@ router.get("/", auth_middleware_1.authMiddleware, (0, checkPermission_middleware
  */
 router.get("/:id", auth_middleware_1.authMiddleware, (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.hub_management, 'read'), hubController.gethubById);
 router.put("/:id", auth_middleware_1.authMiddleware, (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.hub_management, 'update'), (0, validate_middleware_1.validate)(hub_validator_1.updateHubSchema), hubController.updateHub);
-router.delete("/:id", (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.hub_management, 'delete'), auth_middleware_1.authMiddleware, hubController.deleteHub);
+router.delete("/:id", auth_middleware_1.authMiddleware, (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.hub_management, 'delete'), hubController.deleteHub);
 exports.default = router;

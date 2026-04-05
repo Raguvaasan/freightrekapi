@@ -42,6 +42,7 @@ interface CreateShipmentData {
   waybill?: string;
   shipmentWidth?: string;
   shipmentHeight?: string;
+  shipmentLength?: string;
   weight?: string;
   shippingMode?: 'Surface' | 'Express';
   addressType?: string;
@@ -187,6 +188,22 @@ export const shipmentService = {
       const orderId = `ORD_${userId}_${Date.now()}`;
       debitOrderId = orderId;
 
+      // For COD orders: use totalAmount as codAmount if codAmount is missing/zero
+      if (shipmentData.paymentMode === 'COD') {
+        const codAmt = parseFloat(shipmentData.codAmount || '0');
+        const totalAmt = parseFloat(shipmentData.totalAmount || '0');
+
+        if (codAmt <= 0 && totalAmt > 0) {
+          shipmentData.codAmount = shipmentData.totalAmount;
+        } else if (codAmt <= 0 && totalAmt <= 0) {
+          console.log('❌ No valid amount for COD order');
+          return {
+            success: false,
+            message: 'Amount is required for COD orders. Please provide totalAmount or codAmount.',
+          };
+        }
+      }
+
       // Handle Prepaid payment
       if (shipmentData.paymentMode === 'Prepaid' && !shipmentData.skipWalletCheck) {
         const amount = parseFloat(shipmentData.totalAmount || '0');
@@ -243,15 +260,17 @@ export const shipmentService = {
 
       // Auto-assign nearest hub if pickupLocation not provided
       if (!shipmentData.pickupLocation || !shipmentData.pickupLocation.name) {
-        const nearestHub = await findNearestHub(shipmentData.pin, shipmentData.city, shipmentData.state);
+        // Use FROM address (sender) to find nearest hub, not consignee address
+        const fromPin = shipmentData.fromPin || shipmentData.pin;
+        const fromCity = shipmentData.fromCity || shipmentData.city;
+        const fromState = shipmentData.fromState || shipmentData.state;
+        const nearestHub = await findNearestHub(fromPin, fromCity, fromState);
         if (nearestHub) {
+          // Pickup location = sender's FROM address, not hub address
           shipmentData.pickupLocation = {
-            name: nearestHub.hubName,
-            address: nearestHub.address,
-            pincode: nearestHub.pincode.toString(),
-            city: nearestHub.city,
-            state: nearestHub.state,
-            phone: nearestHub.phoneNo?.toString(),
+            name: shipmentData.fromName || nearestHub.hubName,
+            address: shipmentData.fromAdd || nearestHub.address,
+            pincode: shipmentData.fromPin || nearestHub.pincode.toString(),
           };
           (shipmentData as any).assignedHubId = nearestHub._id.toString();
         } else {
@@ -295,6 +314,7 @@ export const shipmentService = {
         shippingMode: shipmentData.shippingMode || 'Surface',
         shipmentWidth: shipmentData.shipmentWidth || '100',
         shipmentHeight: shipmentData.shipmentHeight || '100',
+        shipmentLength: shipmentData.shipmentLength || '100',
         assignedHubId: (shipmentData as any).assignedHubId || undefined,
         assignedStaffId: shipmentData.assignedStaffId || undefined,
         orderType: shipmentData.orderType || 'customer',
@@ -462,12 +482,16 @@ export const shipmentService = {
     }
   },
 
-  async getShipment(orderId: string, userId: string, isAdmin?: boolean) {
+  async getShipment(orderId: string, userId: string, isAdmin?: boolean, assignedHubId?: string) {
     try {
-      // If admin, allow viewing any order. Otherwise, only user's own orders
+      // If admin, allow viewing any order. If hub, filter by assignedHubId. Otherwise, only user's own orders
       const query: any = { orderId };
       if (!isAdmin) {
-        query.userId = userId;
+        if (assignedHubId) {
+          query.assignedHubId = assignedHubId;
+        } else {
+          query.userId = userId;
+        }
       }
 
       const shipment = await Shipment.findOne(query).lean();
@@ -511,11 +535,12 @@ export const shipmentService = {
             dimensions: {
               width: shipment.shipmentWidth,
               height: shipment.shipmentHeight,
+              length: shipment.shipmentLength,
             },
           },
           amount:
             shipment.paymentMode == 'COD'
-              ? (shipment.codAmount || '0')
+              ? (parseFloat(shipment.codAmount || '0') > 0 ? shipment.codAmount : shipment.totalAmount || '0')
               : (shipment.totalAmount || '0'),
           totalAmount: shipment.totalAmount || '0',
           codAmount: shipment.codAmount || '0',
@@ -631,8 +656,8 @@ export const shipmentService = {
           },
           amount:
             s.paymentMode === 'COD'
-              ? (s.codAmount || s.totalAmount || '0')
-              : (s.totalAmount || s.codAmount || '0'),
+              ? (parseFloat(s.codAmount || '0') > 0 ? s.codAmount! : s.totalAmount || '0')
+              : (parseFloat(s.totalAmount || '0') > 0 ? s.totalAmount! : s.codAmount || '0'),
           pickupLocation: {
             name: s.pickupLocation?.name,
             address: s.pickupLocation?.address || pickupDetails?.address,

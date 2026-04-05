@@ -105,6 +105,12 @@ const shipmentSchema = new mongoose_1.Schema({
             type: String,
         },
     },
+    orderType: {
+        type: String,
+        enum: ['hub', 'customer'],
+        default: 'customer',
+        index: true,
+    },
     status: {
         type: String,
         enum: ['pending', 'created', 'Active', 'in_transit', 'delivered', 'failed', 'cancelled'],
@@ -116,6 +122,10 @@ const shipmentSchema = new mongoose_1.Schema({
     },
     trackingUrl: String,
     assignedHubId: {
+        type: String,
+        index: true,
+    },
+    assignedStaffId: {
         type: String,
         index: true,
     },

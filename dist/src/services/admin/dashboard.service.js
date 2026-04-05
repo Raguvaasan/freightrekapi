@@ -507,10 +507,16 @@ class AdminDashboardService {
             };
         }
     }
-    // Get wallet statistics across all franchises
+    // Get wallet statistics across all franchises only
     async getWalletStatistics() {
         try {
+            // Only consider franchise (Agency) wallets and transactions
+            const agencies = await agency_model_1.Agency.find({}, '_id');
+            const franchiseIds = agencies.map(a => a._id.toString());
             const walletStats = await wallet_model_1.Wallet.aggregate([
+                {
+                    $match: { userId: { $in: franchiseIds } },
+                },
                 {
                     $group: {
                         _id: null,
@@ -521,7 +527,7 @@ class AdminDashboardService {
             ]);
             const totalCredits = await transaction_model_1.Transaction.aggregate([
                 {
-                    $match: { type: 'credit' },
+                    $match: { type: 'credit', userId: { $in: franchiseIds } },
                 },
                 {
                     $group: {
@@ -533,7 +539,7 @@ class AdminDashboardService {
             ]);
             const totalDebits = await transaction_model_1.Transaction.aggregate([
                 {
-                    $match: { type: 'debit' },
+                    $match: { type: 'debit', userId: { $in: franchiseIds } },
                 },
                 {
                     $group: {

@@ -29,6 +29,30 @@ exports.walletService = {
             };
         }
     },
+    async getAllFranchiseBalance() {
+        try {
+            // Get all franchise user IDs
+            const agencies = await agency_model_1.Agency.find({}, '_id');
+            const franchiseIds = agencies.map(a => a._id.toString());
+            // Sum balance of all franchise wallets
+            const result = await wallet_model_1.Wallet.aggregate([
+                { $match: { userId: { $in: franchiseIds } } },
+                { $group: { _id: null, totalBalance: { $sum: '$balance' } } },
+            ]);
+            const totalBalance = result.length > 0 ? result[0].totalBalance : 0;
+            return {
+                success: true,
+                balance: totalBalance,
+                currency: 'INR',
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                message: error.message || 'Failed to fetch franchise balance',
+            };
+        }
+    },
     async createPaymentOrder(data) {
         try {
             const { amount, paymentMethod, userId, userEmail, userPhone, userName } = data;

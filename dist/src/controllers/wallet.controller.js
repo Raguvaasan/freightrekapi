@@ -17,6 +17,19 @@ const getBalance = async (req, res) => {
                 message: 'User not authenticated',
             });
         }
+        // Check if user is admin
+        const user = await adminUser_model_1.AdminUser.findById(userId).populate('roleId');
+        if (user && user.roleId) {
+            const role = user.roleId;
+            if (role.isRoot === true) {
+                // Admin: return total balance of all franchises
+                const result = await wallet_service_1.walletService.getAllFranchiseBalance();
+                if (!result.success) {
+                    return res.status(400).json(result);
+                }
+                return res.status(200).json(result);
+            }
+        }
         const result = await wallet_service_1.walletService.getBalance(userId);
         if (!result.success) {
             return res.status(400).json(result);

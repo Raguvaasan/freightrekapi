@@ -69,13 +69,27 @@ export const getShipment = async (req: Request, res: Response) => {
 
     // Check if user is admin
     let isAdmin = false;
+    let hubId: string | undefined;
     const user = await AdminUser.findById(userId).populate('roleId');
     if (user && user.roleId) {
       const role: any = user.roleId;
       isAdmin = role.isRoot === true;
     }
 
-    const result = await shipmentService.getShipment(orderId as string, userId, isAdmin);
+    // Check if user is a hub or hub staff
+    if (!isAdmin) {
+      const staff = await Staff.findById(userId).select('hubId type');
+      if (staff && staff.type === 'hub' && staff.hubId) {
+        hubId = staff.hubId.toString();
+      } else {
+        const hub = await HubModel.findById(userId);
+        if (hub) {
+          hubId = hub._id.toString();
+        }
+      }
+    }
+
+    const result = await shipmentService.getShipment(orderId as string, userId, isAdmin, hubId);
 
     if (!result.success) {
       return res.status(404).json(result);

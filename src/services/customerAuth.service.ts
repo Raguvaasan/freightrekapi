@@ -62,7 +62,7 @@ export const customerAuthService = {
     const templateId = process.env.PING4SMS_TEMPLATE_ID;
     const route = process.env.PING4SMS_ROUTE || '2';
     const fullPhone = `${countryCode.replace('+', '')}${phone}`;
-    const message = `Dear Customer,${otp} is your verification code -PNGOTP`;
+    const message = `Your OTP for login is ${otp}. Do not share it with anyone. - FREIGHTREK`;
 
     const url = `https://site.ping4sms.com/api/smsapi?key=${apiKey}&route=${route}&sender=${sender}&number=${fullPhone}&sms=${encodeURIComponent(message)}&templateid=${templateId}`;
 
@@ -110,7 +110,7 @@ export const customerAuthService = {
     const route = process.env.PING4SMS_ROUTE || '2';
     // countryCode includes '+', remove it for the number
     const fullPhone = `${countryCode.replace('+', '')}${phone}`;
-    const message = `Dear Customer,${otp} is your verification code -PNGOTP`;
+    const message = `Your OTP for login is ${otp}. Do not share it with anyone. - FREIGHTREK`;
 
     const url = `https://site.ping4sms.com/api/smsapi?key=${apiKey}&route=${route}&sender=${sender}&number=${fullPhone}&sms=${encodeURIComponent(message)}&templateid=${templateId}`;
 

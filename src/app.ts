@@ -20,6 +20,8 @@ import customerAuthRoutes from "./routes/customer/auth.routes";
 import hubOrderRoutes from "./routes/hub/order.routes";
 import hubStaffRoutes from "./routes/hub/hubStaff.routes";
 import hubDashboardRoutes from "./routes/hub/dashboard.routes";
+import hubRoleRoutes from "./routes/hub/hubRole.routes";
+import hubManageStaffRoutes from "./routes/hub/hubManageStaff.routes";
 import { cashfreeWebhook } from "./controllers/wallet.controller";
 
 const app = express();
@@ -152,7 +154,12 @@ app.use("/api/customers", customerRoutes);
 app.use("/api/customer/auth", customerAuthRoutes);
 app.use("/hub/orders", hubOrderRoutes);
 app.use("/hub/staff", hubStaffRoutes);
+app.use("/hub/role", hubRoleRoutes);
+app.use("/hub/manage/staff", hubManageStaffRoutes);
 app.use("/hub/dashboard", hubDashboardRoutes);
+
+// Mobile team markup routes (no /api prefix, proxy-friendly)
+app.use("/v1/settings", markupRoutes);
 
 // Webhook endpoint (no auth, verified by signature)
 app.post("/webhook/cashfree", cashfreeWebhook);

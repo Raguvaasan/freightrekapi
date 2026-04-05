@@ -37,6 +37,7 @@ export interface IShipment {
   quantity?: string;
   shipmentWidth?: string;
   shipmentHeight?: string;
+  shipmentLength?: string;
   weight?: string;
   shippingMode: 'Surface' | 'Express';
   addressType?: string;
@@ -137,6 +138,10 @@ const shipmentSchema = new Schema<IShipment>(
       default: '100',
     },
     shipmentHeight: {
+      type: String,
+      default: '100',
+    },
+    shipmentLength: {
       type: String,
       default: '100',
     },

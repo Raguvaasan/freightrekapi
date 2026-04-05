@@ -9,7 +9,93 @@ const shipment_model_1 = require("../models/shipment/shipment.model");
 const wallet_model_1 = require("../models/wallet/wallet.model");
 const transaction_model_1 = require("../models/wallet/transaction.model");
 const agency_model_1 = require("../models/admin/agency.model");
+const appCustomer_model_1 = require("../models/customer/appCustomer.model");
 const hub_model_1 = require("../models/hub/hub.model");
+// Helper: Call Delhivery create API for an existing shipment and update it
+async function createDelhiveryShipment(shipment) {
+    try {
+        const delhiveryUrl = process.env.DELHIVERY_API_URL ||
+            process.env.DELHIVERY_API_BASE_URL ||
+            'https://staging-express.delhivery.com';
+        const delhiveryToken = (process.env.DELHIVERY_API_TOKEN || process.env.DELHIVERY_API_KEY || '').trim();
+        if (!delhiveryToken) {
+            return { success: false, error: 'Delhivery API token not configured' };
+        }
+        const delhiveryPayload = {
+            shipments: [
+                {
+                    name: shipment.name,
+                    add: shipment.add,
+                    pin: shipment.pin,
+                    city: shipment.city,
+                    state: shipment.state,
+                    country: shipment.country || 'India',
+                    phone: shipment.phone,
+                    order: shipment.order,
+                    payment_mode: shipment.paymentMode,
+                    return_pin: shipment.returnPin || shipment.pickupLocation?.pincode || '',
+                    return_city: shipment.returnCity || shipment.pickupLocation?.city || '',
+                    return_phone: shipment.returnPhone || shipment.pickupLocation?.phone || '',
+                    return_add: shipment.returnAdd || shipment.pickupLocation?.address || '',
+                    return_state: shipment.returnState || shipment.pickupLocation?.state || '',
+                    return_country: shipment.returnCountry || 'India',
+                    products_desc: shipment.productsDesc || '',
+                    hsn_code: shipment.hsnCode || '',
+                    cod_amount: shipment.codAmount || '0',
+                    order_date: shipment.orderDate
+                        ? new Date(shipment.orderDate).toISOString().slice(0, 10)
+                        : new Date().toISOString().slice(0, 10),
+                    total_amount: shipment.totalAmount || '0',
+                    seller_add: shipment.sellerAdd || shipment.pickupLocation?.address || '',
+                    seller_name: shipment.sellerName || shipment.pickupLocation?.name || '',
+                    seller_inv: shipment.sellerInv || '',
+                    quantity: shipment.quantity || '1',
+                    waybill: shipment.waybill || '',
+                    shipment_width: shipment.shipmentWidth || '10',
+                    shipment_height: shipment.shipmentHeight || '10',
+                    weight: shipment.weight || '0.5',
+                    shipping_mode: shipment.shippingMode || 'Surface',
+                    address_type: shipment.addressType || 'home',
+                },
+            ],
+            pickup_location: {
+                name: shipment.pickupLocation?.name || '',
+                add: shipment.pickupLocation?.address || '',
+                city: shipment.pickupLocation?.city || '',
+                pin_code: shipment.pickupLocation?.pincode || '',
+                country: shipment.pickupLocation?.country || 'India',
+                phone: shipment.pickupLocation?.phone || '',
+            },
+        };
+        const response = await axios_1.default.post(`${delhiveryUrl}/api/cmu/create.json`, `format=json&data=${encodeURIComponent(JSON.stringify(delhiveryPayload))}`, {
+            headers: {
+                Accept: 'application/json',
+                Authorization: `Token ${delhiveryToken}`,
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+        });
+        const isDelhiveryCreated = response.data?.success === true ||
+            (Array.isArray(response.data?.packages) && response.data.packages.length > 0);
+        if (isDelhiveryCreated && response.data.packages?.[0]) {
+            shipment.waybill = response.data.packages[0].waybill;
+            shipment.trackingUrl = `${delhiveryUrl}/track/package/${shipment.waybill}`;
+            shipment.delhiveryResponse = response.data;
+            await shipment.save();
+            return { success: true, data: response.data };
+        }
+        else {
+            shipment.delhiveryResponse = response.data;
+            await shipment.save();
+            return { success: true, data: response.data };
+        }
+    }
+    catch (error) {
+        console.error('Delhivery API error:', error?.response?.data || error?.message);
+        shipment.delhiveryResponse = { error: error?.response?.data || error?.message };
+        await shipment.save();
+        return { success: false, error: error?.response?.data?.message || error?.message };
+    }
+}
 // Find nearest hub based on customer pincode → city → state → any active hub
 async function findNearestHub(pin, city, state) {
     // 1. Same pincode
@@ -40,7 +126,7 @@ exports.shipmentService = {
             const orderId = `ORD_${userId}_${Date.now()}`;
             debitOrderId = orderId;
             // Handle Prepaid payment
-            if (shipmentData.paymentMode === 'Prepaid') {
+            if (shipmentData.paymentMode === 'Prepaid' && !shipmentData.skipWalletCheck) {
                 const amount = parseFloat(shipmentData.totalAmount || '0');
                 if (amount <= 0) {
                     console.log('❌ Invalid amount for prepaid order:', amount);
@@ -140,7 +226,9 @@ exports.shipmentService = {
                 shipmentWidth: shipmentData.shipmentWidth || '100',
                 shipmentHeight: shipmentData.shipmentHeight || '100',
                 assignedHubId: shipmentData.assignedHubId || undefined,
-                status: 'Active',
+                assignedStaffId: shipmentData.assignedStaffId || undefined,
+                orderType: shipmentData.orderType || 'customer',
+                status: shipmentData.orderType == 'hub' ? 'Active' : 'pending',
             });
             // Try Delhivery API to get waybill (optional - order is already created)
             try {
@@ -248,6 +336,8 @@ exports.shipmentService = {
                     // Pickup
                     pickupLocation: shipment.pickupLocation,
                     assignedHubId: shipment.assignedHubId || null,
+                    assignedStaffId: shipment.assignedStaffId || null,
+                    orderType: shipment.orderType || 'customer',
                     // Timestamps
                     createdAt: shipment.createdAt,
                 },
@@ -290,12 +380,17 @@ exports.shipmentService = {
             };
         }
     },
-    async getShipment(orderId, userId, isAdmin) {
+    async getShipment(orderId, userId, isAdmin, assignedHubId) {
         try {
-            // If admin, allow viewing any order. Otherwise, only user's own orders
+            // If admin, allow viewing any order. If hub, filter by assignedHubId. Otherwise, only user's own orders
             const query = { orderId };
             if (!isAdmin) {
-                query.userId = userId;
+                if (assignedHubId) {
+                    query.assignedHubId = assignedHubId;
+                }
+                else {
+                    query.userId = userId;
+                }
             }
             const shipment = await shipment_model_1.Shipment.findOne(query).lean();
             if (!shipment) {
@@ -349,6 +444,7 @@ exports.shipmentService = {
                     sellerInv: shipment.sellerInv || '',
                     hsnCode: shipment.hsnCode || '',
                     pickupLocation: shipment.pickupLocation,
+                    delhiveryResponse: shipment.delhiveryResponse || null,
                     createdAt: shipment.createdAt,
                     updatedAt: shipment.updatedAt,
                 },
@@ -364,7 +460,7 @@ exports.shipmentService = {
     },
     async getShipments(userId, page = 1, limit = 20, status, isAdmin, franchiseUserIds, assignedHubId) {
         try {
-            // If admin, show all franchise orders (not admin's own)
+            // If admin, show all orders (franchise + hub)
             // Otherwise, filter by logged-in userId
             const query = {};
             if (assignedHubId) {
@@ -372,7 +468,7 @@ exports.shipmentService = {
                 query.assignedHubId = assignedHubId;
             }
             else if (isAdmin && franchiseUserIds && franchiseUserIds.length > 0) {
-                // Admin: show only franchise orders
+                // Admin: show all orders (franchise + hub)
                 query.userId = { $in: franchiseUserIds };
             }
             else {
@@ -393,10 +489,13 @@ exports.shipmentService = {
                 .skip(skip)
                 .lean();
             const total = await shipment_model_1.Shipment.countDocuments(query);
-            // Get unique userIds to fetch franchise names
+            // Get unique userIds to fetch franchise/customer names
             const userIds = [...new Set(shipments.map(s => s.userId))];
             const agencies = await agency_model_1.Agency.find({ _id: { $in: userIds } }, 'agencyName');
             const agencyMap = new Map(agencies.map(agency => [agency._id.toString(), agency.agencyName]));
+            // Also lookup AppCustomer names for customer orders
+            const customers = await appCustomer_model_1.AppCustomer.find({ _id: { $in: userIds } }, 'firstName lastName');
+            const customerMap = new Map(customers.map(c => [c._id.toString(), `${c.firstName} ${c.lastName}`.trim()]));
             // Get unique pickup location names to fetch hub and agency details
             const pickupLocationNames = [...new Set(shipments.map(s => s.pickupLocation?.name).filter(Boolean))];
             // Try to find in Hub collection first
@@ -414,7 +513,7 @@ exports.shipmentService = {
                     return {
                         orderId: s.orderId,
                         userId: s.userId,
-                        franchiseName: agencyMap.get(s.userId) || 'Unknown',
+                        franchiseName: agencyMap.get(s.userId) || customerMap.get(s.userId) || 'Unknown',
                         waybill: s.waybill,
                         status: s.status,
                         trackingUrl: s.trackingUrl,
@@ -442,13 +541,16 @@ exports.shipmentService = {
                             weight: s.weight,
                         },
                         amount: s.paymentMode === 'COD'
-                            ? (s.codAmount || '0')
+                            ? (s.codAmount || s.totalAmount || '0')
                             : (s.totalAmount || s.codAmount || '0'),
                         pickupLocation: {
                             name: s.pickupLocation?.name,
                             address: s.pickupLocation?.address || pickupDetails?.address,
                             pincode: s.pickupLocation?.pincode || pickupDetails?.pincode,
                         },
+                        assignedStaffId: s.assignedStaffId || null,
+                        orderType: s.orderType || 'customer',
+                        delhiveryResponse: s.delhiveryResponse || null,
                         createdAt: s.createdAt,
                         updatedAt: s.updatedAt,
                     };
@@ -538,12 +640,17 @@ exports.shipmentService = {
                 };
             }
             // Update only provided fields
+            const previousStatus = shipment.status;
             Object.keys(updateData).forEach(key => {
                 if (updateData[key] !== undefined) {
                     shipment[key] = updateData[key];
                 }
             });
             await shipment.save();
+            // If status changed to Active (confirmed) and no waybill yet, call Delhivery create API
+            if (shipment.status === 'Active' && previousStatus !== 'Active' && !shipment.waybill) {
+                await createDelhiveryShipment(shipment);
+            }
             return {
                 success: true,
                 message: 'Shipment updated successfully',
@@ -551,6 +658,8 @@ exports.shipmentService = {
                     orderId: shipment.orderId,
                     waybill: shipment.waybill,
                     status: shipment.status,
+                    trackingUrl: shipment.trackingUrl,
+                    delhiveryResponse: shipment.delhiveryResponse || null,
                     updatedAt: shipment.updatedAt,
                 },
             };

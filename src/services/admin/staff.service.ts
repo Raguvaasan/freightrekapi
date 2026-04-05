@@ -799,10 +799,14 @@ export class StaffService {
         return { success: false, message: 'No role assigned. Contact administrator.' };
       }
 
-      // Check role from both AdminRole and FranchiseRole
+      // Check role from AdminRole, FranchiseRole, or HubRole
       let roleData: any = await Role.findById(staff.roleId).select('roleName permissions').lean();
       if (!roleData) {
         roleData = await FranchiseRole.findById(staff.roleId).select('roleName permissions').lean();
+      }
+      if (!roleData) {
+        const { HubRole } = await import('../../models/hub/hubRole.model');
+        roleData = await HubRole.findById(staff.roleId).select('roleName permissions').lean();
       }
 
       if (!roleData) {

@@ -21,6 +21,10 @@ const careerApplication_routes_1 = __importDefault(require("./routes/careerAppli
 const customer_routes_1 = __importDefault(require("./routes/customer/customer.routes"));
 const auth_routes_1 = __importDefault(require("./routes/customer/auth.routes"));
 const order_routes_1 = __importDefault(require("./routes/hub/order.routes"));
+const hubStaff_routes_1 = __importDefault(require("./routes/hub/hubStaff.routes"));
+const dashboard_routes_3 = __importDefault(require("./routes/hub/dashboard.routes"));
+const hubRole_routes_1 = __importDefault(require("./routes/hub/hubRole.routes"));
+const hubManageStaff_routes_1 = __importDefault(require("./routes/hub/hubManageStaff.routes"));
 const wallet_controller_1 = require("./controllers/wallet.controller");
 const app = (0, express_1.default)();
 app.use(express_1.default.json());
@@ -138,6 +142,12 @@ app.use("/api/applications", careerApplication_routes_1.default);
 app.use("/api/customers", customer_routes_1.default);
 app.use("/api/customer/auth", auth_routes_1.default);
 app.use("/hub/orders", order_routes_1.default);
+app.use("/hub/staff", hubStaff_routes_1.default);
+app.use("/hub/role", hubRole_routes_1.default);
+app.use("/hub/manage/staff", hubManageStaff_routes_1.default);
+app.use("/hub/dashboard", dashboard_routes_3.default);
+// Mobile team markup routes (no /api prefix, proxy-friendly)
+app.use("/v1/settings", markup_routes_1.default);
 // Webhook endpoint (no auth, verified by signature)
 app.post("/webhook/cashfree", wallet_controller_1.cashfreeWebhook);
 exports.default = app;

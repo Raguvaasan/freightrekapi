@@ -4,6 +4,9 @@ exports.deleteShipment = exports.updateShipment = exports.trackShipment = export
 const shipment_service_1 = require("../services/shipment.service");
 const adminUser_model_1 = require("../models/admin/adminUser.model");
 const agency_model_1 = require("../models/admin/agency.model");
+const staff_model_1 = require("../models/admin/staff.model");
+const hub_model_1 = require("../models/hub/hub.model");
+const appCustomer_model_1 = require("../models/customer/appCustomer.model");
 const createShipment = async (req, res) => {
     try {
         const userId = req.user?.id;
@@ -16,6 +19,7 @@ const createShipment = async (req, res) => {
         const result = await shipment_service_1.shipmentService.createShipment({
             userId,
             ...req.body,
+            orderType: 'customer',
         });
         // Handle error responses (including insufficient wallet balance)
         if (!result.success) {
@@ -60,12 +64,26 @@ const getShipment = async (req, res) => {
         }
         // Check if user is admin
         let isAdmin = false;
+        let hubId;
         const user = await adminUser_model_1.AdminUser.findById(userId).populate('roleId');
         if (user && user.roleId) {
             const role = user.roleId;
             isAdmin = role.isRoot === true;
         }
-        const result = await shipment_service_1.shipmentService.getShipment(orderId, userId, isAdmin);
+        // Check if user is a hub or hub staff
+        if (!isAdmin) {
+            const staff = await staff_model_1.Staff.findById(userId).select('hubId type');
+            if (staff && staff.type === 'hub' && staff.hubId) {
+                hubId = staff.hubId.toString();
+            }
+            else {
+                const hub = await hub_model_1.HubModel.findById(userId);
+                if (hub) {
+                    hubId = hub._id.toString();
+                }
+            }
+        }
+        const result = await shipment_service_1.shipmentService.getShipment(orderId, userId, isAdmin, hubId);
         if (!result.success) {
             return res.status(404).json(result);
         }
@@ -94,17 +112,38 @@ const getShipments = async (req, res) => {
         // Check if user is admin
         let isAdmin = false;
         let franchiseUserIds = [];
+        let hubId;
         const user = await adminUser_model_1.AdminUser.findById(userId).populate('roleId');
         if (user && user.roleId) {
             const role = user.roleId;
             isAdmin = role.isRoot === true;
-            // If admin, get all franchise (Agency) user IDs
+            // If admin, get all franchise (Agency), hub AND app customer user IDs
             if (isAdmin) {
                 const agencies = await agency_model_1.Agency.find({}, '_id');
-                franchiseUserIds = agencies.map(agency => agency._id.toString());
+                const hubs = await hub_model_1.HubModel.find({}, '_id');
+                const customers = await appCustomer_model_1.AppCustomer.find({}, '_id');
+                franchiseUserIds = [
+                    ...agencies.map(agency => agency._id.toString()),
+                    ...hubs.map(hub => hub._id.toString()),
+                    ...customers.map(c => c._id.toString()),
+                ];
             }
         }
-        const result = await shipment_service_1.shipmentService.getShipments(userId, page, limit, status, isAdmin, franchiseUserIds);
+        // Check if user is hub staff
+        if (!isAdmin) {
+            const staff = await staff_model_1.Staff.findById(userId).select('hubId type');
+            if (staff && staff.type === 'hub' && staff.hubId) {
+                hubId = staff.hubId.toString();
+            }
+            else {
+                // Check if user is hub directly
+                const hub = await hub_model_1.HubModel.findById(userId);
+                if (hub) {
+                    hubId = hub._id.toString();
+                }
+            }
+        }
+        const result = await shipment_service_1.shipmentService.getShipments(userId, page, limit, status, isAdmin, franchiseUserIds, hubId);
         if (!result.success) {
             return res.status(400).json(result);
         }
