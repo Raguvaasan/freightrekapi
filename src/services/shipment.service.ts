@@ -266,11 +266,14 @@ export const shipmentService = {
         const fromState = shipmentData.fromState || shipmentData.state;
         const nearestHub = await findNearestHub(fromPin, fromCity, fromState);
         if (nearestHub) {
-          // Pickup location = sender's FROM address, not hub address
+          // Pickup location = hub's address after hub assignment
           shipmentData.pickupLocation = {
-            name: shipmentData.fromName || nearestHub.hubName,
-            address: shipmentData.fromAdd || nearestHub.address,
-            pincode: shipmentData.fromPin || nearestHub.pincode.toString(),
+            name: nearestHub.hubName,
+            address: nearestHub.address,
+            pincode: nearestHub.pincode.toString(),
+            city: nearestHub.city,
+            state: nearestHub.state,
+            phone: nearestHub.phoneNo?.toString(),
           };
           (shipmentData as any).assignedHubId = nearestHub._id.toString();
         } else {
