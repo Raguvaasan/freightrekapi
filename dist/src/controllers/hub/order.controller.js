@@ -86,7 +86,7 @@ const getHubOrder = async (req, res) => {
         if (!hubId)
             return res.status(403).json({ success: false, message: 'Hub staff access required' });
         const { orderId } = req.params;
-        const result = await shipment_service_1.shipmentService.getShipment(orderId, hubId, false);
+        const result = await shipment_service_1.shipmentService.getShipment(orderId, hubId, false, hubId);
         if (!result.success)
             return res.status(404).json(result);
         return res.status(200).json(result);

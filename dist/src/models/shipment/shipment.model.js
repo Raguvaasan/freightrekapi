@@ -86,6 +86,10 @@ const shipmentSchema = new mongoose_1.Schema({
         type: String,
         default: '100',
     },
+    shipmentLength: {
+        type: String,
+        default: '100',
+    },
     weight: String,
     shippingMode: {
         type: String,

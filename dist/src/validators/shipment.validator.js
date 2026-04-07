@@ -72,7 +72,7 @@ exports.createShipmentSchema = yup.object().shape({
     hsnCode: yup.string(),
     codAmount: yup.string(),
     orderDate: yup.date(),
-    totalAmount: yup.string(),
+    totalAmount: yup.string().test('positive-if-present', 'Total amount must be greater than 0', (val) => (!val || parseFloat(val) > 0)),
     sellerAdd: yup.string(),
     sellerName: yup.string(),
     sellerInv: yup.string(),
@@ -80,6 +80,7 @@ exports.createShipmentSchema = yup.object().shape({
     waybill: yup.string(),
     shipmentWidth: yup.string(),
     shipmentHeight: yup.string(),
+    shipmentLength: yup.string(),
     weight: yup.string(),
     shippingMode: yup
         .string()

@@ -83,6 +83,41 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
   }
 };
 
+// POST /hub/staff/booking/:orderId/place-delhivery
+export const placeDelhiveryOrder = async (req: Request, res: Response) => {
+  try {
+    const staffId = req.user?.id;
+    if (!staffId) return res.status(401).json({ success: false, message: 'Unauthorized' });
+
+    const { orderId } = req.params;
+
+    const result = await hubStaffService.placeDelhiveryOrder(staffId, orderId);
+    if (!result.success) return res.status(400).json(result);
+    return res.status(200).json(result);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message || 'Internal server error' });
+  }
+};
+
+// PATCH /hub/staff/booking/:orderId/awb
+export const updateAwb = async (req: Request, res: Response) => {
+  try {
+    const staffId = req.user?.id;
+    if (!staffId) return res.status(401).json({ success: false, message: 'Unauthorized' });
+
+    const { orderId } = req.params;
+    const { waybill, trackingUrl } = req.body;
+
+    if (!waybill) return res.status(400).json({ success: false, message: 'waybill is required' });
+
+    const result = await hubStaffService.updateAwb(staffId, orderId, waybill, trackingUrl);
+    if (!result.success) return res.status(400).json(result);
+    return res.status(200).json(result);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message || 'Internal server error' });
+  }
+};
+
 // PUT /hub/staff/account-settings
 export const updateAccountSettings = async (req: Request, res: Response) => {
   try {

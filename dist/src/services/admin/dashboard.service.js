@@ -5,6 +5,8 @@ const shipment_model_1 = require("../../models/shipment/shipment.model");
 const agency_model_1 = require("../../models/admin/agency.model");
 const wallet_model_1 = require("../../models/wallet/wallet.model");
 const transaction_model_1 = require("../../models/wallet/transaction.model");
+const hub_model_1 = require("../../models/hub/hub.model");
+const markup_model_1 = require("../../models/markup/markup.model");
 class AdminDashboardService {
     // Internal helper to compute a Mongo date filter from a period string
     getDateFilter(period, startDate, endDate) {
@@ -108,7 +110,7 @@ class AdminDashboardService {
             const todayStart = new Date();
             todayStart.setHours(0, 0, 0, 0);
             // Run all independent queries in parallel for better performance
-            const [totalShipments, activeShipments, inTransitCount, outForDeliveryCount, currentPeriodShipments, previousPeriodShipments, activeAgencies, allTimeRevenueData, todayRevenueData, currentPeriodRevenueData, previousPeriodRevenueData, revenueTrendData, shipmentTypeDistribution, ordersPerDay, todayOrders, recentBookingsData] = await Promise.all([
+            const [totalShipments, activeShipments, inTransitCount, outForDeliveryCount, currentPeriodShipments, previousPeriodShipments, activeAgencies, totalHubs, allTimeRevenueData, todayRevenueData, currentPeriodRevenueData, previousPeriodRevenueData, revenueTrendData, shipmentTypeDistribution, ordersPerDay, todayOrders, recentBookingsData] = await Promise.all([
                 shipment_model_1.Shipment.countDocuments(),
                 shipment_model_1.Shipment.countDocuments({ status: { $in: ['in_transit', 'out_for_delivery'] } }),
                 shipment_model_1.Shipment.countDocuments({ status: 'in_transit' }),
@@ -116,6 +118,7 @@ class AdminDashboardService {
                 shipment_model_1.Shipment.countDocuments({ createdAt: { $gte: startDate, $lte: now } }),
                 shipment_model_1.Shipment.countDocuments({ createdAt: { $gte: previousStartDate, $lte: previousEndDate } }),
                 agency_model_1.Agency.countDocuments({ status: 'Active' }),
+                hub_model_1.HubModel.countDocuments({ status: true }),
                 shipment_model_1.Shipment.find({ status: 'Active' }).lean(),
                 shipment_model_1.Shipment.find({ status: 'Active', createdAt: { $gte: todayStart } }).lean(),
                 shipment_model_1.Shipment.find({ status: 'Active', createdAt: { $gte: startDate, $lte: now } }).lean(),
@@ -157,6 +160,28 @@ class AdminDashboardService {
             const totalRevenue = allTimeRevenueData.reduce((sum, shipment) => {
                 return sum + parseFloat(shipment.totalAmount || shipment.codAmount || '0');
             }, 0);
+            // Calculate revenue split: delhivery cost vs markup profit
+            const globalMarkup = await markup_model_1.Markup.findOne({ markupCategory: 'rate_calculator', userId: null, franchiseId: null, isActive: true }).lean();
+            let delhiveryCost = 0;
+            let markupProfit = 0;
+            if (globalMarkup) {
+                if (globalMarkup.markupType === 'percentage') {
+                    delhiveryCost = parseFloat((totalRevenue / (1 + globalMarkup.markupValue / 100)).toFixed(2));
+                }
+                else {
+                    // fixed: each shipment has a fixed markup added
+                    const shipmentCount = allTimeRevenueData.length;
+                    markupProfit = parseFloat((globalMarkup.markupValue * shipmentCount).toFixed(2));
+                    delhiveryCost = parseFloat((totalRevenue - markupProfit).toFixed(2));
+                }
+                if (globalMarkup.markupType === 'percentage') {
+                    markupProfit = parseFloat((totalRevenue - delhiveryCost).toFixed(2));
+                }
+            }
+            else {
+                delhiveryCost = totalRevenue;
+                markupProfit = 0;
+            }
             // Calculate today's revenue
             const todayRevenue = todayRevenueData.reduce((sum, shipment) => {
                 return sum + parseFloat(shipment.totalAmount || shipment.codAmount || '0');
@@ -239,11 +264,14 @@ class AdminDashboardService {
                         },
                         revenue: {
                             total: totalRevenue,
+                            delhiveryCost: delhiveryCost,
+                            markupProfit: markupProfit,
                             today: todayRevenue,
                             percentageChange: revenuePercentageChange,
                             currency: '₹',
                         },
                         activeAgencies: activeAgencies,
+                        totalHubs: totalHubs,
                     },
                     revenueTrend: revenueTrend,
                     ordersPerDay: ordersPerDay,

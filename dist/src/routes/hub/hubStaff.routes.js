@@ -119,6 +119,59 @@ router.get('/booking/:orderId', hubStaff_controller_1.getBookingDetail);
 router.patch('/booking/:orderId/status', hubStaff_controller_1.updateOrderStatus);
 /**
  * @swagger
+ * /hub/staff/booking/{orderId}/place-delhivery:
+ *   post:
+ *     summary: Place order in Delhivery and get AWB number + tracking URL
+ *     tags: [Hub Staff]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: orderId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Returns waybill (AWB) and tracking URL from Delhivery
+ */
+router.post('/booking/:orderId/place-delhivery', hubStaff_controller_1.placeDelhiveryOrder);
+/**
+ * @swagger
+ * /hub/staff/booking/{orderId}/awb:
+ *   patch:
+ *     summary: Update AWB number and tracking URL (after placing order directly in Delhivery)
+ *     tags: [Hub Staff]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: orderId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - waybill
+ *             properties:
+ *               waybill:
+ *                 type: string
+ *                 description: AWB number from Delhivery
+ *               trackingUrl:
+ *                 type: string
+ *                 description: Optional custom tracking URL (auto-generated if not provided)
+ *     responses:
+ *       200:
+ *         description: AWB and tracking URL saved
+ */
+router.patch('/booking/:orderId/awb', hubStaff_controller_1.updateAwb);
+/**
+ * @swagger
  * /hub/staff/booking/{orderId}/edit:
  *   put:
  *     summary: Edit order details (weight, dimensions, amount, address)

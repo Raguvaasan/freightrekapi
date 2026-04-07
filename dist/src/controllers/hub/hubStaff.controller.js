@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.editOrder = exports.updateAccountSettings = exports.updateOrderStatus = exports.getBookingDetail = exports.getDeliveryHistory = exports.getMyTasks = exports.getProfile = void 0;
+exports.editOrder = exports.updateAccountSettings = exports.updateAwb = exports.placeDelhiveryOrder = exports.updateOrderStatus = exports.getBookingDetail = exports.getDeliveryHistory = exports.getMyTasks = exports.getProfile = void 0;
 const hubStaff_service_1 = require("../../services/hub/hubStaff.service");
 // GET /hub/staff/profile
 const getProfile = async (req, res) => {
@@ -91,6 +91,43 @@ const updateOrderStatus = async (req, res) => {
     }
 };
 exports.updateOrderStatus = updateOrderStatus;
+// POST /hub/staff/booking/:orderId/place-delhivery
+const placeDelhiveryOrder = async (req, res) => {
+    try {
+        const staffId = req.user?.id;
+        if (!staffId)
+            return res.status(401).json({ success: false, message: 'Unauthorized' });
+        const { orderId } = req.params;
+        const result = await hubStaff_service_1.hubStaffService.placeDelhiveryOrder(staffId, orderId);
+        if (!result.success)
+            return res.status(400).json(result);
+        return res.status(200).json(result);
+    }
+    catch (err) {
+        return res.status(500).json({ success: false, message: err.message || 'Internal server error' });
+    }
+};
+exports.placeDelhiveryOrder = placeDelhiveryOrder;
+// PATCH /hub/staff/booking/:orderId/awb
+const updateAwb = async (req, res) => {
+    try {
+        const staffId = req.user?.id;
+        if (!staffId)
+            return res.status(401).json({ success: false, message: 'Unauthorized' });
+        const { orderId } = req.params;
+        const { waybill, trackingUrl } = req.body;
+        if (!waybill)
+            return res.status(400).json({ success: false, message: 'waybill is required' });
+        const result = await hubStaff_service_1.hubStaffService.updateAwb(staffId, orderId, waybill, trackingUrl);
+        if (!result.success)
+            return res.status(400).json(result);
+        return res.status(200).json(result);
+    }
+    catch (err) {
+        return res.status(500).json({ success: false, message: err.message || 'Internal server error' });
+    }
+};
+exports.updateAwb = updateAwb;
 // PUT /hub/staff/account-settings
 const updateAccountSettings = async (req, res) => {
     try {

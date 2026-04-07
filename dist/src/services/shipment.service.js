@@ -16,7 +16,7 @@ async function createDelhiveryShipment(shipment) {
     try {
         const delhiveryUrl = process.env.DELHIVERY_API_URL ||
             process.env.DELHIVERY_API_BASE_URL ||
-            'https://staging-express.delhivery.com';
+            'https://track.delhivery.com';
         const delhiveryToken = (process.env.DELHIVERY_API_TOKEN || process.env.DELHIVERY_API_KEY || '').trim();
         if (!delhiveryToken) {
             return { success: false, error: 'Delhivery API token not configured' };
@@ -60,11 +60,6 @@ async function createDelhiveryShipment(shipment) {
             ],
             pickup_location: {
                 name: shipment.pickupLocation?.name || '',
-                add: shipment.pickupLocation?.address || '',
-                city: shipment.pickupLocation?.city || '',
-                pin_code: shipment.pickupLocation?.pincode || '',
-                country: shipment.pickupLocation?.country || 'India',
-                phone: shipment.pickupLocation?.phone || '',
             },
         };
         const response = await axios_1.default.post(`${delhiveryUrl}/api/cmu/create.json`, `format=json&data=${encodeURIComponent(JSON.stringify(delhiveryPayload))}`, {
@@ -125,6 +120,21 @@ exports.shipmentService = {
             // Generate unique order ID if not provided
             const orderId = `ORD_${userId}_${Date.now()}`;
             debitOrderId = orderId;
+            // For COD orders: use totalAmount as codAmount if codAmount is missing/zero
+            if (shipmentData.paymentMode === 'COD') {
+                const codAmt = parseFloat(shipmentData.codAmount || '0');
+                const totalAmt = parseFloat(shipmentData.totalAmount || '0');
+                if (codAmt <= 0 && totalAmt > 0) {
+                    shipmentData.codAmount = shipmentData.totalAmount;
+                }
+                else if (codAmt <= 0 && totalAmt <= 0) {
+                    console.log('❌ No valid amount for COD order');
+                    return {
+                        success: false,
+                        message: 'Amount is required for COD orders. Please provide totalAmount or codAmount.',
+                    };
+                }
+            }
             // Handle Prepaid payment
             if (shipmentData.paymentMode === 'Prepaid' && !shipmentData.skipWalletCheck) {
                 const amount = parseFloat(shipmentData.totalAmount || '0');
@@ -173,8 +183,13 @@ exports.shipmentService = {
             }
             // Auto-assign nearest hub if pickupLocation not provided
             if (!shipmentData.pickupLocation || !shipmentData.pickupLocation.name) {
-                const nearestHub = await findNearestHub(shipmentData.pin, shipmentData.city, shipmentData.state);
+                // Use FROM address (sender) to find nearest hub, not consignee address
+                const fromPin = shipmentData.fromPin || shipmentData.pin;
+                const fromCity = shipmentData.fromCity || shipmentData.city;
+                const fromState = shipmentData.fromState || shipmentData.state;
+                const nearestHub = await findNearestHub(fromPin, fromCity, fromState);
                 if (nearestHub) {
+                    // Pickup location = hub's address after hub assignment
                     shipmentData.pickupLocation = {
                         name: nearestHub.hubName,
                         address: nearestHub.address,
@@ -225,6 +240,7 @@ exports.shipmentService = {
                 shippingMode: shipmentData.shippingMode || 'Surface',
                 shipmentWidth: shipmentData.shipmentWidth || '100',
                 shipmentHeight: shipmentData.shipmentHeight || '100',
+                shipmentLength: shipmentData.shipmentLength || '100',
                 assignedHubId: shipmentData.assignedHubId || undefined,
                 assignedStaffId: shipmentData.assignedStaffId || undefined,
                 orderType: shipmentData.orderType || 'customer',
@@ -271,16 +287,11 @@ exports.shipmentService = {
                     ],
                     pickup_location: {
                         name: shipmentData.pickupLocation.name,
-                        add: shipmentData.pickupLocation.address || '',
-                        city: shipmentData.pickupLocation.city || '',
-                        pin_code: shipmentData.pickupLocation.pincode || '',
-                        country: shipmentData.pickupLocation.country || 'India',
-                        phone: shipmentData.pickupLocation.phone || '',
                     },
                 };
                 const delhiveryUrl = process.env.DELHIVERY_API_URL ||
                     process.env.DELHIVERY_API_BASE_URL ||
-                    'https://staging-express.delhivery.com';
+                    'https://track.delhivery.com';
                 const delhiveryToken = (process.env.DELHIVERY_API_TOKEN || process.env.DELHIVERY_API_KEY || '').trim();
                 if (delhiveryToken) {
                     const response = await axios_1.default.post(`${delhiveryUrl}/api/cmu/create.json`, `format=json&data=${encodeURIComponent(JSON.stringify(delhiveryPayload))}`, {
@@ -431,10 +442,11 @@ exports.shipmentService = {
                         dimensions: {
                             width: shipment.shipmentWidth,
                             height: shipment.shipmentHeight,
+                            length: shipment.shipmentLength,
                         },
                     },
                     amount: shipment.paymentMode == 'COD'
-                        ? (shipment.codAmount || '0')
+                        ? (parseFloat(shipment.codAmount || '0') > 0 ? shipment.codAmount : shipment.totalAmount || '0')
                         : (shipment.totalAmount || '0'),
                     totalAmount: shipment.totalAmount || '0',
                     codAmount: shipment.codAmount || '0',
@@ -541,8 +553,8 @@ exports.shipmentService = {
                             weight: s.weight,
                         },
                         amount: s.paymentMode === 'COD'
-                            ? (s.codAmount || s.totalAmount || '0')
-                            : (s.totalAmount || s.codAmount || '0'),
+                            ? (parseFloat(s.codAmount || '0') > 0 ? s.codAmount : s.totalAmount || '0')
+                            : (parseFloat(s.totalAmount || '0') > 0 ? s.totalAmount : s.codAmount || '0'),
                         pickupLocation: {
                             name: s.pickupLocation?.name,
                             address: s.pickupLocation?.address || pickupDetails?.address,
@@ -589,7 +601,7 @@ exports.shipmentService = {
             // Call Delhivery tracking API
             const delhiveryUrl = process.env.DELHIVERY_API_URL ||
                 process.env.DELHIVERY_API_BASE_URL ||
-                'https://staging-express.delhivery.com';
+                'https://track.delhivery.com';
             const delhiveryToken = (process.env.DELHIVERY_API_TOKEN || process.env.DELHIVERY_API_KEY || '').trim();
             if (!delhiveryToken) {
                 throw new Error('Delhivery API token not configured');

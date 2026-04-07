@@ -66,7 +66,7 @@ async function createDelhiveryShipment(shipment: any): Promise<{ success: boolea
     const delhiveryUrl =
       process.env.DELHIVERY_API_URL ||
       process.env.DELHIVERY_API_BASE_URL ||
-      'https://staging-express.delhivery.com';
+      'https://track.delhivery.com';
     const delhiveryToken = (process.env.DELHIVERY_API_TOKEN || process.env.DELHIVERY_API_KEY || '').trim();
 
     if (!delhiveryToken) {
@@ -112,11 +112,6 @@ async function createDelhiveryShipment(shipment: any): Promise<{ success: boolea
       ],
       pickup_location: {
         name: shipment.pickupLocation?.name || '',
-        add: shipment.pickupLocation?.address || '',
-        city: shipment.pickupLocation?.city || '',
-        pin_code: shipment.pickupLocation?.pincode || '',
-        country: shipment.pickupLocation?.country || 'India',
-        phone: shipment.pickupLocation?.phone || '',
       },
     };
 
@@ -365,18 +360,13 @@ export const shipmentService = {
           ],
           pickup_location: {
             name: shipmentData.pickupLocation.name,
-            add: shipmentData.pickupLocation.address || '',
-            city: shipmentData.pickupLocation.city || '',
-            pin_code: shipmentData.pickupLocation.pincode || '',
-            country: shipmentData.pickupLocation.country || 'India',
-            phone: shipmentData.pickupLocation.phone || '',
           },
         };
 
         const delhiveryUrl =
           process.env.DELHIVERY_API_URL ||
           process.env.DELHIVERY_API_BASE_URL ||
-          'https://staging-express.delhivery.com';
+          'https://track.delhivery.com';
         const delhiveryToken = (process.env.DELHIVERY_API_TOKEN || process.env.DELHIVERY_API_KEY || '').trim();
 
         if (delhiveryToken) {
@@ -711,7 +701,7 @@ export const shipmentService = {
       const delhiveryUrl =
         process.env.DELHIVERY_API_URL ||
         process.env.DELHIVERY_API_BASE_URL ||
-        'https://staging-express.delhivery.com';
+        'https://track.delhivery.com';
       const delhiveryToken = (process.env.DELHIVERY_API_TOKEN || process.env.DELHIVERY_API_KEY || '').trim();
 
       if (!delhiveryToken) {
