@@ -5,6 +5,8 @@ import { Transaction } from '../models/wallet/transaction.model';
 import { Agency } from '../models/admin/agency.model';
 import { AppCustomer } from '../models/customer/appCustomer.model';
 import { HubModel } from '../models/hub/hub.model';
+import { Types } from 'mongoose';
+import { Markup } from '../models/markup/markup.model';
 
 interface CreateShipmentData {
   userId: string;
@@ -303,6 +305,40 @@ export const shipmentService = {
         }
       }
 
+      // Calculate markup for all order types (customer and hub)
+      let baseAmount: number | undefined;
+      let markupAmount: number | undefined;
+      let markupType: 'percentage' | 'fixed' | undefined;
+      let markupValue: number | undefined;
+
+      const rawAmount = parseFloat(shipmentData.totalAmount || '0');
+      if (rawAmount > 0) {
+        baseAmount = rawAmount;
+        // Fetch markup: user-specific > global
+        const markupQueries: any[] = [
+          { markupCategory: 'rate_card', userId: new Types.ObjectId(userId), isActive: true },
+          { markupCategory: 'rate_card', userId: null, franchiseId: null, isActive: true },
+        ];
+        let appliedMarkup: any = null;
+        for (const q of markupQueries) {
+          appliedMarkup = await Markup.findOne(q).lean();
+          if (appliedMarkup) break;
+        }
+        if (appliedMarkup) {
+          markupType = appliedMarkup.markupType;
+          markupValue = appliedMarkup.markupValue;
+          let addedMarkup: number;
+          if (appliedMarkup.markupType === 'percentage') {
+            addedMarkup = parseFloat(((rawAmount * appliedMarkup.markupValue) / 100).toFixed(2));
+          } else {
+            addedMarkup = appliedMarkup.markupValue;
+          }
+          markupAmount = parseFloat((rawAmount + addedMarkup).toFixed(2));
+        } else {
+          markupAmount = rawAmount;
+        }
+      }
+
       // Create shipment in database
       const shipment = await Shipment.create({
         userId,
@@ -317,6 +353,10 @@ export const shipmentService = {
         assignedStaffId: shipmentData.assignedStaffId || undefined,
         orderType: shipmentData.orderType || 'customer',
         status: shipmentData.orderType == 'hub' ? 'Active' : 'pending',
+        baseAmount,
+        markupAmount,
+        markupType,
+        markupValue,
       });
 
       // Try Delhivery API to get waybill (optional - order is already created)
@@ -544,6 +584,10 @@ export const shipmentService = {
           hsnCode: shipment.hsnCode || '',
           pickupLocation: shipment.pickupLocation,
           delhiveryResponse: shipment.delhiveryResponse || null,
+          baseAmount: shipment.baseAmount ?? null,
+          markupAmount: shipment.markupAmount ?? null,
+          markupType: shipment.markupType ?? null,
+          markupValue: shipment.markupValue ?? null,
           createdAt: shipment.createdAt,
           updatedAt: shipment.updatedAt,
         },
@@ -659,6 +703,10 @@ export const shipmentService = {
           assignedStaffId: s.assignedStaffId || null,
           orderType: s.orderType || 'customer',
           delhiveryResponse: s.delhiveryResponse || null,
+          baseAmount: s.baseAmount ?? null,
+          markupAmount: s.markupAmount ?? null,
+          markupType: s.markupType ?? null,
+          markupValue: s.markupValue ?? null,
           createdAt: s.createdAt,
           updatedAt: s.updatedAt,
         };
@@ -769,6 +817,38 @@ export const shipmentService = {
         }
       });
 
+      // Recalculate markup if totalAmount is being updated
+      if (updateData.totalAmount !== undefined) {
+        const rawAmount = parseFloat(updateData.totalAmount || '0');
+        if (rawAmount > 0) {
+          shipment.baseAmount = rawAmount;
+          const markupQueries: any[] = [
+            { markupCategory: 'rate_card', userId: new Types.ObjectId(shipment.userId), isActive: true },
+            { markupCategory: 'rate_card', userId: null, franchiseId: null, isActive: true },
+          ];
+          let appliedMarkup: any = null;
+          for (const q of markupQueries) {
+            appliedMarkup = await Markup.findOne(q).lean();
+            if (appliedMarkup) break;
+          }
+          if (appliedMarkup) {
+            shipment.markupType = appliedMarkup.markupType;
+            shipment.markupValue = appliedMarkup.markupValue;
+            let addedMarkup: number;
+            if (appliedMarkup.markupType === 'percentage') {
+              addedMarkup = parseFloat(((rawAmount * appliedMarkup.markupValue) / 100).toFixed(2));
+            } else {
+              addedMarkup = appliedMarkup.markupValue;
+            }
+            shipment.markupAmount = parseFloat((rawAmount + addedMarkup).toFixed(2));
+          } else {
+            shipment.markupAmount = rawAmount;
+            shipment.markupType = undefined;
+            shipment.markupValue = undefined;
+          }
+        }
+      }
+
       await shipment.save();
 
       // If status changed to Active (confirmed) and no waybill yet, call Delhivery create API
@@ -785,6 +865,10 @@ export const shipmentService = {
           status: shipment.status,
           trackingUrl: shipment.trackingUrl,
           delhiveryResponse: shipment.delhiveryResponse || null,
+          baseAmount: shipment.baseAmount ?? null,
+          markupAmount: shipment.markupAmount ?? null,
+          markupType: shipment.markupType ?? null,
+          markupValue: shipment.markupValue ?? null,
           updatedAt: shipment.updatedAt,
         },
       };

@@ -48,6 +48,10 @@ export interface IShipment {
   };
   orderType: 'hub' | 'customer';
   status: 'pending' | 'created' | 'Active' | 'in_transit' | 'delivered' | 'failed' | 'cancelled';
+  baseAmount?: number;
+  markupAmount?: number;
+  markupType?: 'percentage' | 'fixed';
+  markupValue?: number;
   assignedHubId?: string;
   assignedStaffId?: string;
   delhiveryResponse?: any;
@@ -175,6 +179,19 @@ const shipmentSchema = new Schema<IShipment>(
       enum: ['pending', 'created', 'Active', 'in_transit', 'delivered', 'failed', 'cancelled'],
       default: 'pending',
       index: true,
+    },
+    baseAmount: {
+      type: Number,
+    },
+    markupAmount: {
+      type: Number,
+    },
+    markupType: {
+      type: String,
+      enum: ['percentage', 'fixed'],
+    },
+    markupValue: {
+      type: Number,
     },
     delhiveryResponse: {
       type: Schema.Types.Mixed,

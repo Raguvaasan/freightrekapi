@@ -121,6 +121,19 @@ const shipmentSchema = new mongoose_1.Schema({
         default: 'pending',
         index: true,
     },
+    baseAmount: {
+        type: Number,
+    },
+    markupAmount: {
+        type: Number,
+    },
+    markupType: {
+        type: String,
+        enum: ['percentage', 'fixed'],
+    },
+    markupValue: {
+        type: Number,
+    },
     delhiveryResponse: {
         type: mongoose_1.Schema.Types.Mixed,
     },

@@ -11,6 +11,8 @@ const transaction_model_1 = require("../models/wallet/transaction.model");
 const agency_model_1 = require("../models/admin/agency.model");
 const appCustomer_model_1 = require("../models/customer/appCustomer.model");
 const hub_model_1 = require("../models/hub/hub.model");
+const mongoose_1 = require("mongoose");
+const markup_model_1 = require("../models/markup/markup.model");
 // Helper: Call Delhivery create API for an existing shipment and update it
 async function createDelhiveryShipment(shipment) {
     try {
@@ -231,6 +233,41 @@ exports.shipmentService = {
                     }
                 }
             }
+            // Calculate markup for all order types (customer and hub)
+            let baseAmount;
+            let markupAmount;
+            let markupType;
+            let markupValue;
+            const rawAmount = parseFloat(shipmentData.totalAmount || '0');
+            if (rawAmount > 0) {
+                baseAmount = rawAmount;
+                // Fetch markup: user-specific > global
+                const markupQueries = [
+                    { markupCategory: 'rate_card', userId: new mongoose_1.Types.ObjectId(userId), isActive: true },
+                    { markupCategory: 'rate_card', userId: null, franchiseId: null, isActive: true },
+                ];
+                let appliedMarkup = null;
+                for (const q of markupQueries) {
+                    appliedMarkup = await markup_model_1.Markup.findOne(q).lean();
+                    if (appliedMarkup)
+                        break;
+                }
+                if (appliedMarkup) {
+                    markupType = appliedMarkup.markupType;
+                    markupValue = appliedMarkup.markupValue;
+                    let addedMarkup;
+                    if (appliedMarkup.markupType === 'percentage') {
+                        addedMarkup = parseFloat(((rawAmount * appliedMarkup.markupValue) / 100).toFixed(2));
+                    }
+                    else {
+                        addedMarkup = appliedMarkup.markupValue;
+                    }
+                    markupAmount = parseFloat((rawAmount + addedMarkup).toFixed(2));
+                }
+                else {
+                    markupAmount = rawAmount;
+                }
+            }
             // Create shipment in database
             const shipment = await shipment_model_1.Shipment.create({
                 userId,
@@ -245,6 +282,10 @@ exports.shipmentService = {
                 assignedStaffId: shipmentData.assignedStaffId || undefined,
                 orderType: shipmentData.orderType || 'customer',
                 status: shipmentData.orderType == 'hub' ? 'Active' : 'pending',
+                baseAmount,
+                markupAmount,
+                markupType,
+                markupValue,
             });
             // Try Delhivery API to get waybill (optional - order is already created)
             try {
@@ -457,6 +498,10 @@ exports.shipmentService = {
                     hsnCode: shipment.hsnCode || '',
                     pickupLocation: shipment.pickupLocation,
                     delhiveryResponse: shipment.delhiveryResponse || null,
+                    baseAmount: shipment.baseAmount ?? null,
+                    markupAmount: shipment.markupAmount ?? null,
+                    markupType: shipment.markupType ?? null,
+                    markupValue: shipment.markupValue ?? null,
                     createdAt: shipment.createdAt,
                     updatedAt: shipment.updatedAt,
                 },
@@ -563,6 +608,10 @@ exports.shipmentService = {
                         assignedStaffId: s.assignedStaffId || null,
                         orderType: s.orderType || 'customer',
                         delhiveryResponse: s.delhiveryResponse || null,
+                        baseAmount: s.baseAmount ?? null,
+                        markupAmount: s.markupAmount ?? null,
+                        markupType: s.markupType ?? null,
+                        markupValue: s.markupValue ?? null,
                         createdAt: s.createdAt,
                         updatedAt: s.updatedAt,
                     };
@@ -658,6 +707,40 @@ exports.shipmentService = {
                     shipment[key] = updateData[key];
                 }
             });
+            // Recalculate markup if totalAmount is being updated
+            if (updateData.totalAmount !== undefined) {
+                const rawAmount = parseFloat(updateData.totalAmount || '0');
+                if (rawAmount > 0) {
+                    shipment.baseAmount = rawAmount;
+                    const markupQueries = [
+                        { markupCategory: 'rate_card', userId: new mongoose_1.Types.ObjectId(shipment.userId), isActive: true },
+                        { markupCategory: 'rate_card', userId: null, franchiseId: null, isActive: true },
+                    ];
+                    let appliedMarkup = null;
+                    for (const q of markupQueries) {
+                        appliedMarkup = await markup_model_1.Markup.findOne(q).lean();
+                        if (appliedMarkup)
+                            break;
+                    }
+                    if (appliedMarkup) {
+                        shipment.markupType = appliedMarkup.markupType;
+                        shipment.markupValue = appliedMarkup.markupValue;
+                        let addedMarkup;
+                        if (appliedMarkup.markupType === 'percentage') {
+                            addedMarkup = parseFloat(((rawAmount * appliedMarkup.markupValue) / 100).toFixed(2));
+                        }
+                        else {
+                            addedMarkup = appliedMarkup.markupValue;
+                        }
+                        shipment.markupAmount = parseFloat((rawAmount + addedMarkup).toFixed(2));
+                    }
+                    else {
+                        shipment.markupAmount = rawAmount;
+                        shipment.markupType = undefined;
+                        shipment.markupValue = undefined;
+                    }
+                }
+            }
             await shipment.save();
             // If status changed to Active (confirmed) and no waybill yet, call Delhivery create API
             if (shipment.status === 'Active' && previousStatus !== 'Active' && !shipment.waybill) {
@@ -672,6 +755,10 @@ exports.shipmentService = {
                     status: shipment.status,
                     trackingUrl: shipment.trackingUrl,
                     delhiveryResponse: shipment.delhiveryResponse || null,
+                    baseAmount: shipment.baseAmount ?? null,
+                    markupAmount: shipment.markupAmount ?? null,
+                    markupType: shipment.markupType ?? null,
+                    markupValue: shipment.markupValue ?? null,
                     updatedAt: shipment.updatedAt,
                 },
             };
