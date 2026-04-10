@@ -238,34 +238,45 @@ exports.shipmentService = {
             let markupAmount;
             let markupType;
             let markupValue;
-            const rawAmount = parseFloat(shipmentData.totalAmount || '0');
-            if (rawAmount > 0) {
-                baseAmount = rawAmount;
-                // Fetch markup: user-specific > global
-                const markupQueries = [
-                    { markupCategory: 'rate_card', userId: new mongoose_1.Types.ObjectId(userId), isActive: true },
-                    { markupCategory: 'rate_card', userId: null, franchiseId: null, isActive: true },
-                ];
-                let appliedMarkup = null;
-                for (const q of markupQueries) {
-                    appliedMarkup = await markup_model_1.Markup.findOne(q).lean();
-                    if (appliedMarkup)
-                        break;
-                }
-                if (appliedMarkup) {
-                    markupType = appliedMarkup.markupType;
-                    markupValue = appliedMarkup.markupValue;
-                    let addedMarkup;
-                    if (appliedMarkup.markupType === 'percentage') {
-                        addedMarkup = parseFloat(((rawAmount * appliedMarkup.markupValue) / 100).toFixed(2));
+            // If payload has baseAmount/markupAmount, use them directly (skip auto-calculate)
+            const payloadBaseAmount = shipmentData.baseAmount !== undefined ? parseFloat(String(shipmentData.baseAmount)) : NaN;
+            const payloadMarkupAmount = shipmentData.markupAmount !== undefined ? parseFloat(String(shipmentData.markupAmount)) : NaN;
+            if (!isNaN(payloadBaseAmount) && !isNaN(payloadMarkupAmount)) {
+                baseAmount = payloadBaseAmount;
+                markupAmount = payloadMarkupAmount;
+                markupType = shipmentData.markupType;
+                markupValue = shipmentData.markupValue !== undefined ? parseFloat(String(shipmentData.markupValue)) : undefined;
+            }
+            else {
+                const rawAmount = parseFloat(shipmentData.totalAmount || '0');
+                if (rawAmount > 0) {
+                    baseAmount = rawAmount;
+                    // Fetch markup: user-specific > global
+                    const markupQueries = [
+                        { markupCategory: 'rate_card', userId: new mongoose_1.Types.ObjectId(userId), isActive: true },
+                        { markupCategory: 'rate_card', userId: null, franchiseId: null, isActive: true },
+                    ];
+                    let appliedMarkup = null;
+                    for (const q of markupQueries) {
+                        appliedMarkup = await markup_model_1.Markup.findOne(q).lean();
+                        if (appliedMarkup)
+                            break;
+                    }
+                    if (appliedMarkup) {
+                        markupType = appliedMarkup.markupType;
+                        markupValue = appliedMarkup.markupValue;
+                        let addedMarkup;
+                        if (appliedMarkup.markupType === 'percentage') {
+                            addedMarkup = parseFloat(((rawAmount * appliedMarkup.markupValue) / 100).toFixed(2));
+                        }
+                        else {
+                            addedMarkup = appliedMarkup.markupValue;
+                        }
+                        markupAmount = parseFloat((rawAmount + addedMarkup).toFixed(2));
                     }
                     else {
-                        addedMarkup = appliedMarkup.markupValue;
+                        markupAmount = rawAmount;
                     }
-                    markupAmount = parseFloat((rawAmount + addedMarkup).toFixed(2));
-                }
-                else {
-                    markupAmount = rawAmount;
                 }
             }
             // Create shipment in database
@@ -385,11 +396,21 @@ exports.shipmentService = {
                     quantity: shipment.quantity || '1',
                     weight: shipment.weight || '',
                     shippingMode: shipment.shippingMode,
+                    dimensions: {
+                        width: shipment.shipmentWidth || '100',
+                        height: shipment.shipmentHeight || '100',
+                        length: shipment.shipmentLength || '100',
+                    },
                     // Pickup
                     pickupLocation: shipment.pickupLocation,
                     assignedHubId: shipment.assignedHubId || null,
                     assignedStaffId: shipment.assignedStaffId || null,
                     orderType: shipment.orderType || 'customer',
+                    // Markup fields
+                    baseAmount: shipment.baseAmount ?? null,
+                    markupAmount: shipment.markupAmount ?? null,
+                    markupType: shipment.markupType ?? null,
+                    markupValue: shipment.markupValue ?? null,
                     // Timestamps
                     createdAt: shipment.createdAt,
                 },
@@ -498,8 +519,8 @@ exports.shipmentService = {
                     hsnCode: shipment.hsnCode || '',
                     pickupLocation: shipment.pickupLocation,
                     delhiveryResponse: shipment.delhiveryResponse || null,
-                    baseAmount: shipment.baseAmount ?? null,
-                    markupAmount: shipment.markupAmount ?? null,
+                    baseAmount: shipment.baseAmount ?? (parseFloat(shipment.totalAmount || '0') || null),
+                    markupAmount: shipment.markupAmount ?? (parseFloat(shipment.totalAmount || '0') || null),
                     markupType: shipment.markupType ?? null,
                     markupValue: shipment.markupValue ?? null,
                     createdAt: shipment.createdAt,
@@ -595,6 +616,11 @@ exports.shipmentService = {
                             order: s.order,
                             paymentMode: s.paymentMode,
                             shippingMode: s.shippingMode,
+                            dimensions: {
+                                width: s.shipmentWidth || '100',
+                                height: s.shipmentHeight || '100',
+                                length: s.shipmentLength || '100',
+                            },
                             weight: s.weight,
                         },
                         amount: s.paymentMode === 'COD'
@@ -608,8 +634,8 @@ exports.shipmentService = {
                         assignedStaffId: s.assignedStaffId || null,
                         orderType: s.orderType || 'customer',
                         delhiveryResponse: s.delhiveryResponse || null,
-                        baseAmount: s.baseAmount ?? null,
-                        markupAmount: s.markupAmount ?? null,
+                        baseAmount: s.baseAmount ?? (parseFloat(s.totalAmount || '0') || null),
+                        markupAmount: s.markupAmount ?? (parseFloat(s.totalAmount || '0') || null),
                         markupType: s.markupType ?? null,
                         markupValue: s.markupValue ?? null,
                         createdAt: s.createdAt,

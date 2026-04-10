@@ -60,6 +60,10 @@ interface CreateShipmentData {
   assignedStaffId?: string;
   orderType?: 'hub' | 'customer';
   skipWalletCheck?: boolean;
+  baseAmount?: number | string;
+  markupAmount?: number | string;
+  markupType?: 'percentage' | 'fixed';
+  markupValue?: number | string;
 }
 
 // Helper: Call Delhivery create API for an existing shipment and update it
@@ -311,31 +315,42 @@ export const shipmentService = {
       let markupType: 'percentage' | 'fixed' | undefined;
       let markupValue: number | undefined;
 
-      const rawAmount = parseFloat(shipmentData.totalAmount || '0');
-      if (rawAmount > 0) {
-        baseAmount = rawAmount;
-        // Fetch markup: user-specific > global
-        const markupQueries: any[] = [
-          { markupCategory: 'rate_card', userId: new Types.ObjectId(userId), isActive: true },
-          { markupCategory: 'rate_card', userId: null, franchiseId: null, isActive: true },
-        ];
-        let appliedMarkup: any = null;
-        for (const q of markupQueries) {
-          appliedMarkup = await Markup.findOne(q).lean();
-          if (appliedMarkup) break;
-        }
-        if (appliedMarkup) {
-          markupType = appliedMarkup.markupType;
-          markupValue = appliedMarkup.markupValue;
-          let addedMarkup: number;
-          if (appliedMarkup.markupType === 'percentage') {
-            addedMarkup = parseFloat(((rawAmount * appliedMarkup.markupValue) / 100).toFixed(2));
-          } else {
-            addedMarkup = appliedMarkup.markupValue;
+      // If payload has baseAmount/markupAmount, use them directly (skip auto-calculate)
+      const payloadBaseAmount = shipmentData.baseAmount !== undefined ? parseFloat(String(shipmentData.baseAmount)) : NaN;
+      const payloadMarkupAmount = shipmentData.markupAmount !== undefined ? parseFloat(String(shipmentData.markupAmount)) : NaN;
+
+      if (!isNaN(payloadBaseAmount) && !isNaN(payloadMarkupAmount)) {
+        baseAmount = payloadBaseAmount;
+        markupAmount = payloadMarkupAmount;
+        markupType = shipmentData.markupType;
+        markupValue = shipmentData.markupValue !== undefined ? parseFloat(String(shipmentData.markupValue)) : undefined;
+      } else {
+        const rawAmount = parseFloat(shipmentData.totalAmount || '0');
+        if (rawAmount > 0) {
+          baseAmount = rawAmount;
+          // Fetch markup: user-specific > global
+          const markupQueries: any[] = [
+            { markupCategory: 'rate_card', userId: new Types.ObjectId(userId), isActive: true },
+            { markupCategory: 'rate_card', userId: null, franchiseId: null, isActive: true },
+          ];
+          let appliedMarkup: any = null;
+          for (const q of markupQueries) {
+            appliedMarkup = await Markup.findOne(q).lean();
+            if (appliedMarkup) break;
           }
-          markupAmount = parseFloat((rawAmount + addedMarkup).toFixed(2));
-        } else {
-          markupAmount = rawAmount;
+          if (appliedMarkup) {
+            markupType = appliedMarkup.markupType;
+            markupValue = appliedMarkup.markupValue;
+            let addedMarkup: number;
+            if (appliedMarkup.markupType === 'percentage') {
+              addedMarkup = parseFloat(((rawAmount * appliedMarkup.markupValue) / 100).toFixed(2));
+            } else {
+              addedMarkup = appliedMarkup.markupValue;
+            }
+            markupAmount = parseFloat((rawAmount + addedMarkup).toFixed(2));
+          } else {
+            markupAmount = rawAmount;
+          }
         }
       }
 
@@ -466,11 +481,21 @@ export const shipmentService = {
           quantity: shipment.quantity || '1',
           weight: shipment.weight || '',
           shippingMode: shipment.shippingMode,
+          dimensions: {
+            width: shipment.shipmentWidth || '100',
+            height: shipment.shipmentHeight || '100',
+            length: shipment.shipmentLength || '100',
+          },
           // Pickup
           pickupLocation: shipment.pickupLocation,
           assignedHubId: shipment.assignedHubId || null,
           assignedStaffId: shipment.assignedStaffId || null,
           orderType: shipment.orderType || 'customer',
+          // Markup fields
+          baseAmount: shipment.baseAmount ?? null,
+          markupAmount: shipment.markupAmount ?? null,
+          markupType: shipment.markupType ?? null,
+          markupValue: shipment.markupValue ?? null,
           // Timestamps
           createdAt: shipment.createdAt,
         },
@@ -584,8 +609,8 @@ export const shipmentService = {
           hsnCode: shipment.hsnCode || '',
           pickupLocation: shipment.pickupLocation,
           delhiveryResponse: shipment.delhiveryResponse || null,
-          baseAmount: shipment.baseAmount ?? null,
-          markupAmount: shipment.markupAmount ?? null,
+          baseAmount: shipment.baseAmount ?? (parseFloat(shipment.totalAmount || '0') || null),
+          markupAmount: shipment.markupAmount ?? (parseFloat(shipment.totalAmount || '0') || null),
           markupType: shipment.markupType ?? null,
           markupValue: shipment.markupValue ?? null,
           createdAt: shipment.createdAt,
@@ -689,6 +714,11 @@ export const shipmentService = {
             order: s.order,
             paymentMode: s.paymentMode,
             shippingMode: s.shippingMode,
+            dimensions: {
+              width: s.shipmentWidth || '100',
+              height: s.shipmentHeight || '100',
+              length: s.shipmentLength || '100',
+            },
             weight: s.weight,
           },
           amount:
@@ -703,8 +733,8 @@ export const shipmentService = {
           assignedStaffId: s.assignedStaffId || null,
           orderType: s.orderType || 'customer',
           delhiveryResponse: s.delhiveryResponse || null,
-          baseAmount: s.baseAmount ?? null,
-          markupAmount: s.markupAmount ?? null,
+          baseAmount: s.baseAmount ?? (parseFloat(s.totalAmount || '0') || null),
+          markupAmount: s.markupAmount ?? (parseFloat(s.totalAmount || '0') || null),
           markupType: s.markupType ?? null,
           markupValue: s.markupValue ?? null,
           createdAt: s.createdAt,

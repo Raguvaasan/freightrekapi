@@ -98,6 +98,10 @@ exports.createShipmentSchema = yup.object().shape({
     }).optional(),
     assignedStaffId: yup.string().optional(),
     orderType: yup.string().oneOf(['hub', 'customer'], 'Order type must be hub or customer').optional(),
+    baseAmount: yup.mixed().optional(),
+    markupAmount: yup.mixed().optional(),
+    markupType: yup.string().oneOf(['percentage', 'fixed']).optional(),
+    markupValue: yup.mixed().optional(),
 });
 exports.getShipmentsSchema = yup.object().shape({
     page: yup.number().min(1, 'Page must be at least 1'),

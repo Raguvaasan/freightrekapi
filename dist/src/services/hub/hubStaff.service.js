@@ -230,6 +230,10 @@ exports.hubStaffService = {
                     charges: {
                         deliveryCharge,
                         totalAmount,
+                        baseAmount: order.baseAmount ?? null,
+                        markupAmount: order.markupAmount ?? null,
+                        markupType: order.markupType ?? null,
+                        markupValue: order.markupValue ?? null,
                     },
                     pickupLocation: order.pickupLocation,
                     assignedStaffId: order.assignedStaffId || null,
