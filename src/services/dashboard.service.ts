@@ -26,10 +26,10 @@ export const dashboardService = {
         Shipment.countDocuments({ userId }),
         Shipment.countDocuments({ userId, status: { $in: ['pending', 'created', 'in-transit'] } }),
         Shipment.countDocuments({ userId, createdAt: { $gte: today, $lt: tomorrow } }),
-        Wallet.findOne({ userId }).lean(),
-        Shipment.find({ userId, paymentMode: 'COD' }).lean(),
-        Shipment.find({ userId, paymentMode: 'COD', createdAt: { $gte: today, $lt: tomorrow } }).lean(),
-        Shipment.find({ userId }).sort({ createdAt: -1 }).limit(5).lean(),
+        Wallet.findOne({ userId }).select('balance currency').lean(),
+        Shipment.find({ userId, paymentMode: 'COD' }).select('codAmount').lean(),
+        Shipment.find({ userId, paymentMode: 'COD', createdAt: { $gte: today, $lt: tomorrow } }).select('codAmount').lean(),
+        Shipment.find({ userId }).select('waybill orderId order status city state codAmount totalAmount paymentMode pickupLocation createdAt shippingMode').sort({ createdAt: -1 }).limit(5).lean(),
         Shipment.countDocuments({ userId, shippingMode: 'Surface' }),
         Shipment.countDocuments({ userId, shippingMode: 'Express' })
       ]);

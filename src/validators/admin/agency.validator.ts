@@ -232,3 +232,37 @@ export const getAgenciesByHubSchema = yup.object({
       .matches(/^[0-9a-fA-F]{24}$/, 'Invalid hub ID'),
   }),
 });
+
+// OTP Login - Send OTP
+export const franchiseSendOtpSchema = yup.object({
+  body: yup.object({
+    phone: yup
+      .string()
+      .required('Phone number is required')
+      .matches(/^[0-9]{10}$/, 'Phone number must be 10 digits')
+      .trim(),
+    countryCode: yup
+      .string()
+      .required('Country code is required')
+      .trim(),
+  }),
+});
+
+// OTP Login - Verify OTP
+export const franchiseVerifyOtpSchema = yup.object({
+  body: yup.object({
+    phone: yup
+      .string()
+      .required('Phone number is required')
+      .matches(/^[0-9]{10}$/, 'Phone number must be 10 digits')
+      .trim(),
+    countryCode: yup
+      .string()
+      .required('Country code is required')
+      .trim(),
+    otp: yup
+      .string()
+      .required('OTP is required')
+      .matches(/^[0-9]{6}$/, 'OTP must be 6 digits'),
+  }),
+});

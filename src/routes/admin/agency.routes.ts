@@ -7,6 +7,8 @@ import {
   deleteAgency,
   updateAgencyStatus,
   loginFranchise,
+  sendFranchiseOtp,
+  verifyFranchiseOtp,
 } from '../../controllers/admin/agency.controller';
 import { authMiddleware } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validate.middleware';
@@ -17,6 +19,8 @@ import {
   getAgencyByIdSchema,
   deleteAgencySchema,
   franchiseLoginSchema,
+  franchiseSendOtpSchema,
+  franchiseVerifyOtpSchema,
 } from '../../validators/admin/agency.validator';
 import { checkPermission } from '../../middleware/checkPermission.middleware';
 import { adminModule } from '../../config/adminModule';
@@ -55,6 +59,8 @@ const router = Router();
  *         description: Invalid credentials
  */
 router.post('/login', validate(franchiseLoginSchema), loginFranchise);
+router.post('/login/send-otp', validate(franchiseSendOtpSchema), sendFranchiseOtp);
+router.post('/login/verify-otp', validate(franchiseVerifyOtpSchema), verifyFranchiseOtp);
 
 // All other routes require authentication
 router.use(authMiddleware);

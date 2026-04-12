@@ -265,3 +265,33 @@ export const loginCollectionExecutive = async (req: Request, res: Response) => {
     return res.status(500).json({ success: false, message: err.message || 'Internal server error' });
   }
 };
+
+export const sendStaffOtp = async (req: Request, res: Response) => {
+  try {
+    const { phone, countryCode, type } = req.body;
+    const result = await staffService.sendLoginOtp(phone, countryCode, type);
+    if (!result.success) {
+      return res.status(400).json({ success: false, message: result.message });
+    }
+    return res.status(200).json({ success: true, message: result.message });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message || 'Internal server error' });
+  }
+};
+
+export const verifyStaffOtp = async (req: Request, res: Response) => {
+  try {
+    const { phone, countryCode, otp, type } = req.body;
+    const result = await staffService.verifyLoginOtp(phone, countryCode, otp, type);
+    if (!result.success) {
+      return res.status(401).json({ success: false, message: result.message });
+    }
+    return res.status(200).json({
+      success: true,
+      message: result.message,
+      data: result.data,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message || 'Internal server error' });
+  }
+};

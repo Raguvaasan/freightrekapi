@@ -609,6 +609,7 @@ export const shipmentService = {
           hsnCode: shipment.hsnCode || '',
           pickupLocation: shipment.pickupLocation,
           delhiveryResponse: shipment.delhiveryResponse || null,
+          orderType: shipment.orderType || 'customer',
           baseAmount: shipment.baseAmount ?? (parseFloat(shipment.totalAmount || '0') || null),
           markupAmount: shipment.markupAmount ?? (parseFloat(shipment.totalAmount || '0') || null),
           markupType: shipment.markupType ?? null,

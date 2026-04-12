@@ -22,39 +22,43 @@ export const customerAuthService = {
   async register(input: RegisterInput): Promise<ServiceResponse> {
     const { firstName, lastName, email, phone, countryCode } = input;
 
-    // Block if an active account already exists with same email or phone
-    const existingEmail = await AppCustomer.findOne({ email, status: 'Active' });
+    // Check email & phone uniqueness in parallel
+    const [existingEmail, existingPhone] = await Promise.all([
+      AppCustomer.findOne({ email, status: 'Active' }).lean(),
+      AppCustomer.findOne({ phone, countryCode, status: 'Active' }).lean(),
+    ]);
+
     if (existingEmail) {
       return { success: false, message: 'An account with this email already exists. Please login' };
     }
 
-    const existingPhone = await AppCustomer.findOne({ phone, countryCode, status: 'Active' });
     if (existingPhone) {
       return { success: false, message: 'An account with this phone number already exists. Please login' };
     }
 
-    // Remove any stale pending registrations for same phone/email
+    // Remove stale pending registrations for same phone/email
     await AppCustomer.deleteMany({
       $or: [{ email }, { phone, countryCode }],
       status: 'Pending',
     });
 
-    // Create customer as Pending (activated after OTP verification)
-    await AppCustomer.create({
-      firstName,
-      lastName,
-      email,
-      phone,
-      countryCode,
-      status: 'Pending',
-    });
-
-    // Generate and save OTP
+    // Create customer as Pending + generate OTP in parallel
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
-    await Otp.deleteMany({ phone });
-    await Otp.create({ phone, countryCode, otp, expiresAt });
+    await Promise.all([
+      AppCustomer.create({
+        firstName,
+        lastName,
+        email,
+        phone,
+        countryCode,
+        status: 'Pending',
+      }),
+      Otp.deleteMany({ phone }).then(() =>
+        Otp.create({ phone, countryCode, otp, expiresAt })
+      ),
+    ]);
 
     // Send SMS via Ping4SMS
     const apiKey = process.env.PING4SMS_API_KEY;
@@ -88,7 +92,7 @@ export const customerAuthService = {
 
   async sendOtp(phone: string, countryCode: string): Promise<ServiceResponse> {
     // Only Active accounts can use login OTP; Pending accounts must use /register flow
-    const customer = await AppCustomer.findOne({ phone, status: 'Active' });
+    const customer = await AppCustomer.findOne({ phone, status: 'Active' }).lean();
     if (!customer) {
       return { success: false, message: 'No active account found with this phone number. Please register first' };
     }
@@ -97,7 +101,7 @@ export const customerAuthService = {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
-    // Delete any existing OTPs for this phone
+    // Delete old OTPs and create new one
     await Otp.deleteMany({ phone });
 
     // Save new OTP (use countryCode from customer record)
@@ -132,14 +136,14 @@ export const customerAuthService = {
   },
 
   async verifyOtp(phone: string, countryCode: string, otp: string): Promise<ServiceResponse> {
-    const record = await Otp.findOne({ phone, used: false });
+    const record = await Otp.findOne({ phone, used: false }).lean();
 
     if (!record) {
       return { success: false, message: 'OTP not found. Please request a new one' };
     }
 
     if (new Date() > record.expiresAt) {
-      await record.deleteOne();
+      await Otp.deleteOne({ _id: record._id });
       return { success: false, message: 'OTP has expired. Please request a new one' };
     }
 
@@ -148,8 +152,7 @@ export const customerAuthService = {
     }
 
     // Mark OTP as used
-    record.used = true;
-    await record.save();
+    await Otp.updateOne({ _id: record._id }, { used: true });
 
     // Find customer account (Pending = completing registration, Active = login)
     const customer = await AppCustomer.findOne({ phone });

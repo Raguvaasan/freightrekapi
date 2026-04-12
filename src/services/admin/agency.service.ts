@@ -2,6 +2,8 @@ import { Agency, IAgency } from '../../models/admin/agency.model';
 import { Types } from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { generateToken } from '../../utils/jwt';
+import { Otp } from '../../models/customer/otp.model';
+import axios from 'axios';
 
 interface ServiceResponse {
   success: boolean;
@@ -391,6 +393,86 @@ export class AgencyService {
         success: false,
         message: error.message || 'Error updating agency status',
       };
+    }
+  }
+  // OTP Login - Send OTP
+  async sendLoginOtp(phone: string, countryCode: string): Promise<ServiceResponse> {
+    try {
+      const agency = await Agency.findOne({ phone, status: 'Active' }).lean();
+      if (!agency) {
+        return { success: false, message: 'No active franchise account found with this phone number' };
+      }
+
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+      await Otp.deleteMany({ phone, userType: 'franchise' });
+      await Otp.create({ phone, countryCode, otp, expiresAt, userType: 'franchise' });
+
+      const apiKey = process.env.PING4SMS_API_KEY;
+      const sender = process.env.PING4SMS_SENDER;
+      const templateId = process.env.PING4SMS_TEMPLATE_ID;
+      const route = process.env.PING4SMS_ROUTE || '2';
+      const fullPhone = `${countryCode.replace('+', '')}${phone}`;
+      const message = `Your OTP for login is ${otp}. Do not share it with anyone. - FREIGHTREK`;
+      const url = `https://site.ping4sms.com/api/smsapi?key=${apiKey}&route=${route}&sender=${sender}&number=${fullPhone}&sms=${encodeURIComponent(message)}&templateid=${templateId}`;
+
+      console.log('[Ping4SMS] Franchise OTP URL:', url);
+      const smsResponse = await axios.get(url);
+      console.log('[Ping4SMS] Franchise OTP Response:', JSON.stringify(smsResponse.data));
+
+      const responseStr = typeof smsResponse.data === 'string' ? smsResponse.data : JSON.stringify(smsResponse.data);
+      if (responseStr.includes('-1') || responseStr.includes('-2') || responseStr.toLowerCase().includes('error') || responseStr.includes('INVALID')) {
+        return { success: false, message: `SMS sending failed: ${responseStr}` };
+      }
+
+      return { success: true, message: 'OTP sent successfully' };
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Error sending OTP' };
+    }
+  }
+
+  // OTP Login - Verify OTP
+  async verifyLoginOtp(phone: string, countryCode: string, otp: string): Promise<ServiceResponse> {
+    try {
+      const record = await Otp.findOne({ phone, used: false, userType: 'franchise' }).lean();
+      if (!record) {
+        return { success: false, message: 'OTP not found. Please request a new one' };
+      }
+
+      if (new Date() > record.expiresAt) {
+        await Otp.deleteOne({ _id: record._id });
+        return { success: false, message: 'OTP has expired. Please request a new one' };
+      }
+
+      if (record.otp !== otp) {
+        return { success: false, message: 'Invalid OTP' };
+      }
+
+      await Otp.updateOne({ _id: record._id }, { used: true });
+
+      const agency = await Agency.findOne({ phone, status: 'Active' }).lean();
+      if (!agency) {
+        return { success: false, message: 'No active franchise account found with this phone number' };
+      }
+
+      const token = generateToken((agency._id as Types.ObjectId).toString());
+
+      return {
+        success: true,
+        message: 'Login successful',
+        token,
+        data: {
+          id: agency._id,
+          agencyName: agency.agencyName,
+          agencyOwner: agency.agencyOwner,
+          phone: agency.phone,
+          email: agency.email,
+          status: agency.status,
+        },
+      };
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Error verifying OTP' };
     }
   }
 }

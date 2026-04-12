@@ -176,3 +176,45 @@ export const staffLoginSchema = yup.object({
       .required('Password is required'),
   }),
 });
+
+// OTP Login - Send OTP
+export const staffSendOtpSchema = yup.object({
+  body: yup.object({
+    phone: yup
+      .string()
+      .required('Phone number is required')
+      .matches(/^[0-9]{10}$/, 'Phone number must be 10 digits')
+      .trim(),
+    countryCode: yup
+      .string()
+      .required('Country code is required')
+      .trim(),
+    type: yup
+      .string()
+      .oneOf(['franchise', 'hub', 'head_quarter'], 'Invalid staff type')
+      .optional(),
+  }),
+});
+
+// OTP Login - Verify OTP
+export const staffVerifyOtpSchema = yup.object({
+  body: yup.object({
+    phone: yup
+      .string()
+      .required('Phone number is required')
+      .matches(/^[0-9]{10}$/, 'Phone number must be 10 digits')
+      .trim(),
+    countryCode: yup
+      .string()
+      .required('Country code is required')
+      .trim(),
+    otp: yup
+      .string()
+      .required('OTP is required')
+      .matches(/^[0-9]{6}$/, 'OTP must be 6 digits'),
+    type: yup
+      .string()
+      .oneOf(['franchise', 'hub', 'head_quarter'], 'Invalid staff type')
+      .optional(),
+  }),
+});

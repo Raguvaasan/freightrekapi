@@ -36,12 +36,15 @@ export class CustomerService {
   // Create customer
   async createCustomer(data: CreateCustomerInput): Promise<ServiceResponse> {
     try {
-      const existingEmail = await Customer.findOne({ email: data.email });
+      const [existingEmail, existingPhone] = await Promise.all([
+        Customer.findOne({ email: data.email }).lean(),
+        Customer.findOne({ phone: data.phone }).lean(),
+      ]);
+
       if (existingEmail) {
         return { success: false, message: 'Customer with this email already exists' };
       }
 
-      const existingPhone = await Customer.findOne({ phone: data.phone });
       if (existingPhone) {
         return { success: false, message: 'Customer with this phone number already exists' };
       }
@@ -101,11 +104,14 @@ export class CustomerService {
       }
 
       const skip = (page - 1) * limit;
-      const total = await Customer.countDocuments(query);
-      const customers = await Customer.find(query)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit);
+      const [total, customers] = await Promise.all([
+        Customer.countDocuments(query),
+        Customer.find(query)
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .lean(),
+      ]);
 
       return {
         success: true,
@@ -127,7 +133,7 @@ export class CustomerService {
   // Get customer by ID
   async getCustomerById(id: string): Promise<ServiceResponse> {
     try {
-      const customer = await Customer.findById(id);
+      const customer = await Customer.findById(id).lean();
       if (!customer) {
         return { success: false, message: 'Customer not found' };
       }

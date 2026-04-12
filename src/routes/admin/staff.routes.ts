@@ -11,6 +11,8 @@ import {
   loginHeadQuarterStaff,
   loginHubStaff,
   loginCollectionExecutive,
+  sendStaffOtp,
+  verifyStaffOtp,
 } from '../../controllers/admin/staff.controller';
 import { authMiddleware } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validate.middleware';
@@ -21,6 +23,8 @@ import {
   getStaffByIdSchema,
   deleteStaffSchema,
   staffLoginSchema,
+  staffSendOtpSchema,
+  staffVerifyOtpSchema,
 } from '../../validators/admin/staff.validator';
 import { checkPermission } from '../../middleware/checkPermission.middleware';
 import { adminModule } from '../../config/adminModule';
@@ -90,6 +94,8 @@ router.post('/login', validate(staffLoginSchema), loginStaff);
  *         description: Invalid credentials or not a franchise staff
  */
 router.post('/login/franchise', validate(staffLoginSchema), loginFranchiseStaff);
+router.post('/login/send-otp', validate(staffSendOtpSchema), sendStaffOtp);
+router.post('/login/verify-otp', validate(staffVerifyOtpSchema), verifyStaffOtp);
 
 /**
  * @swagger

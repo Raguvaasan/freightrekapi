@@ -3,7 +3,9 @@
   "functions": {
     "api/index.ts": {
       "runtime": "@vercel/node@3.2.6",
-      "includeFiles": "public/**"
+      "includeFiles": "public/**",
+      "maxDuration": 30,
+      "memory": 1024
     }
   },
   "rewrites": [

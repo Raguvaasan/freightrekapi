@@ -6,6 +6,8 @@ import { HubModel as Hub } from '../../models/hub/hub.model';
 import { Types } from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { generateToken } from '../../utils/jwt';
+import { Otp } from '../../models/customer/otp.model';
+import axios from 'axios';
 
 interface ServiceResponse {
   success: boolean;
@@ -831,6 +833,100 @@ export class StaffService {
       };
     } catch (error: any) {
       return { success: false, message: error.message || 'Error during login' };
+    }
+  }
+  // OTP Login - Send OTP
+  async sendLoginOtp(phone: string, countryCode: string, type?: string): Promise<ServiceResponse> {
+    try {
+      const query: any = { phone, status: 'Active' };
+      if (type) query.type = type;
+
+      const staff = await Staff.findOne(query).lean();
+      if (!staff) {
+        return { success: false, message: 'No active staff account found with this phone number' };
+      }
+
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+      await Otp.deleteMany({ phone, userType: 'staff' });
+      await Otp.create({ phone, countryCode, otp, expiresAt, userType: 'staff' });
+
+      const apiKey = process.env.PING4SMS_API_KEY;
+      const sender = process.env.PING4SMS_SENDER;
+      const templateId = process.env.PING4SMS_TEMPLATE_ID;
+      const route = process.env.PING4SMS_ROUTE || '2';
+      const fullPhone = `${countryCode.replace('+', '')}${phone}`;
+      const message = `Your OTP for Freightrek staff login is ${otp}. Do not share it with anyone. - FREIGHTREK`;
+      const url = `https://site.ping4sms.com/api/smsapi?key=${apiKey}&route=${route}&sender=${sender}&number=${fullPhone}&sms=${encodeURIComponent(message)}&templateid=${templateId}`;
+
+      console.log('[Ping4SMS] Staff OTP URL:', url);
+      const smsResponse = await axios.get(url);
+      console.log('[Ping4SMS] Staff OTP Response:', JSON.stringify(smsResponse.data));
+
+      const responseStr = typeof smsResponse.data === 'string' ? smsResponse.data : JSON.stringify(smsResponse.data);
+      if (responseStr.includes('-1') || responseStr.includes('-2') || responseStr.toLowerCase().includes('error') || responseStr.includes('INVALID')) {
+        return { success: false, message: `SMS sending failed: ${responseStr}` };
+      }
+
+      return { success: true, message: 'OTP sent successfully' };
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Error sending OTP' };
+    }
+  }
+
+  // OTP Login - Verify OTP
+  async verifyLoginOtp(phone: string, countryCode: string, otp: string, type?: string): Promise<ServiceResponse> {
+    try {
+      const record = await Otp.findOne({ phone, used: false, userType: 'staff' }).lean();
+      if (!record) {
+        return { success: false, message: 'OTP not found. Please request a new one' };
+      }
+
+      if (new Date() > record.expiresAt) {
+        await Otp.deleteOne({ _id: record._id });
+        return { success: false, message: 'OTP has expired. Please request a new one' };
+      }
+
+      if (record.otp !== otp) {
+        return { success: false, message: 'Invalid OTP' };
+      }
+
+      await Otp.updateOne({ _id: record._id }, { used: true });
+
+      const query: any = { phone, status: 'Active' };
+      if (type) query.type = type;
+
+      const staff = await Staff.findOne(query)
+        .populate('franchiseId', 'agencyName')
+        .populate('hubId', 'hubName')
+        .populate('roleId')
+        .lean();
+
+      if (!staff) {
+        return { success: false, message: 'No active staff account found with this phone number' };
+      }
+
+      const token = generateToken((staff._id as Types.ObjectId).toString());
+
+      return {
+        success: true,
+        message: 'Login successful',
+        data: {
+          id: staff._id,
+          name: staff.name,
+          email: staff.email,
+          phone: staff.phone,
+          type: staff.type,
+          status: staff.status,
+          franchiseId: staff.franchiseId,
+          hubId: staff.hubId,
+          roleId: staff.roleId,
+          token,
+        },
+      };
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Error verifying OTP' };
     }
   }
 }

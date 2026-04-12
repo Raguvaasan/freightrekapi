@@ -2,8 +2,6 @@ import dotenv from "dotenv";
 dotenv.config();
 import express from "express";
 import path from "path";
-import swaggerUi from "swagger-ui-express";
-import { swaggerSpec } from "./config/swagger";
 import authRoutes from "./routes/admin";
 import locationRoutes from "./routes/location.routes";
 import markupRoutes from "./routes/markup.routes";

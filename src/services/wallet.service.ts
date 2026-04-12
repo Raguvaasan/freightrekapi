@@ -31,11 +31,12 @@ interface TransactionQuery {
 export const walletService = {
   async getBalance(userId: string) {
     try {
-      let wallet = await Wallet.findOne({ userId });
-
-      if (!wallet) {
-        wallet = await Wallet.create({ userId, balance: 0 });
-      }
+      // Atomic: find or create wallet in a single DB call
+      const wallet = (await Wallet.findOneAndUpdate(
+        { userId },
+        { $setOnInsert: { userId, balance: 0 } },
+        { new: true, upsert: true, lean: true }
+      ))!;
 
       return {
         success: true,
