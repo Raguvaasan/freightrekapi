@@ -1,6 +1,7 @@
 import { Staff, IStaff } from '../../models/admin/staff.model';
 import { Role } from '../../models/admin/role.model';
 import { FranchiseRole } from '../../models/admin/franchiseRole.model';
+import { HubRole } from '../../models/hub/hubRole.model';
 import { Agency } from '../../models/admin/agency.model';
 import { HubModel as Hub } from '../../models/hub/hub.model';
 import { Types } from 'mongoose';
@@ -8,6 +9,18 @@ import bcrypt from 'bcryptjs';
 import { generateToken } from '../../utils/jwt';
 import { Otp } from '../../models/customer/otp.model';
 import axios from 'axios';
+
+// Resolve roleId from AdminRole, FranchiseRole, or HubRole
+async function resolveRole(roleId: Types.ObjectId | string): Promise<any> {
+  if (!roleId) return null;
+  let roleData: any = await Role.findById(roleId).select('roleName permissions isRoot').lean();
+  if (roleData) return { ...roleData, _type: 'AdminRole' };
+  roleData = await FranchiseRole.findById(roleId).select('roleName franchiseId permissions').lean();
+  if (roleData) return { ...roleData, _type: 'FranchiseRole' };
+  roleData = await HubRole.findById(roleId).select('roleName hubId permissions').lean();
+  if (roleData) return { ...roleData, _type: 'HubRole' };
+  return null;
+}
 
 interface ServiceResponse {
   success: boolean;
@@ -75,16 +88,9 @@ export class StaffService {
         };
       }
 
-      // Manually populate roleId - check both AdminRole and FranchiseRole
+      // Resolve role from AdminRole, FranchiseRole, or HubRole
       if (staff.roleId) {
-        let roleData: any = await Role.findById(staff.roleId).select('name permissions').lean();
-        if (!roleData) {
-          roleData = await FranchiseRole.findById(staff.roleId).select('roleName permissions').lean();
-          if (roleData) {
-            // Map roleName to name for consistency
-            roleData = { ...roleData, name: roleData.roleName };
-          }
-        }
+        const roleData = await resolveRole(staff.roleId);
         if (roleData) {
           (staff as any).roleId = roleData;
         }
@@ -94,10 +100,12 @@ export class StaffService {
       const staffData: any = staff.toObject();
       delete staffData.password;
 
+      const token = generateToken(staff._id.toString());
+
       return {
         success: true,
         message: 'Login successful',
-        data: staffData,
+        data: { ...staffData, token },
       };
     } catch (error: any) {
       return {
@@ -156,14 +164,24 @@ export class StaffService {
         };
       }
 
+      // Populate role from FranchiseRole or AdminRole
+      if (staff.roleId) {
+        const roleData = await resolveRole(staff.roleId);
+        if (roleData) {
+          (staff as any).roleId = roleData;
+        }
+      }
+
       // Remove password from response
       const staffData: any = staff.toObject();
       delete staffData.password;
 
+      const token = generateToken(staff._id.toString());
+
       return {
         success: true,
         message: 'Franchise staff login successful',
-        data: staffData,
+        data: { ...staffData, token },
       };
     } catch (error: any) {
       return {
@@ -220,8 +238,8 @@ export class StaffService {
         };
       }
 
-      // Populate roleId from AdminRole
-      let roleData: any = await Role.findById(staff.roleId).select('roleName permissions isRoot').lean();
+      // Populate role
+      let roleData: any = await resolveRole(staff.roleId);
       if (roleData) {
         (staff as any).roleId = roleData;
       }
@@ -272,6 +290,14 @@ export class StaffService {
 
       if (staff.status !== 'Active') {
         return { success: false, message: 'Staff account is inactive' };
+      }
+
+      // Populate role from HubRole or AdminRole
+      if (staff.roleId) {
+        const roleData = await resolveRole(staff.roleId);
+        if (roleData) {
+          (staff as any).roleId = roleData;
+        }
       }
 
       const staffData: any = staff.toObject();
@@ -801,15 +827,8 @@ export class StaffService {
         return { success: false, message: 'No role assigned. Contact administrator.' };
       }
 
-      // Check role from AdminRole, FranchiseRole, or HubRole
-      let roleData: any = await Role.findById(staff.roleId).select('roleName permissions').lean();
-      if (!roleData) {
-        roleData = await FranchiseRole.findById(staff.roleId).select('roleName permissions').lean();
-      }
-      if (!roleData) {
-        const { HubRole } = await import('../../models/hub/hubRole.model');
-        roleData = await HubRole.findById(staff.roleId).select('roleName permissions').lean();
-      }
+      // Resolve role from AdminRole, FranchiseRole, or HubRole
+      const roleData = await resolveRole(staff.roleId);
 
       if (!roleData) {
         return { success: false, message: 'Role not found. Contact administrator.' };
@@ -899,12 +918,17 @@ export class StaffService {
 
       const staff = await Staff.findOne(query)
         .populate('franchiseId', 'agencyName')
-        .populate('hubId', 'hubName')
-        .populate('roleId')
+        .populate('hubId', 'hubName city pincode')
         .lean();
 
       if (!staff) {
         return { success: false, message: 'No active staff account found with this phone number' };
+      }
+
+      // Resolve role from AdminRole, FranchiseRole, or HubRole
+      let roleData: any = null;
+      if (staff.roleId) {
+        roleData = await resolveRole(staff.roleId);
       }
 
       const token = generateToken((staff._id as Types.ObjectId).toString());
@@ -921,7 +945,7 @@ export class StaffService {
           status: staff.status,
           franchiseId: staff.franchiseId,
           hubId: staff.hubId,
-          roleId: staff.roleId,
+          roleId: roleData || staff.roleId,
           token,
         },
       };
