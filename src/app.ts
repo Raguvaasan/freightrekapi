@@ -21,9 +21,11 @@ import hubDashboardRoutes from "./routes/hub/dashboard.routes";
 import hubRoleRoutes from "./routes/hub/hubRole.routes";
 import hubManageStaffRoutes from "./routes/hub/hubManageStaff.routes";
 import { cashfreeWebhook } from "./controllers/wallet.controller";
+import { responseTimeMiddleware } from "./middleware/responseTime.middleware";
 
 const app = express();
 
+app.use(responseTimeMiddleware);
 app.use(express.json());
 
 // CORS configuration for frontend API access

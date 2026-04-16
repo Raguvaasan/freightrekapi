@@ -1,10 +1,43 @@
 import { Request, Response } from 'express';
 import { shipmentService } from '../services/shipment.service';
 import { AdminUser } from '../models/admin/adminUser.model';
-import { Agency } from '../models/admin/agency.model';
+import { Role } from '../models/admin/role.model';
 import { Staff } from '../models/admin/staff.model';
 import { HubModel } from '../models/hub/hub.model';
-import { AppCustomer } from '../models/customer/appCustomer.model';
+
+// Helper: Resolve user role - checks AdminUser first, then Staff with AdminRole
+async function resolveUserAccess(userId: string): Promise<{ isAdmin: boolean; hubId?: string }> {
+  // Check AdminUser collection
+  const adminUser = await AdminUser.findById(userId).populate('roleId');
+  if (adminUser && adminUser.roleId) {
+    const role: any = adminUser.roleId;
+    if (role.isRoot === true) return { isAdmin: true };
+  }
+
+  // Check Staff collection
+  const staff = await Staff.findById(userId).select('roleId hubId type');
+  if (staff) {
+    // Check if staff has an admin role with isRoot
+    if (staff.roleId) {
+      const role = await Role.findById(staff.roleId).select('isRoot').lean();
+      if (role && role.isRoot === true) return { isAdmin: true };
+    }
+    // Hub staff
+    if (staff.type === 'hub' && staff.hubId) {
+      return { isAdmin: false, hubId: staff.hubId.toString() };
+    }
+    // Head quarter staff without isRoot - treat as regular user
+    return { isAdmin: false };
+  }
+
+  // Check if user is a Hub directly
+  const hub = await HubModel.findById(userId);
+  if (hub) {
+    return { isAdmin: false, hubId: hub._id.toString() };
+  }
+
+  return { isAdmin: false };
+}
 
 export const createShipment = async (req: Request, res: Response) => {
   try {
@@ -67,27 +100,7 @@ export const getShipment = async (req: Request, res: Response) => {
       });
     }
 
-    // Check if user is admin
-    let isAdmin = false;
-    let hubId: string | undefined;
-    const user = await AdminUser.findById(userId).populate('roleId');
-    if (user && user.roleId) {
-      const role: any = user.roleId;
-      isAdmin = role.isRoot === true;
-    }
-
-    // Check if user is a hub or hub staff
-    if (!isAdmin) {
-      const staff = await Staff.findById(userId).select('hubId type');
-      if (staff && staff.type === 'hub' && staff.hubId) {
-        hubId = staff.hubId.toString();
-      } else {
-        const hub = await HubModel.findById(userId);
-        if (hub) {
-          hubId = hub._id.toString();
-        }
-      }
-    }
+    const { isAdmin, hubId } = await resolveUserAccess(userId);
 
     const result = await shipmentService.getShipment(orderId as string, userId, isAdmin, hubId);
 
@@ -119,44 +132,9 @@ export const getShipments = async (req: Request, res: Response) => {
     const limit = parseInt(req.query.limit as string) || 20;
     const status = req.query.status as string;
 
-    // Check if user is admin
-    let isAdmin = false;
-    let franchiseUserIds: string[] = [];
-    let hubId: string | undefined;
-    
-    const user = await AdminUser.findById(userId).populate('roleId');
-    if (user && user.roleId) {
-      const role: any = user.roleId;
-      isAdmin = role.isRoot === true;
-      
-      // If admin, get all franchise (Agency), hub AND app customer user IDs
-      if (isAdmin) {
-        const agencies = await Agency.find({}, '_id');
-        const hubs = await HubModel.find({}, '_id');
-        const customers = await AppCustomer.find({}, '_id');
-        franchiseUserIds = [
-          ...agencies.map(agency => agency._id.toString()),
-          ...hubs.map(hub => hub._id.toString()),
-          ...customers.map(c => c._id.toString()),
-        ];
-      }
-    }
+    const { isAdmin, hubId } = await resolveUserAccess(userId);
 
-    // Check if user is hub staff
-    if (!isAdmin) {
-      const staff = await Staff.findById(userId).select('hubId type');
-      if (staff && staff.type === 'hub' && staff.hubId) {
-        hubId = staff.hubId.toString();
-      } else {
-        // Check if user is hub directly
-        const hub = await HubModel.findById(userId);
-        if (hub) {
-          hubId = hub._id.toString();
-        }
-      }
-    }
-
-    const result = await shipmentService.getShipments(userId, page, limit, status, isAdmin, franchiseUserIds, hubId);
+    const result = await shipmentService.getShipments(userId, page, limit, status, isAdmin, [], hubId);
 
     if (!result.success) {
       return res.status(400).json(result);
@@ -190,13 +168,7 @@ export const trackShipment = async (req: Request, res: Response) => {
       });
     }
 
-    // Check if user is admin
-    let isAdmin = false;
-    const user = await AdminUser.findById(userId).populate('roleId');
-    if (user && user.roleId) {
-      const role: any = user.roleId;
-      isAdmin = role.isRoot === true;
-    }
+    const { isAdmin } = await resolveUserAccess(userId);
 
     const result = await shipmentService.trackShipment(waybill as string, userId, isAdmin);
 
@@ -233,13 +205,7 @@ export const updateShipment = async (req: Request, res: Response) => {
       });
     }
 
-    // Check if user is admin
-    let isAdmin = false;
-    const user = await AdminUser.findById(userId).populate('roleId');
-    if (user && user.roleId) {
-      const role: any = user.roleId;
-      isAdmin = role.isRoot === true;
-    }
+    const { isAdmin } = await resolveUserAccess(userId);
 
     const result = await shipmentService.updateShipment(orderId as string, userId, updateData, isAdmin);
 
@@ -275,13 +241,7 @@ export const deleteShipment = async (req: Request, res: Response) => {
       });
     }
 
-    // Check if user is admin
-    let isAdmin = false;
-    const user = await AdminUser.findById(userId).populate('roleId');
-    if (user && user.roleId) {
-      const role: any = user.roleId;
-      isAdmin = role.isRoot === true;
-    }
+    const { isAdmin } = await resolveUserAccess(userId);
 
     const result = await shipmentService.deleteShipment(orderId as string, userId, isAdmin);
 
@@ -294,6 +254,38 @@ export const deleteShipment = async (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       message: err.message || 'Failed to delete shipment',
+    });
+  }
+};
+
+export const getActiveShipments = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated',
+      });
+    }
+
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+
+    const { isAdmin, hubId } = await resolveUserAccess(userId);
+
+    // Active = not cancelled, not delivered
+    const result = await shipmentService.getShipments(userId, page, limit, 'Active', isAdmin, [], hubId);
+
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    return res.status(200).json(result);
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to fetch active shipments',
     });
   }
 };

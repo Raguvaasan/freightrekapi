@@ -481,31 +481,46 @@ export class StaffService {
         .limit(limit)
         .sort({ createdAt: -1 })
         .populate('franchiseId', 'agencyName agencyOwner')
-        .populate('hubId', 'hubName city');
+        .populate('hubId', 'hubName city')
+        .lean();
 
-      // Manually populate roleId for each staff - check both AdminRole and FranchiseRole
-      for (const s of staff) {
+      // Batch resolve roleIds instead of N+1 individual queries
+      const roleIds = staff.map(s => s.roleId?.toString()).filter((id): id is string => !!id);
+      const uniqueRoleIds = [...new Set(roleIds)];
+      
+      const [adminRoles, franchiseRoles, hubRoles] = await Promise.all([
+        Role.find({ _id: { $in: uniqueRoleIds } }).select('name permissions').lean(),
+        FranchiseRole.find({ _id: { $in: uniqueRoleIds } }).select('roleName permissions').lean(),
+        HubRole.find({ _id: { $in: uniqueRoleIds } }).select('roleName permissions').lean(),
+      ]);
+
+      const roleMap = new Map<string, any>();
+      for (const r of adminRoles) {
+        roleMap.set(r._id.toString(), r);
+      }
+      for (const r of franchiseRoles) {
+        roleMap.set(r._id.toString(), { ...r, name: r.roleName });
+      }
+      for (const r of hubRoles) {
+        roleMap.set(r._id.toString(), { ...r, name: r.roleName });
+      }
+
+      const staffWithRoles = staff.map(s => {
         if (s.roleId) {
-          let roleData: any = await Role.findById(s.roleId).select('name permissions').lean();
-          if (!roleData) {
-            roleData = await FranchiseRole.findById(s.roleId).select('roleName permissions').lean();
-            if (roleData) {
-              // Map roleName to name for consistency
-              roleData = { ...roleData, name: roleData.roleName };
-            }
-          }
+          const roleData = roleMap.get(s.roleId.toString());
           if (roleData) {
-            (s as any).roleId = roleData;
+            return { ...s, roleId: roleData };
           }
         }
-      }
+        return s;
+      });
 
       const total = await Staff.countDocuments(query);
 
       return {
         success: true,
         data: {
-          staff,
+          staff: staffWithRoles,
           pagination: {
             total,
             page,
@@ -876,7 +891,7 @@ export class StaffService {
       const templateId = process.env.PING4SMS_TEMPLATE_ID;
       const route = process.env.PING4SMS_ROUTE || '2';
       const fullPhone = `${countryCode.replace('+', '')}${phone}`;
-      const message = `Your OTP for Freightrek staff login is ${otp}. Do not share it with anyone. - FREIGHTREK`;
+      const message = `Your OTP for login is ${otp}. Do not share it with anyone. - FREIGHTREK`;
       const url = `https://site.ping4sms.com/api/smsapi?key=${apiKey}&route=${route}&sender=${sender}&number=${fullPhone}&sms=${encodeURIComponent(message)}&templateid=${templateId}`;
 
       console.log('[Ping4SMS] Staff OTP URL:', url);

@@ -5,6 +5,7 @@ import {
   createShipment,
   getShipment,
   getShipments,
+  getActiveShipments,
   trackShipment,
   updateShipment,
   deleteShipment,
@@ -17,6 +18,8 @@ const router = Router();
 router.post('/create', authMiddleware, validate(createShipmentSchema), createShipment);
 
 router.get('/orders', authMiddleware, validate(getShipmentsSchema), getShipments);
+
+router.get('/active', authMiddleware, getActiveShipments);
 
 router.get('/order/:orderId', authMiddleware, getShipment);
 
