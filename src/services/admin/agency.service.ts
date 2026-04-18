@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import { generateToken } from '../../utils/jwt';
 import { Otp } from '../../models/customer/otp.model';
 import axios from 'axios';
+import { checkPhoneGloballyUnique } from '../../utils/phoneCheck';
 
 interface ServiceResponse {
   success: boolean;
@@ -108,6 +109,12 @@ export class AgencyService {
   // Create new agency
   async createAgency(data: CreateAgencyInput): Promise<ServiceResponse> {
     try {
+      // Check phone global uniqueness
+      const phoneError = await checkPhoneGloballyUnique(data.phone);
+      if (phoneError) {
+        return { success: false, message: phoneError };
+      }
+
       // Check if agency with same name already exists
       const existingAgency = await Agency.findOne({ 
         agencyName: data.agencyName 
@@ -291,6 +298,14 @@ export class AgencyService {
             success: false,
             message: 'Username already exists',
           };
+        }
+      }
+
+      // Check phone global uniqueness if updating phone
+      if (data.phone && data.phone !== agency.phone) {
+        const phoneError = await checkPhoneGloballyUnique(data.phone, { model: 'Agency', id });
+        if (phoneError) {
+          return { success: false, message: phoneError };
         }
       }
 

@@ -6,7 +6,6 @@ import {
   updateAgency,
   deleteAgency,
   updateAgencyStatus,
-  loginFranchise,
   sendFranchiseOtp,
   verifyFranchiseOtp,
 } from '../../controllers/admin/agency.controller';
@@ -18,7 +17,6 @@ import {
   updateAgencyStatusSchema,
   getAgencyByIdSchema,
   deleteAgencySchema,
-  franchiseLoginSchema,
   franchiseSendOtpSchema,
   franchiseVerifyOtpSchema,
 } from '../../validators/admin/agency.validator';
@@ -27,38 +25,7 @@ import { adminModule } from '../../config/adminModule';
 
 const router = Router();
 
-/**
- * @swagger
- * /admin/agency/login:
- *   post:
- *     summary: Franchise login
- *     tags: [Agency Management]
- *     security: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - username
- *               - password
- *             properties:
- *               username:
- *                 type: string
- *                 format: email
- *                 example: admin@freightrek.com
- *               password:
- *                 type: string
- *                 format: password
- *                 example: password123
- *     responses:
- *       200:
- *         description: Login successful
- *       401:
- *         description: Invalid credentials
- */
-router.post('/login', validate(franchiseLoginSchema), loginFranchise);
+// Public routes - OTP login only
 router.post('/login/send-otp', validate(franchiseSendOtpSchema), sendFranchiseOtp);
 router.post('/login/verify-otp', validate(franchiseVerifyOtpSchema), verifyFranchiseOtp);
 

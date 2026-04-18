@@ -9,8 +9,8 @@ export interface IStaff {
   status: 'Active' | 'Inactive';
   franchiseId?: Types.ObjectId;
   hubId?: Types.ObjectId;
-  username: string;
-  password: string;
+  username?: string;
+  password?: string;
   createdAt: Date;
   updatedAt: Date;
 }

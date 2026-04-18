@@ -9,6 +9,7 @@ import bcrypt from 'bcryptjs';
 import { generateToken } from '../../utils/jwt';
 import { Otp } from '../../models/customer/otp.model';
 import axios from 'axios';
+import { checkPhoneGloballyUnique } from '../../utils/phoneCheck';
 
 // Resolve roleId from AdminRole, FranchiseRole, or HubRole
 async function resolveRole(roleId: Types.ObjectId | string): Promise<any> {
@@ -71,7 +72,7 @@ export class StaffService {
       }
 
       // Verify password
-      const isPasswordValid = await bcrypt.compare(password, staff.password);
+      const isPasswordValid = await bcrypt.compare(password, staff.password!);
 
       if (!isPasswordValid) {
         return {
@@ -147,7 +148,7 @@ export class StaffService {
       }
 
       // Verify password
-      const isPasswordValid = await bcrypt.compare(password, staff.password);
+      const isPasswordValid = await bcrypt.compare(password, staff.password!);
 
       if (!isPasswordValid) {
         return {
@@ -221,7 +222,7 @@ export class StaffService {
       }
 
       // Verify password
-      const isPasswordValid = await bcrypt.compare(password, staff.password);
+      const isPasswordValid = await bcrypt.compare(password, staff.password!);
 
       if (!isPasswordValid) {
         return {
@@ -283,7 +284,7 @@ export class StaffService {
         return { success: false, message: 'Hub information missing. Contact administrator.' };
       }
 
-      const isPasswordValid = await bcrypt.compare(password, staff.password);
+      const isPasswordValid = await bcrypt.compare(password, staff.password!);
       if (!isPasswordValid) {
         return { success: false, message: 'Invalid credentials' };
       }
@@ -314,6 +315,12 @@ export class StaffService {
   // Create new staff
   async createStaff(data: CreateStaffInput): Promise<ServiceResponse> {
     try {
+      // Check phone global uniqueness
+      const phoneError = await checkPhoneGloballyUnique(data.phone);
+      if (phoneError) {
+        return { success: false, message: phoneError };
+      }
+
       // Check if email already exists
       const existingEmail = await Staff.findOne({ email: data.email });
       if (existingEmail) {
@@ -323,13 +330,15 @@ export class StaffService {
         };
       }
 
-      // Check if username already exists
-      const existingUsername = await Staff.findOne({ username: data.username });
-      if (existingUsername) {
-        return {
-          success: false,
-          message: 'Username already exists',
-        };
+      // Check if username already exists (only if username provided)
+      if (data.username) {
+        const existingUsername = await Staff.findOne({ username: data.username });
+        if (existingUsername) {
+          return {
+            success: false,
+            message: 'Username already exists',
+          };
+        }
       }
 
       // Validate based on type
@@ -394,14 +403,14 @@ export class StaffService {
         }
       }
 
-      // Hash password
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(data.password, salt);
+      // Hash password if provided
+      const staffData: any = { ...data };
+      if (data.password) {
+        const salt = await bcrypt.genSalt(10);
+        staffData.password = await bcrypt.hash(data.password, salt);
+      }
 
-      const staff = new Staff({
-        ...data,
-        password: hashedPassword,
-      });
+      const staff = new Staff(staffData);
 
       await staff.save();
       
@@ -481,46 +490,31 @@ export class StaffService {
         .limit(limit)
         .sort({ createdAt: -1 })
         .populate('franchiseId', 'agencyName agencyOwner')
-        .populate('hubId', 'hubName city')
-        .lean();
+        .populate('hubId', 'hubName city');
 
-      // Batch resolve roleIds instead of N+1 individual queries
-      const roleIds = staff.map(s => s.roleId?.toString()).filter((id): id is string => !!id);
-      const uniqueRoleIds = [...new Set(roleIds)];
-      
-      const [adminRoles, franchiseRoles, hubRoles] = await Promise.all([
-        Role.find({ _id: { $in: uniqueRoleIds } }).select('name permissions').lean(),
-        FranchiseRole.find({ _id: { $in: uniqueRoleIds } }).select('roleName permissions').lean(),
-        HubRole.find({ _id: { $in: uniqueRoleIds } }).select('roleName permissions').lean(),
-      ]);
-
-      const roleMap = new Map<string, any>();
-      for (const r of adminRoles) {
-        roleMap.set(r._id.toString(), r);
-      }
-      for (const r of franchiseRoles) {
-        roleMap.set(r._id.toString(), { ...r, name: r.roleName });
-      }
-      for (const r of hubRoles) {
-        roleMap.set(r._id.toString(), { ...r, name: r.roleName });
-      }
-
-      const staffWithRoles = staff.map(s => {
+      // Manually populate roleId for each staff - check both AdminRole and FranchiseRole
+      for (const s of staff) {
         if (s.roleId) {
-          const roleData = roleMap.get(s.roleId.toString());
+          let roleData: any = await Role.findById(s.roleId).select('name permissions').lean();
+          if (!roleData) {
+            roleData = await FranchiseRole.findById(s.roleId).select('roleName permissions').lean();
+            if (roleData) {
+              // Map roleName to name for consistency
+              roleData = { ...roleData, name: roleData.roleName };
+            }
+          }
           if (roleData) {
-            return { ...s, roleId: roleData };
+            (s as any).roleId = roleData;
           }
         }
-        return s;
-      });
+      }
 
       const total = await Staff.countDocuments(query);
 
       return {
         success: true,
         data: {
-          staff: staffWithRoles,
+          staff,
           pagination: {
             total,
             page,
@@ -616,6 +610,14 @@ export class StaffService {
             success: false,
             message: 'Email already exists',
           };
+        }
+      }
+
+      // Check phone global uniqueness if updating phone
+      if (data.phone && data.phone !== staff.phone) {
+        const phoneError = await checkPhoneGloballyUnique(data.phone, { model: 'Staff', id });
+        if (phoneError) {
+          return { success: false, message: phoneError };
         }
       }
 
@@ -827,7 +829,7 @@ export class StaffService {
       }
 
       // Verify password
-      const isPasswordValid = await bcrypt.compare(password, staff.password);
+      const isPasswordValid = await bcrypt.compare(password, staff.password!);
       if (!isPasswordValid) {
         return { success: false, message: 'Invalid credentials' };
       }
@@ -891,7 +893,7 @@ export class StaffService {
       const templateId = process.env.PING4SMS_TEMPLATE_ID;
       const route = process.env.PING4SMS_ROUTE || '2';
       const fullPhone = `${countryCode.replace('+', '')}${phone}`;
-      const message = `Your OTP for login is ${otp}. Do not share it with anyone. - FREIGHTREK`;
+      const message = `Your OTP for Freightrek staff login is ${otp}. Do not share it with anyone. - FREIGHTREK`;
       const url = `https://site.ping4sms.com/api/smsapi?key=${apiKey}&route=${route}&sender=${sender}&number=${fullPhone}&sms=${encodeURIComponent(message)}&templateid=${templateId}`;
 
       console.log('[Ping4SMS] Staff OTP URL:', url);

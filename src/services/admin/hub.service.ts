@@ -2,9 +2,16 @@ import { HubModel } from '../../models/hub/hub.model'
 import { Staff } from '../../models/admin/staff.model'
 import bcrypt from 'bcryptjs';
 import { generateToken } from '../../utils/jwt';
+import { checkPhoneGloballyUnique } from '../../utils/phoneCheck';
 
 export const createHub = async (rb: any) => {
   try {
+    // Check phone global uniqueness
+    const phoneError = await checkPhoneGloballyUnique(String(rb.phoneNo));
+    if (phoneError) {
+      return { success: false, message: phoneError };
+    }
+
     const hashedPassword = await bcrypt.hash(rb.password, 10);
     const hub = await HubModel.create({ ...rb, password: hashedPassword });
     return { success: true, data: hub }
@@ -72,6 +79,13 @@ export const getHubById = async (id: any) => {
 
 export const updateHub = async (id: any, rb: any) => {
   try {
+    // Check phone global uniqueness if updating phone
+    if (rb.phoneNo !== undefined) {
+      const phoneError = await checkPhoneGloballyUnique(String(rb.phoneNo), { model: 'Hub', id });
+      if (phoneError) {
+        return { success: false, message: phoneError };
+      }
+    }
 
     const hub = await HubModel.findByIdAndUpdate(
       id,
@@ -146,7 +160,7 @@ export const unifiedHubLogin = async (username: string, password: string) => {
         return { success: false, message: 'Hub information missing. Contact administrator.' };
       }
 
-      const isPasswordValid = await bcrypt.compare(password, staff.password);
+      const isPasswordValid = await bcrypt.compare(password, staff.password!);
       if (!isPasswordValid) {
         return { success: false, message: 'Invalid credentials' };
       }

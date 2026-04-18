@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { AdminUser } from "../../models/admin/adminUser.model";
 import { generateToken } from "../../utils/jwt";
+import { checkPhoneGloballyUnique } from '../../utils/phoneCheck';
 
 
 export const register = async (rb: any) => {
@@ -10,6 +11,12 @@ export const register = async (rb: any) => {
     const existingUser = await AdminUser.findOne({ email });
     if (existingUser) {
       return { success: false, message: "User already exists" };
+    }
+
+    // Check phone global uniqueness
+    const phoneError = await checkPhoneGloballyUnique(phoneNo);
+    if (phoneError) {
+      return { success: false, message: phoneError };
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);

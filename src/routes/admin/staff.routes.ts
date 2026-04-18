@@ -6,11 +6,6 @@ import {
   updateStaff,
   deleteStaff,
   updateStaffStatus,
-  loginStaff,
-  loginFranchiseStaff,
-  loginHeadQuarterStaff,
-  loginHubStaff,
-  loginCollectionExecutive,
   sendStaffOtp,
   verifyStaffOtp,
 } from '../../controllers/admin/staff.controller';
@@ -22,7 +17,6 @@ import {
   updateStaffStatusSchema,
   getStaffByIdSchema,
   deleteStaffSchema,
-  staffLoginSchema,
   staffSendOtpSchema,
   staffVerifyOtpSchema,
 } from '../../validators/admin/staff.validator';
@@ -31,167 +25,9 @@ import { adminModule } from '../../config/adminModule';
 
 const router = Router();
 
-/**
- * @swagger
- * /admin/staff/login:
- *   post:
- *     summary: Staff login
- *     tags: [Staff Management]
- *     security: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - username
- *               - password
- *             properties:
- *               username:
- *                 type: string
- *                 example: staffuser
- *               password:
- *                 type: string
- *                 format: password
- *                 example: password123
- *     responses:
- *       200:
- *         description: Login successful
- *       401:
- *         description: Invalid credentials
- */
-router.post('/login', validate(staffLoginSchema), loginStaff);
-
-/**
- * @swagger
- * /admin/staff/login/franchise:
- *   post:
- *     summary: Franchise staff login (only for franchise staff)
- *     tags: [Staff Management]
- *     security: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - username
- *               - password
- *             properties:
- *               username:
- *                 type: string
- *                 example: franchisestaff
- *               password:
- *                 type: string
- *                 format: password
- *                 example: password123
- *     responses:
- *       200:
- *         description: Franchise staff login successful
- *       401:
- *         description: Invalid credentials or not a franchise staff
- */
-router.post('/login/franchise', validate(staffLoginSchema), loginFranchiseStaff);
+// Public login routes - OTP login only
 router.post('/login/send-otp', validate(staffSendOtpSchema), sendStaffOtp);
 router.post('/login/verify-otp', validate(staffVerifyOtpSchema), verifyStaffOtp);
-
-/**
- * @swagger
- * /admin/staff/login/headquarter:
- *   post:
- *     summary: Head quarter staff login (only for HQ staff)
- *     tags: [Staff Management]
- *     security: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - username
- *               - password
- *             properties:
- *               username:
- *                 type: string
- *                 example: hqstaff
- *               password:
- *                 type: string
- *                 format: password
- *                 example: password123
- *     responses:
- *       200:
- *         description: Head quarter staff login successful
- *       401:
- *         description: Invalid credentials or not a head quarter staff
- */
-router.post('/login/headquarter', validate(staffLoginSchema), loginHeadQuarterStaff);
-
-/**
- * @swagger
- * /admin/staff/login/hub:
- *   post:
- *     summary: Hub staff login (only for hub staff)
- *     tags: [Staff Management]
- *     security: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - username
- *               - password
- *             properties:
- *               username:
- *                 type: string
- *                 example: hubstaff
- *               password:
- *                 type: string
- *                 format: password
- *                 example: password123
- *     responses:
- *       200:
- *         description: Hub staff login successful
- *       401:
- *         description: Invalid credentials or not a hub staff
- */
-router.post('/login/hub', validate(staffLoginSchema), loginHubStaff);
-
-/**
- * @swagger
- * /admin/staff/login/collection-executive:
- *   post:
- *     summary: Collection Executive staff login (all types - HQ, franchise, hub)
- *     tags: [Staff Management]
- *     security: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - username
- *               - password
- *             properties:
- *               username:
- *                 type: string
- *                 example: collectionstaff
- *               password:
- *                 type: string
- *                 format: password
- *                 example: password123
- *     responses:
- *       200:
- *         description: Collection Executive login successful
- *       401:
- *         description: Invalid credentials or not a Collection Executive
- */
-router.post('/login/collection-executive', validate(staffLoginSchema), loginCollectionExecutive);
 
 /**
  * @swagger
