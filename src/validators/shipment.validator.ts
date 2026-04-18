@@ -79,7 +79,7 @@ export const getShipmentsSchema = yup.object().shape({
   status: yup
     .string()
     .oneOf(
-      ['pending', 'created', 'in_transit', 'delivered', 'failed', 'cancelled'],
+      ['pending', 'created', 'Active', 'in_transit', 'delivered', 'failed', 'cancelled'],
       'Invalid status'
     ),
 });
@@ -96,7 +96,7 @@ export const updateShipmentSchema = yup.object().shape({
   status: yup
     .string()
     .oneOf(
-      ['pending', 'created', 'in_transit', 'delivered', 'failed', 'cancelled'],
+      ['pending', 'created', 'Active', 'in_transit', 'delivered', 'failed', 'cancelled'],
       'Invalid status'
     ),
   fromName: yup.string(),

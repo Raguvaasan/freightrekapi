@@ -7,11 +7,10 @@ import { HubModel } from '../models/hub/hub.model';
 
 // Helper: Resolve user role - checks AdminUser first, then Staff with AdminRole
 async function resolveUserAccess(userId: string): Promise<{ isAdmin: boolean; hubId?: string }> {
-  // Check AdminUser collection
-  const adminUser = await AdminUser.findById(userId).populate('roleId');
-  if (adminUser && adminUser.roleId) {
-    const role: any = adminUser.roleId;
-    if (role.isRoot === true) return { isAdmin: true };
+  // Check AdminUser collection — any admin user can manage all orders
+  const adminUser = await AdminUser.findById(userId);
+  if (adminUser) {
+    return { isAdmin: true };
   }
 
   // Check Staff collection
