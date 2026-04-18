@@ -1,6 +1,7 @@
 import { Staff } from '../../models/admin/staff.model';
 import { Shipment } from '../../models/shipment/shipment.model';
 import { HubModel } from '../../models/hub/hub.model';
+import { AdminUser } from '../../models/admin/adminUser.model';
 import bcrypt from 'bcryptjs';
 import axios from 'axios';
 
@@ -546,12 +547,16 @@ export const hubStaffService = {
     status?: string;
   }) {
     try {
-      const hubId = await resolveHubId(staffId);
-      if (!hubId) {
+      // Check if user is admin — admins can edit any order
+      const adminUser = await AdminUser.findById(staffId);
+      const hubId = adminUser ? null : await resolveHubId(staffId);
+      if (!adminUser && !hubId) {
         return { success: false, message: 'Hub access required' };
       }
 
-      const order = await Shipment.findOne({ orderId, assignedHubId: hubId });
+      const orderQuery: any = { orderId };
+      if (hubId) orderQuery.assignedHubId = hubId;
+      const order = await Shipment.findOne(orderQuery);
       if (!order) {
         return { success: false, message: 'Order not found' };
       }
@@ -563,8 +568,8 @@ export const hubStaffService = {
         return { success: false, message: 'Cannot edit cancelled order' };
       }
 
-      // Validate assignedStaffId belongs to the same hub
-      if (updateData.assignedStaffId) {
+      // Validate assignedStaffId belongs to the same hub (skip for admin)
+      if (updateData.assignedStaffId && hubId) {
         const assignedStaff = await Staff.findById(updateData.assignedStaffId).select('hubId type status');
         if (!assignedStaff || assignedStaff.type !== 'hub' || !assignedStaff.hubId || assignedStaff.hubId.toString() !== hubId) {
           return { success: false, message: 'Assigned staff must belong to the same hub' };
@@ -574,12 +579,17 @@ export const hubStaffService = {
         }
       }
 
-      // Validate status if provided
+      // Validate status if provided (case-insensitive mapping)
       if (updateData.status) {
-        const validStatuses = ['pending', 'Active', 'in_transit', 'delivered', 'failed'];
-        if (!validStatuses.includes(updateData.status)) {
-          return { success: false, message: `Invalid status. Allowed: ${validStatuses.join(', ')}` };
+        const statusMap: Record<string, string> = {
+          'pending': 'pending', 'active': 'Active', 'in_transit': 'in_transit',
+          'delivered': 'delivered', 'failed': 'failed', 'cancelled': 'cancelled',
+        };
+        const mapped = statusMap[updateData.status.toLowerCase()];
+        if (!mapped) {
+          return { success: false, message: `Invalid status. Allowed: pending, Active, in_transit, delivered, failed` };
         }
+        updateData.status = mapped;
       }
 
       // Store original amounts for comparison
