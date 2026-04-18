@@ -455,6 +455,7 @@ export class StaffService {
     status?: string,
     franchiseId?: string,
     roleId?: string,
+    type?: string,
   ): Promise<ServiceResponse> {
     try {
       const skip = (page - 1) * limit;
@@ -473,6 +474,11 @@ export class StaffService {
       // Status filter
       if (status) {
         query.status = status;
+      }
+
+      // Type filter
+      if (type) {
+        query.type = type;
       }
 
       // Franchise filter

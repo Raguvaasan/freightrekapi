@@ -117,4 +117,5 @@ export const updateShipmentSchema = yup.object().shape({
   totalAmount: yup.string(),
   weight: yup.string(),
   shippingMode: yup.string().oneOf(['Surface', 'Express'], 'Shipping mode must be Surface or Express'),
+  assignedStaffId: yup.string(),
 });

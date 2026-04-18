@@ -123,6 +123,7 @@ export const getAllStaff = async (req: Request, res: Response) => {
     const status = req.query.status as string;
     const franchiseId = req.query.franchiseId as string;
     const roleId = req.query.roleId as string;
+    const type = req.query.type as string;
 
     const result = await staffService.getAllStaff(
       page,
@@ -130,7 +131,8 @@ export const getAllStaff = async (req: Request, res: Response) => {
       search,
       status,
       franchiseId,
-      roleId
+      roleId,
+      type
     );
 
     if (!result.success) {

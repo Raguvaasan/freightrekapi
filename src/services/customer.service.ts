@@ -185,7 +185,14 @@ export class CustomerService {
         return { success: false, message: 'Customer not found' };
       }
 
+      // Delete from both Customer (admin) and AppCustomer (login) collections
       await Customer.findByIdAndDelete(id);
+      if (customer.email || customer.phone) {
+        const query: any = {};
+        if (customer.email) query.email = customer.email;
+        if (customer.phone) query.phone = customer.phone;
+        await AppCustomer.findOneAndDelete(query);
+      }
 
       return { success: true, message: 'Customer deleted successfully' };
     } catch (error: any) {

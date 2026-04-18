@@ -160,6 +160,10 @@ export const customerAuthService = {
       return { success: false, message: 'No account found with this phone number. Please register first' };
     }
 
+    if (customer.status === 'Inactive') {
+      return { success: false, message: 'Your account has been deactivated. Please contact support' };
+    }
+
     let responseMessage = 'Login successful';
 
     if (customer.status === 'Pending') {
