@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from "express";
 import { AdminUser } from "../models/admin/adminUser.model";
 import { Staff } from "../models/admin/staff.model";
 import { Role } from "../models/admin/role.model";
+import { FranchiseRole } from "../models/admin/franchiseRole.model";
+import { HubRole } from "../models/hub/hubRole.model";
 
 export const checkPermission =
   (module: string, action: "read" | "write" | "update" | "delete") =>
@@ -17,10 +19,16 @@ export const checkPermission =
       if (user && user.roleId) {
         role = user.roleId;
       } else {
-        // If not an AdminUser, check if it's a head_quarter Staff with an admin role
+        // Check all staff types with their respective role collections
         const staff = await Staff.findById(req.user.id);
-        if (staff && staff.type === 'head_quarter' && staff.roleId) {
-          role = await Role.findById(staff.roleId);
+        if (staff && staff.roleId) {
+          if (staff.type === 'head_quarter') {
+            role = await Role.findById(staff.roleId);
+          } else if (staff.type === 'franchise') {
+            role = await FranchiseRole.findById(staff.roleId);
+          } else if (staff.type === 'hub') {
+            role = await HubRole.findById(staff.roleId);
+          }
         }
       }
 

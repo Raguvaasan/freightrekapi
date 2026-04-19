@@ -899,7 +899,7 @@ export class StaffService {
       const templateId = process.env.PING4SMS_TEMPLATE_ID;
       const route = process.env.PING4SMS_ROUTE || '2';
       const fullPhone = `${countryCode.replace('+', '')}${phone}`;
-      const message = `Your OTP for Freightrek staff login is ${otp}. Do not share it with anyone. - FREIGHTREK`;
+      const message = `Your OTP for login is ${otp}. Do not share it with anyone. - FREIGHTREK`;
       const url = `https://site.ping4sms.com/api/smsapi?key=${apiKey}&route=${route}&sender=${sender}&number=${fullPhone}&sms=${encodeURIComponent(message)}&templateid=${templateId}`;
 
       console.log('[Ping4SMS] Staff OTP URL:', url);
