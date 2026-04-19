@@ -4,6 +4,7 @@ import { FranchiseRole } from '../../models/admin/franchiseRole.model';
 import { HubRole } from '../../models/hub/hubRole.model';
 import { Agency } from '../../models/admin/agency.model';
 import { HubModel as Hub } from '../../models/hub/hub.model';
+import { Wallet } from '../../models/wallet/wallet.model';
 import { Types } from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { generateToken } from '../../utils/jwt';
@@ -122,7 +123,7 @@ export class StaffService {
       // Find staff by username
       const staff = await Staff.findOne({ username })
         .select('+password')
-        .populate('franchiseId', 'agencyName');
+        .populate('franchiseId');
 
       if (!staff) {
         return {
@@ -177,12 +178,29 @@ export class StaffService {
       const staffData: any = staff.toObject();
       delete staffData.password;
 
+      // Fetch franchise wallet
+      const franchiseIdStr = staff.franchiseId
+        ? (staff.franchiseId as any)._id
+          ? (staff.franchiseId as any)._id.toString()
+          : staff.franchiseId.toString()
+        : null;
+
+      const wallet = franchiseIdStr
+        ? await Wallet.findOne({ userId: franchiseIdStr })
+        : null;
+
       const token = generateToken(staff._id.toString());
 
       return {
         success: true,
         message: 'Franchise staff login successful',
-        data: { ...staffData, token },
+        data: {
+          ...staffData,
+          token,
+          wallet: wallet
+            ? { balance: wallet.balance, currency: wallet.currency }
+            : { balance: 0, currency: 'INR' },
+        },
       };
     } catch (error: any) {
       return {
