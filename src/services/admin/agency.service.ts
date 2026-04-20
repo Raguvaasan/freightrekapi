@@ -484,6 +484,10 @@ export class AgencyService {
           phone: agency.phone,
           email: agency.email,
           status: agency.status,
+          address: agency.address,
+          city: agency.city,
+          state: agency.state,
+          pincode: agency.pincode,
         },
       };
     } catch (error: any) {

@@ -3,7 +3,6 @@ import { Agency } from '../../models/admin/agency.model';
 import { Wallet } from '../../models/wallet/wallet.model';
 import { Transaction } from '../../models/wallet/transaction.model';
 import { HubModel } from '../../models/hub/hub.model';
-import { Markup } from '../../models/markup/markup.model';
 
 interface ServiceResponse {
   success: boolean;
@@ -187,31 +186,29 @@ export class AdminDashboardService {
           ? (((currentPeriodShipments - previousPeriodShipments) / previousPeriodShipments) * 100).toFixed(1)
           : '0.0';
 
-      // Calculate all-time total revenue from all shipments
-      const totalRevenue = allTimeRevenueData.reduce((sum, shipment) => {
-        return sum + parseFloat(shipment.totalAmount || shipment.codAmount || '0');
-      }, 0);
-
-      // Calculate revenue split: delhivery cost vs markup profit
-      const globalMarkup = await Markup.findOne({ markupCategory: 'rate_calculator', userId: null, franchiseId: null, isActive: true }).lean();
+      // Calculate all-time total revenue and markup from per-shipment stored values
+      let totalRevenue = 0;
       let delhiveryCost = 0;
       let markupProfit = 0;
-      if (globalMarkup) {
-        if (globalMarkup.markupType === 'percentage') {
-          delhiveryCost = parseFloat((totalRevenue / (1 + globalMarkup.markupValue / 100)).toFixed(2));
+
+      allTimeRevenueData.forEach((shipment) => {
+        const shipmentTotal = parseFloat(shipment.totalAmount || shipment.codAmount || '0');
+        totalRevenue += shipmentTotal;
+
+        if (shipment.baseAmount != null && shipment.markupAmount != null) {
+          // Use actual per-shipment values
+          delhiveryCost += shipment.baseAmount;
+          markupProfit += (shipment.markupAmount - shipment.baseAmount);
         } else {
-          // fixed: each shipment has a fixed markup added
-          const shipmentCount = allTimeRevenueData.length;
-          markupProfit = parseFloat((globalMarkup.markupValue * shipmentCount).toFixed(2));
-          delhiveryCost = parseFloat((totalRevenue - markupProfit).toFixed(2));
+          // Fallback for old shipments without baseAmount/markupAmount
+          delhiveryCost += shipmentTotal;
         }
-        if (globalMarkup.markupType === 'percentage') {
-          markupProfit = parseFloat((totalRevenue - delhiveryCost).toFixed(2));
-        }
-      } else {
-        delhiveryCost = totalRevenue;
-        markupProfit = 0;
-      }
+      });
+
+      // Round to 2 decimal places
+      totalRevenue = parseFloat(totalRevenue.toFixed(2));
+      delhiveryCost = parseFloat(delhiveryCost.toFixed(2));
+      markupProfit = parseFloat(markupProfit.toFixed(2));
 
       // Calculate today's revenue
       const todayRevenue = todayRevenueData.reduce((sum, shipment) => {
@@ -273,7 +270,6 @@ export class AdminDashboardService {
       const bookingUserIds = [...new Set(recentBookingsData.map(b => b.userId))];
       const bookingAgencies = await Agency.find({ _id: { $in: bookingUserIds } }, 'agencyName');
       const bookingAgencyMap = new Map(bookingAgencies.map(agency => [agency._id.toString(), agency.agencyName]));
-console.log('Recent Bookings Data:', recentBookingsData);
       const recentBookings = recentBookingsData.map(booking => ({
         orderId: booking.order, // Use franchise API orderId
         waybill: booking.waybill || 'N/A',
