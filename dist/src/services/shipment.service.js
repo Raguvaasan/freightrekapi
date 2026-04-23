@@ -519,6 +519,7 @@ exports.shipmentService = {
                     hsnCode: shipment.hsnCode || '',
                     pickupLocation: shipment.pickupLocation,
                     delhiveryResponse: shipment.delhiveryResponse || null,
+                    orderType: shipment.orderType || 'customer',
                     baseAmount: shipment.baseAmount ?? (parseFloat(shipment.totalAmount || '0') || null),
                     markupAmount: shipment.markupAmount ?? (parseFloat(shipment.totalAmount || '0') || null),
                     markupType: shipment.markupType ?? null,
@@ -538,16 +539,15 @@ exports.shipmentService = {
     },
     async getShipments(userId, page = 1, limit = 20, status, isAdmin, franchiseUserIds, assignedHubId) {
         try {
-            // If admin, show all orders (franchise + hub)
-            // Otherwise, filter by logged-in userId
+            // If admin, show all orders (no userId filter needed)
+            // Otherwise, filter by logged-in userId or hub
             const query = {};
             if (assignedHubId) {
                 // Hub staff: show orders assigned to their hub
                 query.assignedHubId = assignedHubId;
             }
-            else if (isAdmin && franchiseUserIds && franchiseUserIds.length > 0) {
-                // Admin: show all orders (franchise + hub)
-                query.userId = { $in: franchiseUserIds };
+            else if (isAdmin) {
+                // Admin: show all orders - no userId filter
             }
             else {
                 // Non-admin: show only their own orders
@@ -556,31 +556,30 @@ exports.shipmentService = {
             if (status) {
                 query.status = status;
             }
-            else {
-                // Exclude soft-deleted (cancelled) orders unless explicitly requested
-                query.status = { $ne: 'cancelled' };
-            }
+            // No default status filter - show all orders when no status is specified
             const skip = (page - 1) * limit;
-            const shipments = await shipment_model_1.Shipment.find(query)
-                .sort({ createdAt: -1 })
-                .limit(limit)
-                .skip(skip)
-                .lean();
-            const total = await shipment_model_1.Shipment.countDocuments(query);
+            const [shipments, total] = await Promise.all([
+                shipment_model_1.Shipment.find(query)
+                    .sort({ createdAt: -1 })
+                    .limit(limit)
+                    .skip(skip)
+                    .lean(),
+                shipment_model_1.Shipment.countDocuments(query),
+            ]);
             // Get unique userIds to fetch franchise/customer names
             const userIds = [...new Set(shipments.map(s => s.userId))];
-            const agencies = await agency_model_1.Agency.find({ _id: { $in: userIds } }, 'agencyName');
-            const agencyMap = new Map(agencies.map(agency => [agency._id.toString(), agency.agencyName]));
-            // Also lookup AppCustomer names for customer orders
-            const customers = await appCustomer_model_1.AppCustomer.find({ _id: { $in: userIds } }, 'firstName lastName');
-            const customerMap = new Map(customers.map(c => [c._id.toString(), `${c.firstName} ${c.lastName}`.trim()]));
             // Get unique pickup location names to fetch hub and agency details
             const pickupLocationNames = [...new Set(shipments.map(s => s.pickupLocation?.name).filter(Boolean))];
-            // Try to find in Hub collection first
-            const hubs = await hub_model_1.HubModel.find({ hubName: { $in: pickupLocationNames } }, 'hubName address pincode');
+            // Run all lookups in parallel
+            const [agencies, customers, hubs, agenciesForPickup] = await Promise.all([
+                agency_model_1.Agency.find({ _id: { $in: userIds } }, 'agencyName').lean(),
+                appCustomer_model_1.AppCustomer.find({ _id: { $in: userIds } }, 'firstName lastName').lean(),
+                hub_model_1.HubModel.find({ hubName: { $in: pickupLocationNames } }, 'hubName address pincode').lean(),
+                agency_model_1.Agency.find({ agencyName: { $in: pickupLocationNames } }, 'agencyName address pincode').lean(),
+            ]);
+            const agencyMap = new Map(agencies.map(agency => [agency._id.toString(), agency.agencyName]));
+            const customerMap = new Map(customers.map(c => [c._id.toString(), `${c.firstName} ${c.lastName}`.trim()]));
             const hubMap = new Map(hubs.map(hub => [hub.hubName, { address: hub.address, pincode: hub.pincode.toString() }]));
-            // Also try to find in Agency collection (for franchise-based pickup locations)
-            const agenciesForPickup = await agency_model_1.Agency.find({ agencyName: { $in: pickupLocationNames } }, 'agencyName address pincode');
             const agencyPickupMap = new Map(agenciesForPickup.map(agency => [agency.agencyName, { address: agency.address, pincode: agency.pincode }]));
             return {
                 success: true,

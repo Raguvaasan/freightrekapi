@@ -8,6 +8,9 @@ const agency_model_1 = require("../../models/admin/agency.model");
 const mongoose_1 = require("mongoose");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const jwt_1 = require("../../utils/jwt");
+const otp_model_1 = require("../../models/customer/otp.model");
+const axios_1 = __importDefault(require("axios"));
+const phoneCheck_1 = require("../../utils/phoneCheck");
 class AgencyService {
     // Franchise Login
     async loginFranchise(username, password) {
@@ -64,6 +67,11 @@ class AgencyService {
     // Create new agency
     async createAgency(data) {
         try {
+            // Check phone global uniqueness
+            const phoneError = await (0, phoneCheck_1.checkPhoneGloballyUnique)(data.phone);
+            if (phoneError) {
+                return { success: false, message: phoneError };
+            }
             // Check if agency with same name already exists
             const existingAgency = await agency_model_1.Agency.findOne({
                 agencyName: data.agencyName
@@ -223,6 +231,13 @@ class AgencyService {
                     };
                 }
             }
+            // Check phone global uniqueness if updating phone
+            if (data.phone && data.phone !== agency.phone) {
+                const phoneError = await (0, phoneCheck_1.checkPhoneGloballyUnique)(data.phone, { model: 'Agency', id });
+                if (phoneError) {
+                    return { success: false, message: phoneError };
+                }
+            }
             // Hash password if being updated
             let updateData = { ...data };
             if (data.password) {
@@ -306,6 +321,79 @@ class AgencyService {
                 success: false,
                 message: error.message || 'Error updating agency status',
             };
+        }
+    }
+    // OTP Login - Send OTP
+    async sendLoginOtp(phone, countryCode) {
+        try {
+            const agency = await agency_model_1.Agency.findOne({ phone, status: 'Active' }).lean();
+            if (!agency) {
+                return { success: false, message: 'No active franchise account found with this phone number' };
+            }
+            const otp = Math.floor(100000 + Math.random() * 900000).toString();
+            const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+            await otp_model_1.Otp.deleteMany({ phone, userType: 'franchise' });
+            await otp_model_1.Otp.create({ phone, countryCode, otp, expiresAt, userType: 'franchise' });
+            const apiKey = process.env.PING4SMS_API_KEY;
+            const sender = process.env.PING4SMS_SENDER;
+            const templateId = process.env.PING4SMS_TEMPLATE_ID;
+            const route = process.env.PING4SMS_ROUTE || '2';
+            const fullPhone = `${countryCode.replace('+', '')}${phone}`;
+            const message = `Your OTP for login is ${otp}. Do not share it with anyone. - FREIGHTREK`;
+            const url = `https://site.ping4sms.com/api/smsapi?key=${apiKey}&route=${route}&sender=${sender}&number=${fullPhone}&sms=${encodeURIComponent(message)}&templateid=${templateId}`;
+            console.log('[Ping4SMS] Franchise OTP URL:', url);
+            const smsResponse = await axios_1.default.get(url);
+            console.log('[Ping4SMS] Franchise OTP Response:', JSON.stringify(smsResponse.data));
+            const responseStr = typeof smsResponse.data === 'string' ? smsResponse.data : JSON.stringify(smsResponse.data);
+            if (responseStr.includes('-1') || responseStr.includes('-2') || responseStr.toLowerCase().includes('error') || responseStr.includes('INVALID')) {
+                return { success: false, message: `SMS sending failed: ${responseStr}` };
+            }
+            return { success: true, message: 'OTP sent successfully' };
+        }
+        catch (error) {
+            return { success: false, message: error.message || 'Error sending OTP' };
+        }
+    }
+    // OTP Login - Verify OTP
+    async verifyLoginOtp(phone, countryCode, otp) {
+        try {
+            const record = await otp_model_1.Otp.findOne({ phone, used: false, userType: 'franchise' }).lean();
+            if (!record) {
+                return { success: false, message: 'OTP not found. Please request a new one' };
+            }
+            if (new Date() > record.expiresAt) {
+                await otp_model_1.Otp.deleteOne({ _id: record._id });
+                return { success: false, message: 'OTP has expired. Please request a new one' };
+            }
+            if (record.otp !== otp) {
+                return { success: false, message: 'Invalid OTP' };
+            }
+            await otp_model_1.Otp.updateOne({ _id: record._id }, { used: true });
+            const agency = await agency_model_1.Agency.findOne({ phone, status: 'Active' }).lean();
+            if (!agency) {
+                return { success: false, message: 'No active franchise account found with this phone number' };
+            }
+            const token = (0, jwt_1.generateToken)(agency._id.toString());
+            return {
+                success: true,
+                message: 'Login successful',
+                token,
+                data: {
+                    id: agency._id,
+                    agencyName: agency.agencyName,
+                    agencyOwner: agency.agencyOwner,
+                    phone: agency.phone,
+                    email: agency.email,
+                    status: agency.status,
+                    address: agency.address,
+                    city: agency.city,
+                    state: agency.state,
+                    pincode: agency.pincode,
+                },
+            };
+        }
+        catch (error) {
+            return { success: false, message: error.message || 'Error verifying OTP' };
         }
     }
 }

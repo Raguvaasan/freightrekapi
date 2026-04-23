@@ -7,12 +7,18 @@ exports.login = exports.register = void 0;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const adminUser_model_1 = require("../../models/admin/adminUser.model");
 const jwt_1 = require("../../utils/jwt");
+const phoneCheck_1 = require("../../utils/phoneCheck");
 const register = async (rb) => {
     try {
         const { name, email, password, phoneNo, roleId } = rb;
         const existingUser = await adminUser_model_1.AdminUser.findOne({ email });
         if (existingUser) {
             return { success: false, message: "User already exists" };
+        }
+        // Check phone global uniqueness
+        const phoneError = await (0, phoneCheck_1.checkPhoneGloballyUnique)(phoneNo);
+        if (phoneError) {
+            return { success: false, message: phoneError };
         }
         const hashedPassword = await bcryptjs_1.default.hash(password, 10);
         const user = await adminUser_model_1.AdminUser.create({

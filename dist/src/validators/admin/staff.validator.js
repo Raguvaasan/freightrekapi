@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.staffLoginSchema = exports.deleteStaffSchema = exports.getStaffByIdSchema = exports.updateStaffStatusSchema = exports.updateStaffSchema = exports.createStaffSchema = void 0;
+exports.staffVerifyOtpSchema = exports.staffSendOtpSchema = exports.staffLoginSchema = exports.deleteStaffSchema = exports.getStaffByIdSchema = exports.updateStaffStatusSchema = exports.updateStaffSchema = exports.createStaffSchema = void 0;
 const yup = __importStar(require("yup"));
 // Create staff validation schema
 exports.createStaffSchema = yup.object({
@@ -85,15 +85,15 @@ exports.createStaffSchema = yup.object({
         }),
         username: yup
             .string()
-            .required('Username is required')
             .min(3, 'Username must be at least 3 characters')
             .max(50, 'Username must not exceed 50 characters')
-            .trim(),
+            .trim()
+            .optional(),
         password: yup
             .string()
-            .required('Password is required')
             .min(6, 'Password must be at least 6 characters')
-            .max(100, 'Password must not exceed 100 characters'),
+            .max(100, 'Password must not exceed 100 characters')
+            .optional(),
     }),
 });
 // Update staff validation schema
@@ -198,5 +198,45 @@ exports.staffLoginSchema = yup.object({
         password: yup
             .string()
             .required('Password is required'),
+    }),
+});
+// OTP Login - Send OTP
+exports.staffSendOtpSchema = yup.object({
+    body: yup.object({
+        phone: yup
+            .string()
+            .required('Phone number is required')
+            .matches(/^[0-9]{10}$/, 'Phone number must be 10 digits')
+            .trim(),
+        countryCode: yup
+            .string()
+            .required('Country code is required')
+            .trim(),
+        type: yup
+            .string()
+            .oneOf(['franchise', 'hub', 'head_quarter'], 'Invalid staff type')
+            .optional(),
+    }),
+});
+// OTP Login - Verify OTP
+exports.staffVerifyOtpSchema = yup.object({
+    body: yup.object({
+        phone: yup
+            .string()
+            .required('Phone number is required')
+            .matches(/^[0-9]{10}$/, 'Phone number must be 10 digits')
+            .trim(),
+        countryCode: yup
+            .string()
+            .required('Country code is required')
+            .trim(),
+        otp: yup
+            .string()
+            .required('OTP is required')
+            .matches(/^[0-9]{6}$/, 'OTP must be 6 digits'),
+        type: yup
+            .string()
+            .oneOf(['franchise', 'hub', 'head_quarter'], 'Invalid staff type')
+            .optional(),
     }),
 });

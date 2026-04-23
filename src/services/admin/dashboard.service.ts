@@ -195,13 +195,14 @@ export class AdminDashboardService {
         const shipmentTotal = parseFloat(shipment.totalAmount || shipment.codAmount || '0');
         totalRevenue += shipmentTotal;
 
-        if (shipment.baseAmount != null && shipment.markupAmount != null) {
-          // Use actual per-shipment values
+        if (shipment.baseAmount != null) {
           delhiveryCost += shipment.baseAmount;
-          markupProfit += (shipment.markupAmount - shipment.baseAmount);
         } else {
-          // Fallback for old shipments without baseAmount/markupAmount
           delhiveryCost += shipmentTotal;
+        }
+
+        if (shipment.baseAmount != null && shipment.markupAmount != null) {
+          markupProfit += (shipment.markupAmount - shipment.baseAmount);
         }
       });
 
@@ -468,13 +469,16 @@ export class AdminDashboardService {
   // Get top performing franchises
   async getTopFranchises(limit: number = 3, period: 'day' | 'week' | 'month' | 'all' = 'all'): Promise<ServiceResponse> {
     try {
-      // Calculate date range based on period
-      let matchStage: any = {};
-      
+      // Get all franchise (agency) IDs
+      const agencies = await Agency.find({ status: 'Active' }, '_id agencyName').lean();
+      const franchiseIds = agencies.map((a: any) => a._id.toString());
+      const franchiseNameMap = new Map(agencies.map((a: any) => [a._id.toString(), a.agencyName]));
+
+      // Build date filter for period
+      let dateFilter: any = {};
       if (period !== 'all') {
         const now = new Date();
-        let startDate = new Date();
-        
+        const startDate = new Date();
         switch (period) {
           case 'day':
             startDate.setHours(0, 0, 0, 0);
@@ -486,111 +490,60 @@ export class AdminDashboardService {
             startDate.setDate(now.getDate() - 30);
             break;
         }
-        
-        matchStage = {
-          $match: {
-            createdAt: { $gte: startDate },
-          },
-        };
+        dateFilter = { createdAt: { $gte: startDate } };
       }
 
-      const pipeline: any[] = [];
-      
-      // Only add match stage if period is not 'all'
-      if (period !== 'all') {
-        pipeline.push(matchStage);
-      }
-      
-      pipeline.push(
+      // Rank franchises by total wallet credits (recharge amount)
+      const txnPipeline: any[] = [
         {
-          $addFields: {
-            numericAmount: {
-              $cond: {
-                if: {
-                  $and: [
-                    { $ne: ['$totalAmount', ''] },
-                    { $ne: ['$totalAmount', null] },
-                  ],
-                },
-                then: {
-                  $convert: {
-                    input: '$totalAmount',
-                    to: 'double',
-                    onError: 0,
-                    onNull: 0,
-                  },
-                },
-                else: {
-                  $cond: {
-                    if: {
-                      $and: [
-                        { $ne: ['$codAmount', ''] },
-                        { $ne: ['$codAmount', null] },
-                      ],
-                    },
-                    then: {
-                      $convert: {
-                        input: '$codAmount',
-                        to: 'double',
-                        onError: 0,
-                        onNull: 0,
-                      },
-                    },
-                    else: 0,
-                  },
-                },
-              },
-            },
+          $match: {
+            userId: { $in: franchiseIds },
+            type: 'credit',
+            ...dateFilter,
           },
         },
         {
           $group: {
             _id: '$userId',
+            totalValue: { $sum: '$amount' },
             orderCount: { $sum: 1 },
-            totalValue: { $sum: '$numericAmount' },
           },
         },
-        {
-          $sort: { totalValue: -1 },
-        },
-        {
-          $limit: limit,
-        },
-        {
-          $addFields: {
-            userObjectId: { $toObjectId: '$_id' },
-          },
-        },
-        {
-          $lookup: {
-            from: 'agencies',
-            localField: 'userObjectId',
-            foreignField: '_id',
-            as: 'franchiseDetails',
-          },
-        },
-        {
-          $unwind: {
-            path: '$franchiseDetails',
-            preserveNullAndEmptyArrays: true,
-          },
-        },
-        {
-          $project: {
-            _id: 0,
-            franchiseId: '$_id',
-            franchiseName: { $ifNull: ['$franchiseDetails.agencyName', 'Unknown'] },
-            orderCount: 1,
-            totalValue: { $round: ['$totalValue', 2] },
-          },
+        { $sort: { totalValue: -1 } },
+        { $limit: limit },
+      ];
+
+      const txnData = await Transaction.aggregate(txnPipeline);
+
+      // Fill in any franchises that have no transactions with zeros
+      // so that all active franchises appear if fewer than `limit` have transactions
+      const resultMap = new Map(txnData.map((t: any) => [t._id, t]));
+      let results: any[] = txnData.map((t: any) => ({
+        franchiseId: t._id,
+        franchiseName: franchiseNameMap.get(t._id) || 'Unknown',
+        orderCount: t.orderCount,
+        totalValue: parseFloat(t.totalValue.toFixed(2)),
+      }));
+
+      // If fewer results than limit, pad with other active franchises (value 0)
+      if (results.length < limit) {
+        for (const agency of agencies) {
+          if (results.length >= limit) break;
+          const id = agency._id.toString();
+          if (!resultMap.has(id)) {
+            results.push({
+              franchiseId: id,
+              franchiseName: (agency as any).agencyName,
+              orderCount: 0,
+              totalValue: 0,
+            });
+          }
         }
-      );
-      
-      const topFranchises = await Shipment.aggregate(pipeline);
+      }
 
       return {
         success: true,
-        data: topFranchises,
+        data: results,
       };
     } catch (error: any) {
       return {

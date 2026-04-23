@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getAgenciesByHubSchema = exports.deleteAgencySchema = exports.getAgencyByIdSchema = exports.updateAgencyStatusSchema = exports.updateAgencySchema = exports.createAgencySchema = exports.franchiseLoginSchema = void 0;
+exports.franchiseVerifyOtpSchema = exports.franchiseSendOtpSchema = exports.getAgenciesByHubSchema = exports.deleteAgencySchema = exports.getAgencyByIdSchema = exports.updateAgencyStatusSchema = exports.updateAgencySchema = exports.createAgencySchema = exports.franchiseLoginSchema = void 0;
 const yup = __importStar(require("yup"));
 // Franchise login validation schema
 exports.franchiseLoginSchema = yup.object({
@@ -241,5 +241,37 @@ exports.getAgenciesByHubSchema = yup.object({
             .string()
             .required('Hub ID is required')
             .matches(/^[0-9a-fA-F]{24}$/, 'Invalid hub ID'),
+    }),
+});
+// OTP Login - Send OTP
+exports.franchiseSendOtpSchema = yup.object({
+    body: yup.object({
+        phone: yup
+            .string()
+            .required('Phone number is required')
+            .matches(/^[0-9]{10}$/, 'Phone number must be 10 digits')
+            .trim(),
+        countryCode: yup
+            .string()
+            .required('Country code is required')
+            .trim(),
+    }),
+});
+// OTP Login - Verify OTP
+exports.franchiseVerifyOtpSchema = yup.object({
+    body: yup.object({
+        phone: yup
+            .string()
+            .required('Phone number is required')
+            .matches(/^[0-9]{10}$/, 'Phone number must be 10 digits')
+            .trim(),
+        countryCode: yup
+            .string()
+            .required('Country code is required')
+            .trim(),
+        otp: yup
+            .string()
+            .required('OTP is required')
+            .matches(/^[0-9]{6}$/, 'OTP must be 6 digits'),
     }),
 });

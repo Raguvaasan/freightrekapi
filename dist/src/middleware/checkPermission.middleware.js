@@ -4,6 +4,8 @@ exports.checkPermission = void 0;
 const adminUser_model_1 = require("../models/admin/adminUser.model");
 const staff_model_1 = require("../models/admin/staff.model");
 const role_model_1 = require("../models/admin/role.model");
+const franchiseRole_model_1 = require("../models/admin/franchiseRole.model");
+const hubRole_model_1 = require("../models/hub/hubRole.model");
 const checkPermission = (module, action) => async (req, res, next) => {
     // First check if the user is an AdminUser
     const user = await adminUser_model_1.AdminUser
@@ -14,10 +16,18 @@ const checkPermission = (module, action) => async (req, res, next) => {
         role = user.roleId;
     }
     else {
-        // If not an AdminUser, check if it's a head_quarter Staff with an admin role
+        // Check all staff types with their respective role collections
         const staff = await staff_model_1.Staff.findById(req.user.id);
-        if (staff && staff.type === 'head_quarter' && staff.roleId) {
-            role = await role_model_1.Role.findById(staff.roleId);
+        if (staff && staff.roleId) {
+            if (staff.type === 'head_quarter') {
+                role = await role_model_1.Role.findById(staff.roleId);
+            }
+            else if (staff.type === 'franchise') {
+                role = await franchiseRole_model_1.FranchiseRole.findById(staff.roleId);
+            }
+            else if (staff.type === 'hub') {
+                role = await hubRole_model_1.HubRole.findById(staff.roleId);
+            }
         }
     }
     if (!role) {

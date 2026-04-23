@@ -8,38 +8,9 @@ const agency_validator_1 = require("../../validators/admin/agency.validator");
 const checkPermission_middleware_1 = require("../../middleware/checkPermission.middleware");
 const adminModule_1 = require("../../config/adminModule");
 const router = (0, express_1.Router)();
-/**
- * @swagger
- * /admin/agency/login:
- *   post:
- *     summary: Franchise login
- *     tags: [Agency Management]
- *     security: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - username
- *               - password
- *             properties:
- *               username:
- *                 type: string
- *                 format: email
- *                 example: admin@freightrek.com
- *               password:
- *                 type: string
- *                 format: password
- *                 example: password123
- *     responses:
- *       200:
- *         description: Login successful
- *       401:
- *         description: Invalid credentials
- */
-router.post('/login', (0, validate_middleware_1.validate)(agency_validator_1.franchiseLoginSchema), agency_controller_1.loginFranchise);
+// Public routes - OTP login only
+router.post('/login/send-otp', (0, validate_middleware_1.validate)(agency_validator_1.franchiseSendOtpSchema), agency_controller_1.sendFranchiseOtp);
+router.post('/login/verify-otp', (0, validate_middleware_1.validate)(agency_validator_1.franchiseVerifyOtpSchema), agency_controller_1.verifyFranchiseOtp);
 // All other routes require authentication
 router.use(auth_middleware_1.authMiddleware);
 /**

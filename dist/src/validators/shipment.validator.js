@@ -108,7 +108,7 @@ exports.getShipmentsSchema = yup.object().shape({
     limit: yup.number().min(1, 'Limit must be at least 1').max(100, 'Limit cannot exceed 100'),
     status: yup
         .string()
-        .oneOf(['pending', 'created', 'in_transit', 'delivered', 'failed', 'cancelled'], 'Invalid status'),
+        .oneOf(['pending', 'created', 'Active', 'in_transit', 'delivered', 'failed', 'cancelled'], 'Invalid status'),
 });
 exports.updateShipmentSchema = yup.object().shape({
     name: yup.string(),
@@ -121,7 +121,7 @@ exports.updateShipmentSchema = yup.object().shape({
     paymentMode: yup.string().oneOf(['Prepaid', 'COD'], 'Payment mode must be Prepaid or COD'),
     status: yup
         .string()
-        .oneOf(['pending', 'created', 'in_transit', 'delivered', 'failed', 'cancelled'], 'Invalid status'),
+        .oneOf(['pending', 'created', 'Active', 'in_transit', 'delivered', 'failed', 'cancelled'], 'Invalid status'),
     fromName: yup.string(),
     fromAdd: yup.string(),
     fromPin: yup.string().matches(/^\d{6}$/, 'From PIN code must be 6 digits'),
@@ -140,4 +140,5 @@ exports.updateShipmentSchema = yup.object().shape({
     totalAmount: yup.string(),
     weight: yup.string(),
     shippingMode: yup.string().oneOf(['Surface', 'Express'], 'Shipping mode must be Surface or Express'),
+    assignedStaffId: yup.string(),
 });

@@ -645,10 +645,8 @@ export const shipmentService = {
       
       if (status) {
         query.status = status;
-      } else {
-        // Exclude soft-deleted (cancelled) orders unless explicitly requested
-        query.status = { $ne: 'cancelled' };
       }
+      // No default status filter - show all orders when no status is specified
 
       const skip = (page - 1) * limit;
 

@@ -8,8 +8,14 @@ const hub_model_1 = require("../../models/hub/hub.model");
 const staff_model_1 = require("../../models/admin/staff.model");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const jwt_1 = require("../../utils/jwt");
+const phoneCheck_1 = require("../../utils/phoneCheck");
 const createHub = async (rb) => {
     try {
+        // Check phone global uniqueness
+        const phoneError = await (0, phoneCheck_1.checkPhoneGloballyUnique)(String(rb.phoneNo));
+        if (phoneError) {
+            return { success: false, message: phoneError };
+        }
         const hashedPassword = await bcryptjs_1.default.hash(rb.password, 10);
         const hub = await hub_model_1.HubModel.create({ ...rb, password: hashedPassword });
         return { success: true, data: hub };
@@ -71,6 +77,13 @@ const getHubById = async (id) => {
 exports.getHubById = getHubById;
 const updateHub = async (id, rb) => {
     try {
+        // Check phone global uniqueness if updating phone
+        if (rb.phoneNo !== undefined) {
+            const phoneError = await (0, phoneCheck_1.checkPhoneGloballyUnique)(String(rb.phoneNo), { model: 'Hub', id });
+            if (phoneError) {
+                return { success: false, message: phoneError };
+            }
+        }
         const hub = await hub_model_1.HubModel.findByIdAndUpdate(id, rb, { new: true });
         if (!hub) {
             return { success: false, message: "Hub not found" };

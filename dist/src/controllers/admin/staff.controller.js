@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.loginCollectionExecutive = exports.updateStaffStatus = exports.deleteStaff = exports.updateStaff = exports.getStaffById = exports.getAllStaff = exports.createStaff = exports.loginHubStaff = exports.loginHeadQuarterStaff = exports.loginFranchiseStaff = exports.loginStaff = void 0;
+exports.verifyStaffOtp = exports.sendStaffOtp = exports.loginCollectionExecutive = exports.updateStaffStatus = exports.deleteStaff = exports.updateStaff = exports.getStaffById = exports.getAllStaff = exports.createStaff = exports.loginHubStaff = exports.loginHeadQuarterStaff = exports.loginFranchiseStaff = exports.loginStaff = void 0;
 const staff_service_1 = require("../../services/admin/staff.service");
 const loginStaff = async (req, res) => {
     try {
@@ -119,7 +119,8 @@ const getAllStaff = async (req, res) => {
         const status = req.query.status;
         const franchiseId = req.query.franchiseId;
         const roleId = req.query.roleId;
-        const result = await staff_service_1.staffService.getAllStaff(page, limit, search, status, franchiseId, roleId);
+        const type = req.query.type;
+        const result = await staff_service_1.staffService.getAllStaff(page, limit, search, status, franchiseId, roleId, type);
         if (!result.success) {
             return res.status(400).json({
                 success: false,
@@ -248,3 +249,35 @@ const loginCollectionExecutive = async (req, res) => {
     }
 };
 exports.loginCollectionExecutive = loginCollectionExecutive;
+const sendStaffOtp = async (req, res) => {
+    try {
+        const { phone, countryCode, type } = req.body;
+        const result = await staff_service_1.staffService.sendLoginOtp(phone, countryCode, type);
+        if (!result.success) {
+            return res.status(400).json({ success: false, message: result.message });
+        }
+        return res.status(200).json({ success: true, message: result.message });
+    }
+    catch (err) {
+        return res.status(500).json({ success: false, message: err.message || 'Internal server error' });
+    }
+};
+exports.sendStaffOtp = sendStaffOtp;
+const verifyStaffOtp = async (req, res) => {
+    try {
+        const { phone, countryCode, otp, type } = req.body;
+        const result = await staff_service_1.staffService.verifyLoginOtp(phone, countryCode, otp, type);
+        if (!result.success) {
+            return res.status(401).json({ success: false, message: result.message });
+        }
+        return res.status(200).json({
+            success: true,
+            message: result.message,
+            data: result.data,
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ success: false, message: err.message || 'Internal server error' });
+    }
+};
+exports.verifyStaffOtp = verifyStaffOtp;

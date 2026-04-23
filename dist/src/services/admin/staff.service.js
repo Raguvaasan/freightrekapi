@@ -1,37 +1,4 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -40,11 +7,31 @@ exports.staffService = exports.StaffService = void 0;
 const staff_model_1 = require("../../models/admin/staff.model");
 const role_model_1 = require("../../models/admin/role.model");
 const franchiseRole_model_1 = require("../../models/admin/franchiseRole.model");
+const hubRole_model_1 = require("../../models/hub/hubRole.model");
 const agency_model_1 = require("../../models/admin/agency.model");
 const hub_model_1 = require("../../models/hub/hub.model");
+const wallet_model_1 = require("../../models/wallet/wallet.model");
 const mongoose_1 = require("mongoose");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const jwt_1 = require("../../utils/jwt");
+const otp_model_1 = require("../../models/customer/otp.model");
+const axios_1 = __importDefault(require("axios"));
+const phoneCheck_1 = require("../../utils/phoneCheck");
+// Resolve roleId from AdminRole, FranchiseRole, or HubRole
+async function resolveRole(roleId) {
+    if (!roleId)
+        return null;
+    let roleData = await role_model_1.Role.findById(roleId).select('roleName permissions isRoot').lean();
+    if (roleData)
+        return { ...roleData, _type: 'AdminRole' };
+    roleData = await franchiseRole_model_1.FranchiseRole.findById(roleId).select('roleName franchiseId permissions').lean();
+    if (roleData)
+        return { ...roleData, _type: 'FranchiseRole' };
+    roleData = await hubRole_model_1.HubRole.findById(roleId).select('roleName hubId permissions').lean();
+    if (roleData)
+        return { ...roleData, _type: 'HubRole' };
+    return null;
+}
 class StaffService {
     // Staff Login (Generic - for backward compatibility)
     async loginStaff(username, password) {
@@ -74,16 +61,9 @@ class StaffService {
                     message: 'Staff account is inactive',
                 };
             }
-            // Manually populate roleId - check both AdminRole and FranchiseRole
+            // Resolve role from AdminRole, FranchiseRole, or HubRole
             if (staff.roleId) {
-                let roleData = await role_model_1.Role.findById(staff.roleId).select('name permissions').lean();
-                if (!roleData) {
-                    roleData = await franchiseRole_model_1.FranchiseRole.findById(staff.roleId).select('roleName permissions').lean();
-                    if (roleData) {
-                        // Map roleName to name for consistency
-                        roleData = { ...roleData, name: roleData.roleName };
-                    }
-                }
+                const roleData = await resolveRole(staff.roleId);
                 if (roleData) {
                     staff.roleId = roleData;
                 }
@@ -91,10 +71,11 @@ class StaffService {
             // Remove password from response
             const staffData = staff.toObject();
             delete staffData.password;
+            const token = (0, jwt_1.generateToken)(staff._id.toString());
             return {
                 success: true,
                 message: 'Login successful',
-                data: staffData,
+                data: { ...staffData, token },
             };
         }
         catch (error) {
@@ -110,7 +91,7 @@ class StaffService {
             // Find staff by username
             const staff = await staff_model_1.Staff.findOne({ username })
                 .select('+password')
-                .populate('franchiseId', 'agencyName');
+                .populate('franchiseId');
             if (!staff) {
                 return {
                     success: false,
@@ -146,13 +127,36 @@ class StaffService {
                     message: 'Staff account is inactive',
                 };
             }
+            // Populate role from FranchiseRole or AdminRole
+            if (staff.roleId) {
+                const roleData = await resolveRole(staff.roleId);
+                if (roleData) {
+                    staff.roleId = roleData;
+                }
+            }
             // Remove password from response
             const staffData = staff.toObject();
             delete staffData.password;
+            // Fetch franchise wallet
+            const franchiseIdStr = staff.franchiseId
+                ? staff.franchiseId._id
+                    ? staff.franchiseId._id.toString()
+                    : staff.franchiseId.toString()
+                : null;
+            const wallet = franchiseIdStr
+                ? await wallet_model_1.Wallet.findOne({ userId: franchiseIdStr })
+                : null;
+            const token = (0, jwt_1.generateToken)(staff._id.toString());
             return {
                 success: true,
                 message: 'Franchise staff login successful',
-                data: staffData,
+                data: {
+                    ...staffData,
+                    token,
+                    wallet: wallet
+                        ? { balance: wallet.balance, currency: wallet.currency }
+                        : { balance: 0, currency: 'INR' },
+                },
             };
         }
         catch (error) {
@@ -203,8 +207,8 @@ class StaffService {
                     message: 'Staff account is inactive',
                 };
             }
-            // Populate roleId from AdminRole
-            let roleData = await role_model_1.Role.findById(staff.roleId).select('roleName permissions isRoot').lean();
+            // Populate role
+            let roleData = await resolveRole(staff.roleId);
             if (roleData) {
                 staff.roleId = roleData;
             }
@@ -248,6 +252,13 @@ class StaffService {
             if (staff.status !== 'Active') {
                 return { success: false, message: 'Staff account is inactive' };
             }
+            // Populate role from HubRole or AdminRole
+            if (staff.roleId) {
+                const roleData = await resolveRole(staff.roleId);
+                if (roleData) {
+                    staff.roleId = roleData;
+                }
+            }
             const staffData = staff.toObject();
             delete staffData.password;
             const token = (0, jwt_1.generateToken)(staff._id.toString());
@@ -260,6 +271,11 @@ class StaffService {
     // Create new staff
     async createStaff(data) {
         try {
+            // Check phone global uniqueness
+            const phoneError = await (0, phoneCheck_1.checkPhoneGloballyUnique)(data.phone);
+            if (phoneError) {
+                return { success: false, message: phoneError };
+            }
             // Check if email already exists
             const existingEmail = await staff_model_1.Staff.findOne({ email: data.email });
             if (existingEmail) {
@@ -268,13 +284,15 @@ class StaffService {
                     message: 'Email already exists',
                 };
             }
-            // Check if username already exists
-            const existingUsername = await staff_model_1.Staff.findOne({ username: data.username });
-            if (existingUsername) {
-                return {
-                    success: false,
-                    message: 'Username already exists',
-                };
+            // Check if username already exists (only if username provided)
+            if (data.username) {
+                const existingUsername = await staff_model_1.Staff.findOne({ username: data.username });
+                if (existingUsername) {
+                    return {
+                        success: false,
+                        message: 'Username already exists',
+                    };
+                }
             }
             // Validate based on type
             if (data.type === 'head_quarter') {
@@ -339,13 +357,13 @@ class StaffService {
                     }
                 }
             }
-            // Hash password
-            const salt = await bcryptjs_1.default.genSalt(10);
-            const hashedPassword = await bcryptjs_1.default.hash(data.password, salt);
-            const staff = new staff_model_1.Staff({
-                ...data,
-                password: hashedPassword,
-            });
+            // Hash password if provided
+            const staffData = { ...data };
+            if (data.password) {
+                const salt = await bcryptjs_1.default.genSalt(10);
+                staffData.password = await bcryptjs_1.default.hash(data.password, salt);
+            }
+            const staff = new staff_model_1.Staff(staffData);
             await staff.save();
             // Fetch created staff and manually populate roleId from correct collection
             const populatedStaff = await staff_model_1.Staff.findById(staff._id)
@@ -379,7 +397,7 @@ class StaffService {
         }
     }
     // Get all staff with pagination and search
-    async getAllStaff(page = 1, limit = 10, search, status, franchiseId, roleId) {
+    async getAllStaff(page = 1, limit = 10, search, status, franchiseId, roleId, type) {
         try {
             const skip = (page - 1) * limit;
             const query = {};
@@ -395,6 +413,10 @@ class StaffService {
             // Status filter
             if (status) {
                 query.status = status;
+            }
+            // Type filter
+            if (type) {
+                query.type = type;
             }
             // Franchise filter
             if (franchiseId && mongoose_1.Types.ObjectId.isValid(franchiseId)) {
@@ -518,6 +540,13 @@ class StaffService {
                         success: false,
                         message: 'Email already exists',
                     };
+                }
+            }
+            // Check phone global uniqueness if updating phone
+            if (data.phone && data.phone !== staff.phone) {
+                const phoneError = await (0, phoneCheck_1.checkPhoneGloballyUnique)(data.phone, { model: 'Staff', id });
+                if (phoneError) {
+                    return { success: false, message: phoneError };
                 }
             }
             // Check if updating username and if new username already exists
@@ -722,15 +751,8 @@ class StaffService {
             if (!staff.roleId) {
                 return { success: false, message: 'No role assigned. Contact administrator.' };
             }
-            // Check role from AdminRole, FranchiseRole, or HubRole
-            let roleData = await role_model_1.Role.findById(staff.roleId).select('roleName permissions').lean();
-            if (!roleData) {
-                roleData = await franchiseRole_model_1.FranchiseRole.findById(staff.roleId).select('roleName permissions').lean();
-            }
-            if (!roleData) {
-                const { HubRole } = await Promise.resolve().then(() => __importStar(require('../../models/hub/hubRole.model')));
-                roleData = await HubRole.findById(staff.roleId).select('roleName permissions').lean();
-            }
+            // Resolve role from AdminRole, FranchiseRole, or HubRole
+            const roleData = await resolveRole(staff.roleId);
             if (!roleData) {
                 return { success: false, message: 'Role not found. Contact administrator.' };
             }
@@ -750,6 +772,92 @@ class StaffService {
         }
         catch (error) {
             return { success: false, message: error.message || 'Error during login' };
+        }
+    }
+    // OTP Login - Send OTP
+    async sendLoginOtp(phone, countryCode, type) {
+        try {
+            const query = { phone, status: 'Active' };
+            if (type)
+                query.type = type;
+            const staff = await staff_model_1.Staff.findOne(query).lean();
+            if (!staff) {
+                return { success: false, message: 'No active staff account found with this phone number' };
+            }
+            const otp = Math.floor(100000 + Math.random() * 900000).toString();
+            const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+            await otp_model_1.Otp.deleteMany({ phone, userType: 'staff' });
+            await otp_model_1.Otp.create({ phone, countryCode, otp, expiresAt, userType: 'staff' });
+            const apiKey = process.env.PING4SMS_API_KEY;
+            const sender = process.env.PING4SMS_SENDER;
+            const templateId = process.env.PING4SMS_TEMPLATE_ID;
+            const route = process.env.PING4SMS_ROUTE || '2';
+            const fullPhone = `${countryCode.replace('+', '')}${phone}`;
+            const message = `Your OTP for login is ${otp}. Do not share it with anyone. - FREIGHTREK`;
+            const url = `https://site.ping4sms.com/api/smsapi?key=${apiKey}&route=${route}&sender=${sender}&number=${fullPhone}&sms=${encodeURIComponent(message)}&templateid=${templateId}`;
+            console.log('[Ping4SMS] Staff OTP URL:', url);
+            const smsResponse = await axios_1.default.get(url);
+            console.log('[Ping4SMS] Staff OTP Response:', JSON.stringify(smsResponse.data));
+            const responseStr = typeof smsResponse.data === 'string' ? smsResponse.data : JSON.stringify(smsResponse.data);
+            if (responseStr.includes('-1') || responseStr.includes('-2') || responseStr.toLowerCase().includes('error') || responseStr.includes('INVALID')) {
+                return { success: false, message: `SMS sending failed: ${responseStr}` };
+            }
+            return { success: true, message: 'OTP sent successfully' };
+        }
+        catch (error) {
+            return { success: false, message: error.message || 'Error sending OTP' };
+        }
+    }
+    // OTP Login - Verify OTP
+    async verifyLoginOtp(phone, countryCode, otp, type) {
+        try {
+            const record = await otp_model_1.Otp.findOne({ phone, used: false, userType: 'staff' }).lean();
+            if (!record) {
+                return { success: false, message: 'OTP not found. Please request a new one' };
+            }
+            if (new Date() > record.expiresAt) {
+                await otp_model_1.Otp.deleteOne({ _id: record._id });
+                return { success: false, message: 'OTP has expired. Please request a new one' };
+            }
+            if (record.otp !== otp) {
+                return { success: false, message: 'Invalid OTP' };
+            }
+            await otp_model_1.Otp.updateOne({ _id: record._id }, { used: true });
+            const query = { phone, status: 'Active' };
+            if (type)
+                query.type = type;
+            const staff = await staff_model_1.Staff.findOne(query)
+                .populate('franchiseId', 'agencyName')
+                .populate('hubId', 'hubName city pincode')
+                .lean();
+            if (!staff) {
+                return { success: false, message: 'No active staff account found with this phone number' };
+            }
+            // Resolve role from AdminRole, FranchiseRole, or HubRole
+            let roleData = null;
+            if (staff.roleId) {
+                roleData = await resolveRole(staff.roleId);
+            }
+            const token = (0, jwt_1.generateToken)(staff._id.toString());
+            return {
+                success: true,
+                message: 'Login successful',
+                data: {
+                    id: staff._id,
+                    name: staff.name,
+                    email: staff.email,
+                    phone: staff.phone,
+                    type: staff.type,
+                    status: staff.status,
+                    franchiseId: staff.franchiseId,
+                    hubId: staff.hubId,
+                    roleId: roleData || staff.roleId,
+                    token,
+                },
+            };
+        }
+        catch (error) {
+            return { success: false, message: error.message || 'Error verifying OTP' };
         }
     }
 }

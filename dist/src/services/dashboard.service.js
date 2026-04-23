@@ -16,10 +16,10 @@ exports.dashboardService = {
                 shipment_model_1.Shipment.countDocuments({ userId }),
                 shipment_model_1.Shipment.countDocuments({ userId, status: { $in: ['pending', 'created', 'in-transit'] } }),
                 shipment_model_1.Shipment.countDocuments({ userId, createdAt: { $gte: today, $lt: tomorrow } }),
-                wallet_model_1.Wallet.findOne({ userId }).lean(),
-                shipment_model_1.Shipment.find({ userId, paymentMode: 'COD' }).lean(),
-                shipment_model_1.Shipment.find({ userId, paymentMode: 'COD', createdAt: { $gte: today, $lt: tomorrow } }).lean(),
-                shipment_model_1.Shipment.find({ userId }).sort({ createdAt: -1 }).limit(5).lean(),
+                wallet_model_1.Wallet.findOne({ userId }).select('balance currency').lean(),
+                shipment_model_1.Shipment.find({ userId, paymentMode: 'COD' }).select('codAmount').lean(),
+                shipment_model_1.Shipment.find({ userId, paymentMode: 'COD', createdAt: { $gte: today, $lt: tomorrow } }).select('codAmount').lean(),
+                shipment_model_1.Shipment.find({ userId }).select('waybill orderId order status city state codAmount totalAmount paymentMode pickupLocation createdAt shippingMode').sort({ createdAt: -1 }).limit(5).lean(),
                 shipment_model_1.Shipment.countDocuments({ userId, shippingMode: 'Surface' }),
                 shipment_model_1.Shipment.countDocuments({ userId, shippingMode: 'Express' })
             ]);

@@ -7,6 +7,7 @@ exports.hubStaffService = void 0;
 const staff_model_1 = require("../../models/admin/staff.model");
 const shipment_model_1 = require("../../models/shipment/shipment.model");
 const hub_model_1 = require("../../models/hub/hub.model");
+const adminUser_model_1 = require("../../models/admin/adminUser.model");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const axios_1 = __importDefault(require("axios"));
 // Helper: resolve hubId from hub direct or hub staff
@@ -490,11 +491,16 @@ exports.hubStaffService = {
     // Edit order details (verify & correct by staff)
     async editOrder(staffId, orderId, updateData) {
         try {
-            const hubId = await resolveHubId(staffId);
-            if (!hubId) {
+            // Check if user is admin — admins can edit any order
+            const adminUser = await adminUser_model_1.AdminUser.findById(staffId);
+            const hubId = adminUser ? null : await resolveHubId(staffId);
+            if (!adminUser && !hubId) {
                 return { success: false, message: 'Hub access required' };
             }
-            const order = await shipment_model_1.Shipment.findOne({ orderId, assignedHubId: hubId });
+            const orderQuery = { orderId };
+            if (hubId)
+                orderQuery.assignedHubId = hubId;
+            const order = await shipment_model_1.Shipment.findOne(orderQuery);
             if (!order) {
                 return { success: false, message: 'Order not found' };
             }
@@ -504,8 +510,8 @@ exports.hubStaffService = {
             if (order.status === 'cancelled') {
                 return { success: false, message: 'Cannot edit cancelled order' };
             }
-            // Validate assignedStaffId belongs to the same hub
-            if (updateData.assignedStaffId) {
+            // Validate assignedStaffId belongs to the same hub (skip for admin)
+            if (updateData.assignedStaffId && hubId) {
                 const assignedStaff = await staff_model_1.Staff.findById(updateData.assignedStaffId).select('hubId type status');
                 if (!assignedStaff || assignedStaff.type !== 'hub' || !assignedStaff.hubId || assignedStaff.hubId.toString() !== hubId) {
                     return { success: false, message: 'Assigned staff must belong to the same hub' };
@@ -514,12 +520,17 @@ exports.hubStaffService = {
                     return { success: false, message: 'Assigned staff must be active' };
                 }
             }
-            // Validate status if provided
+            // Validate status if provided (case-insensitive mapping)
             if (updateData.status) {
-                const validStatuses = ['pending', 'Active', 'in_transit', 'delivered', 'failed'];
-                if (!validStatuses.includes(updateData.status)) {
-                    return { success: false, message: `Invalid status. Allowed: ${validStatuses.join(', ')}` };
+                const statusMap = {
+                    'pending': 'pending', 'active': 'Active', 'in_transit': 'in_transit',
+                    'delivered': 'delivered', 'failed': 'failed', 'cancelled': 'cancelled',
+                };
+                const mapped = statusMap[updateData.status.toLowerCase()];
+                if (!mapped) {
+                    return { success: false, message: `Invalid status. Allowed: pending, Active, in_transit, delivered, failed` };
                 }
+                updateData.status = mapped;
             }
             // Store original amounts for comparison
             const originalAmount = parseFloat(order.paymentMode === 'COD'

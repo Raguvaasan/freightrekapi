@@ -9,11 +9,19 @@ const app_1 = __importDefault(require("../src/app"));
 const db_1 = require("../src/config/db");
 let connectionPromise = null;
 const ensureDatabase = async () => {
+    // Connected and ready
     if (mongoose_1.default.connection.readyState === 1) {
         return;
     }
+    // Reset promise if previous connection dropped
+    if (mongoose_1.default.connection.readyState !== 2) {
+        connectionPromise = null;
+    }
     if (!connectionPromise) {
-        connectionPromise = (0, db_1.connectDB)();
+        connectionPromise = (0, db_1.connectDB)().catch((err) => {
+            connectionPromise = null;
+            throw err;
+        });
     }
     await connectionPromise;
 };

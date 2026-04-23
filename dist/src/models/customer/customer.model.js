@@ -46,4 +46,8 @@ const customerSchema = new mongoose_1.Schema({
         default: 'Active',
     },
 }, { timestamps: true });
+// Fast lookup for uniqueness checks and search
+customerSchema.index({ phone: 1 });
+customerSchema.index({ status: 1, createdAt: -1 });
+customerSchema.index({ name: 'text', email: 'text', phone: 'text', city: 'text' });
 exports.Customer = (0, mongoose_1.model)('Customer', customerSchema);

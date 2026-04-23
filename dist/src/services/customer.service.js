@@ -11,11 +11,13 @@ class CustomerService {
     // Create customer
     async createCustomer(data) {
         try {
-            const existingEmail = await customer_model_1.Customer.findOne({ email: data.email });
+            const [existingEmail, existingPhone] = await Promise.all([
+                customer_model_1.Customer.findOne({ email: data.email }).lean(),
+                customer_model_1.Customer.findOne({ phone: data.phone }).lean(),
+            ]);
             if (existingEmail) {
                 return { success: false, message: 'Customer with this email already exists' };
             }
-            const existingPhone = await customer_model_1.Customer.findOne({ phone: data.phone });
             if (existingPhone) {
                 return { success: false, message: 'Customer with this phone number already exists' };
             }
@@ -64,11 +66,14 @@ class CustomerService {
                 ];
             }
             const skip = (page - 1) * limit;
-            const total = await customer_model_1.Customer.countDocuments(query);
-            const customers = await customer_model_1.Customer.find(query)
-                .sort({ createdAt: -1 })
-                .skip(skip)
-                .limit(limit);
+            const [total, customers] = await Promise.all([
+                customer_model_1.Customer.countDocuments(query),
+                customer_model_1.Customer.find(query)
+                    .sort({ createdAt: -1 })
+                    .skip(skip)
+                    .limit(limit)
+                    .lean(),
+            ]);
             return {
                 success: true,
                 data: {
@@ -89,7 +94,7 @@ class CustomerService {
     // Get customer by ID
     async getCustomerById(id) {
         try {
-            const customer = await customer_model_1.Customer.findById(id);
+            const customer = await customer_model_1.Customer.findById(id).lean();
             if (!customer) {
                 return { success: false, message: 'Customer not found' };
             }
@@ -136,7 +141,16 @@ class CustomerService {
             if (!customer) {
                 return { success: false, message: 'Customer not found' };
             }
+            // Delete from both Customer (admin) and AppCustomer (login) collections
             await customer_model_1.Customer.findByIdAndDelete(id);
+            if (customer.email || customer.phone) {
+                const query = {};
+                if (customer.email)
+                    query.email = customer.email;
+                if (customer.phone)
+                    query.phone = customer.phone;
+                await appCustomer_model_1.AppCustomer.findOneAndDelete(query);
+            }
             return { success: true, message: 'Customer deleted successfully' };
         }
         catch (error) {

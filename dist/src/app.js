@@ -26,7 +26,9 @@ const dashboard_routes_3 = __importDefault(require("./routes/hub/dashboard.route
 const hubRole_routes_1 = __importDefault(require("./routes/hub/hubRole.routes"));
 const hubManageStaff_routes_1 = __importDefault(require("./routes/hub/hubManageStaff.routes"));
 const wallet_controller_1 = require("./controllers/wallet.controller");
+const responseTime_middleware_1 = require("./middleware/responseTime.middleware");
 const app = (0, express_1.default)();
+app.use(responseTime_middleware_1.responseTimeMiddleware);
 app.use(express_1.default.json());
 // CORS configuration for frontend API access
 const configuredOrigins = (process.env.CORS_ORIGIN || '*')

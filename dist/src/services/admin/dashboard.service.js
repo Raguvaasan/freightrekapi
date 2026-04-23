@@ -6,7 +6,6 @@ const agency_model_1 = require("../../models/admin/agency.model");
 const wallet_model_1 = require("../../models/wallet/wallet.model");
 const transaction_model_1 = require("../../models/wallet/transaction.model");
 const hub_model_1 = require("../../models/hub/hub.model");
-const markup_model_1 = require("../../models/markup/markup.model");
 class AdminDashboardService {
     // Internal helper to compute a Mongo date filter from a period string
     getDateFilter(period, startDate, endDate) {
@@ -156,32 +155,27 @@ class AdminDashboardService {
             const shipmentPercentageChange = previousPeriodShipments > 0
                 ? (((currentPeriodShipments - previousPeriodShipments) / previousPeriodShipments) * 100).toFixed(1)
                 : '0.0';
-            // Calculate all-time total revenue from all shipments
-            const totalRevenue = allTimeRevenueData.reduce((sum, shipment) => {
-                return sum + parseFloat(shipment.totalAmount || shipment.codAmount || '0');
-            }, 0);
-            // Calculate revenue split: delhivery cost vs markup profit
-            const globalMarkup = await markup_model_1.Markup.findOne({ markupCategory: 'rate_calculator', userId: null, franchiseId: null, isActive: true }).lean();
+            // Calculate all-time total revenue and markup from per-shipment stored values
+            let totalRevenue = 0;
             let delhiveryCost = 0;
             let markupProfit = 0;
-            if (globalMarkup) {
-                if (globalMarkup.markupType === 'percentage') {
-                    delhiveryCost = parseFloat((totalRevenue / (1 + globalMarkup.markupValue / 100)).toFixed(2));
+            allTimeRevenueData.forEach((shipment) => {
+                const shipmentTotal = parseFloat(shipment.totalAmount || shipment.codAmount || '0');
+                totalRevenue += shipmentTotal;
+                if (shipment.baseAmount != null) {
+                    delhiveryCost += shipment.baseAmount;
                 }
                 else {
-                    // fixed: each shipment has a fixed markup added
-                    const shipmentCount = allTimeRevenueData.length;
-                    markupProfit = parseFloat((globalMarkup.markupValue * shipmentCount).toFixed(2));
-                    delhiveryCost = parseFloat((totalRevenue - markupProfit).toFixed(2));
+                    delhiveryCost += shipmentTotal;
                 }
-                if (globalMarkup.markupType === 'percentage') {
-                    markupProfit = parseFloat((totalRevenue - delhiveryCost).toFixed(2));
+                if (shipment.baseAmount != null && shipment.markupAmount != null) {
+                    markupProfit += (shipment.markupAmount - shipment.baseAmount);
                 }
-            }
-            else {
-                delhiveryCost = totalRevenue;
-                markupProfit = 0;
-            }
+            });
+            // Round to 2 decimal places
+            totalRevenue = parseFloat(totalRevenue.toFixed(2));
+            delhiveryCost = parseFloat(delhiveryCost.toFixed(2));
+            markupProfit = parseFloat(markupProfit.toFixed(2));
             // Calculate today's revenue
             const todayRevenue = todayRevenueData.reduce((sum, shipment) => {
                 return sum + parseFloat(shipment.totalAmount || shipment.codAmount || '0');
@@ -232,7 +226,6 @@ class AdminDashboardService {
             const bookingUserIds = [...new Set(recentBookingsData.map(b => b.userId))];
             const bookingAgencies = await agency_model_1.Agency.find({ _id: { $in: bookingUserIds } }, 'agencyName');
             const bookingAgencyMap = new Map(bookingAgencies.map(agency => [agency._id.toString(), agency.agencyName]));
-            console.log('Recent Bookings Data:', recentBookingsData);
             const recentBookings = recentBookingsData.map(booking => ({
                 orderId: booking.order, // Use franchise API orderId
                 waybill: booking.waybill || 'N/A',
@@ -420,11 +413,15 @@ class AdminDashboardService {
     // Get top performing franchises
     async getTopFranchises(limit = 3, period = 'all') {
         try {
-            // Calculate date range based on period
-            let matchStage = {};
+            // Get all franchise (agency) IDs
+            const agencies = await agency_model_1.Agency.find({ status: 'Active' }, '_id agencyName').lean();
+            const franchiseIds = agencies.map((a) => a._id.toString());
+            const franchiseNameMap = new Map(agencies.map((a) => [a._id.toString(), a.agencyName]));
+            // Build date filter for period
+            let dateFilter = {};
             if (period !== 'all') {
                 const now = new Date();
-                let startDate = new Date();
+                const startDate = new Date();
                 switch (period) {
                     case 'day':
                         startDate.setHours(0, 0, 0, 0);
@@ -436,96 +433,56 @@ class AdminDashboardService {
                         startDate.setDate(now.getDate() - 30);
                         break;
                 }
-                matchStage = {
+                dateFilter = { createdAt: { $gte: startDate } };
+            }
+            // Rank franchises by total wallet credits (recharge amount)
+            const txnPipeline = [
+                {
                     $match: {
-                        createdAt: { $gte: startDate },
-                    },
-                };
-            }
-            const pipeline = [];
-            // Only add match stage if period is not 'all'
-            if (period !== 'all') {
-                pipeline.push(matchStage);
-            }
-            pipeline.push({
-                $addFields: {
-                    numericAmount: {
-                        $cond: {
-                            if: {
-                                $and: [
-                                    { $ne: ['$totalAmount', ''] },
-                                    { $ne: ['$totalAmount', null] },
-                                ],
-                            },
-                            then: {
-                                $convert: {
-                                    input: '$totalAmount',
-                                    to: 'double',
-                                    onError: 0,
-                                    onNull: 0,
-                                },
-                            },
-                            else: {
-                                $cond: {
-                                    if: {
-                                        $and: [
-                                            { $ne: ['$codAmount', ''] },
-                                            { $ne: ['$codAmount', null] },
-                                        ],
-                                    },
-                                    then: {
-                                        $convert: {
-                                            input: '$codAmount',
-                                            to: 'double',
-                                            onError: 0,
-                                            onNull: 0,
-                                        },
-                                    },
-                                    else: 0,
-                                },
-                            },
-                        },
+                        userId: { $in: franchiseIds },
+                        type: 'credit',
+                        ...dateFilter,
                     },
                 },
-            }, {
-                $group: {
-                    _id: '$userId',
-                    orderCount: { $sum: 1 },
-                    totalValue: { $sum: '$numericAmount' },
+                {
+                    $group: {
+                        _id: '$userId',
+                        totalValue: { $sum: '$amount' },
+                        orderCount: { $sum: 1 },
+                    },
                 },
-            }, {
-                $sort: { totalValue: -1 },
-            }, {
-                $limit: limit,
-            }, {
-                $addFields: {
-                    userObjectId: { $toObjectId: '$_id' },
-                },
-            }, {
-                $lookup: {
-                    from: 'agencies',
-                    localField: 'userObjectId',
-                    foreignField: '_id',
-                    as: 'franchiseDetails',
-                },
-            }, {
-                $unwind: {
-                    path: '$franchiseDetails',
-                    preserveNullAndEmptyArrays: true,
-                },
-            }, {
-                $project: {
-                    _id: 0,
-                    franchiseId: '$_id',
-                    franchiseName: { $ifNull: ['$franchiseDetails.agencyName', 'Unknown'] },
-                    orderCount: 1,
-                    totalValue: { $round: ['$totalValue', 2] },
-                },
-            });
-            const topFranchises = await shipment_model_1.Shipment.aggregate(pipeline);
+                { $sort: { totalValue: -1 } },
+                { $limit: limit },
+            ];
+            const txnData = await transaction_model_1.Transaction.aggregate(txnPipeline);
+            // Fill in any franchises that have no transactions with zeros
+            // so that all active franchises appear if fewer than `limit` have transactions
+            const resultMap = new Map(txnData.map((t) => [t._id, t]));
+            let results = txnData.map((t) => ({
+                franchiseId: t._id,
+                franchiseName: franchiseNameMap.get(t._id) || 'Unknown',
+                orderCount: t.orderCount,
+                totalValue: parseFloat(t.totalValue.toFixed(2)),
+            }));
+            // If fewer results than limit, pad with other active franchises (value 0)
+            if (results.length < limit) {
+                for (const agency of agencies) {
+                    if (results.length >= limit)
+                        break;
+                    const id = agency._id.toString();
+                    if (!resultMap.has(id)) {
+                        results.push({
+                            franchiseId: id,
+                            franchiseName: agency.agencyName,
+                            orderCount: 0,
+                            totalValue: 0,
+                        });
+                    }
+                }
+            }
             return {
                 success: true,
-                data: topFranchises,
+                data: results,
             };
         }
         catch (error) {

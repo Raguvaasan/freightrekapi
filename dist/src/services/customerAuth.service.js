@@ -12,34 +12,36 @@ const jwt_1 = require("../utils/jwt");
 exports.customerAuthService = {
     async register(input) {
         const { firstName, lastName, email, phone, countryCode } = input;
-        // Block if an active account already exists with same email or phone
-        const existingEmail = await appCustomer_model_1.AppCustomer.findOne({ email, status: 'Active' });
+        // Check email & phone uniqueness in parallel
+        const [existingEmail, existingPhone] = await Promise.all([
+            appCustomer_model_1.AppCustomer.findOne({ email, status: 'Active' }).lean(),
+            appCustomer_model_1.AppCustomer.findOne({ phone, countryCode, status: 'Active' }).lean(),
+        ]);
         if (existingEmail) {
             return { success: false, message: 'An account with this email already exists. Please login' };
         }
-        const existingPhone = await appCustomer_model_1.AppCustomer.findOne({ phone, countryCode, status: 'Active' });
         if (existingPhone) {
             return { success: false, message: 'An account with this phone number already exists. Please login' };
         }
-        // Remove any stale pending registrations for same phone/email
+        // Remove stale pending registrations for same phone/email
         await appCustomer_model_1.AppCustomer.deleteMany({
             $or: [{ email }, { phone, countryCode }],
             status: 'Pending',
         });
-        // Create customer as Pending (activated after OTP verification)
-        await appCustomer_model_1.AppCustomer.create({
-            firstName,
-            lastName,
-            email,
-            phone,
-            countryCode,
-            status: 'Pending',
-        });
-        // Generate and save OTP
+        // Create customer as Pending + generate OTP in parallel
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
         const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
-        await otp_model_1.Otp.deleteMany({ phone });
-        await otp_model_1.Otp.create({ phone, countryCode, otp, expiresAt });
+        await Promise.all([
+            appCustomer_model_1.AppCustomer.create({
+                firstName,
+                lastName,
+                email,
+                phone,
+                countryCode,
+                status: 'Pending',
+            }),
+            otp_model_1.Otp.deleteMany({ phone }).then(() => otp_model_1.Otp.create({ phone, countryCode, otp, expiresAt })),
+        ]);
         // Send SMS via Ping4SMS
         const apiKey = process.env.PING4SMS_API_KEY;
         const sender = process.env.PING4SMS_SENDER;
@@ -66,14 +68,14 @@ exports.customerAuthService = {
     },
     async sendOtp(phone, countryCode) {
         // Only Active accounts can use login OTP; Pending accounts must use /register flow
-        const customer = await appCustomer_model_1.AppCustomer.findOne({ phone, status: 'Active' });
+        const customer = await appCustomer_model_1.AppCustomer.findOne({ phone, status: 'Active' }).lean();
         if (!customer) {
             return { success: false, message: 'No active account found with this phone number. Please register first' };
         }
         // Generate 6-digit OTP
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
         const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
-        // Delete any existing OTPs for this phone
+        // Delete old OTPs and create new one
         await otp_model_1.Otp.deleteMany({ phone });
         // Save new OTP (use countryCode from customer record)
         await otp_model_1.Otp.create({ phone, countryCode: customer.countryCode, otp, expiresAt });
@@ -100,24 +102,26 @@ exports.customerAuthService = {
         return { success: true, message: 'OTP sent successfully' };
     },
     async verifyOtp(phone, countryCode, otp) {
-        const record = await otp_model_1.Otp.findOne({ phone, used: false });
+        const record = await otp_model_1.Otp.findOne({ phone, used: false }).lean();
         if (!record) {
             return { success: false, message: 'OTP not found. Please request a new one' };
         }
         if (new Date() > record.expiresAt) {
-            await record.deleteOne();
+            await otp_model_1.Otp.deleteOne({ _id: record._id });
             return { success: false, message: 'OTP has expired. Please request a new one' };
         }
         if (record.otp !== otp) {
             return { success: false, message: 'Invalid OTP' };
         }
         // Mark OTP as used
-        record.used = true;
-        await record.save();
+        await otp_model_1.Otp.updateOne({ _id: record._id }, { used: true });
         // Find customer account (Pending = completing registration, Active = login)
         const customer = await appCustomer_model_1.AppCustomer.findOne({ phone });
         if (!customer) {
             return { success: false, message: 'No account found with this phone number. Please register first' };
+        }
+        if (customer.status === 'Inactive') {
+            return { success: false, message: 'Your account has been deactivated. Please contact support' };
         }
         let responseMessage = 'Login successful';
         if (customer.status === 'Pending') {

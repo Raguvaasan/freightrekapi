@@ -12,10 +12,8 @@ const agency_model_1 = require("../models/admin/agency.model");
 exports.walletService = {
     async getBalance(userId) {
         try {
-            let wallet = await wallet_model_1.Wallet.findOne({ userId });
-            if (!wallet) {
-                wallet = await wallet_model_1.Wallet.create({ userId, balance: 0 });
-            }
+            // Atomic: find or create wallet in a single DB call
+            const wallet = (await wallet_model_1.Wallet.findOneAndUpdate({ userId }, { $setOnInsert: { userId, balance: 0 } }, { new: true, upsert: true, lean: true }));
             return {
                 success: true,
                 balance: wallet.balance,
