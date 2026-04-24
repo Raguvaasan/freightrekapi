@@ -146,11 +146,11 @@ export class AdminDashboardService {
         Shipment.countDocuments({ createdAt: { $gte: previousStartDate, $lte: previousEndDate } }),
         Agency.countDocuments({ status: 'Active' }),
         HubModel.countDocuments({ status: true }),
-        Shipment.find({ status: 'Active' }).lean(),
-        Shipment.find({ status: 'Active', createdAt: { $gte: todayStart } }).lean(),
-        Shipment.find({ status: 'Active', createdAt: { $gte: startDate, $lte: now } }).lean(),
-        Shipment.find({ status: 'Active', createdAt: { $gte: previousStartDate, $lte: previousEndDate } }).lean(),
-        Shipment.find({ status: 'Active', createdAt: { $gte: startDate, $lte: now } }).lean(),
+        Shipment.find({ status: { $nin: ['cancelled', 'failed'] } }).lean(),
+        Shipment.find({ status: { $nin: ['cancelled', 'failed'] }, createdAt: { $gte: todayStart } }).lean(),
+        Shipment.find({ status: { $nin: ['cancelled', 'failed'] }, createdAt: { $gte: startDate, $lte: now } }).lean(),
+        Shipment.find({ status: { $nin: ['cancelled', 'failed'] }, createdAt: { $gte: previousStartDate, $lte: previousEndDate } }).lean(),
+        Shipment.find({ status: { $nin: ['cancelled', 'failed'] }, createdAt: { $gte: startDate, $lte: now } }).lean(),
         Shipment.aggregate([
           { $group: { _id: '$shippingMode', count: { $sum: 1 } } },
           { $project: { _id: 0, type: '$_id', count: 1 } },
@@ -331,7 +331,7 @@ export class AdminDashboardService {
   async getTotalRevenueReport(period: string = 'thisMonth', startDate?: string, endDate?: string): Promise<ServiceResponse> {
     try {
       const dateFilter = this.getDateFilter(period, startDate, endDate);
-      const shipments = await Shipment.find({ status: 'Active', createdAt: dateFilter }).lean();
+      const shipments = await Shipment.find({ status: { $nin: ['cancelled', 'failed'] }, createdAt: dateFilter }).lean();
 
       const totalRevenue = shipments.reduce((sum, s) => {
         return sum + parseFloat(s.totalAmount || s.codAmount || '0');
