@@ -56,7 +56,7 @@ export const getBookingDetail = async (req: Request, res: Response) => {
     if (!staffId) return res.status(401).json({ success: false, message: 'Unauthorized' });
 
     const { orderId } = req.params;
-    const result = await hubStaffService.getBookingDetail(staffId, orderId);
+    const result = await hubStaffService.getBookingDetail(staffId, orderId as string);
     if (!result.success) return res.status(404).json(result);
     return res.status(200).json(result);
   } catch (err: any) {
@@ -75,7 +75,7 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
 
     if (!status) return res.status(400).json({ success: false, message: 'Status is required' });
 
-    const result = await hubStaffService.updateOrderStatus(staffId, orderId, status);
+    const result = await hubStaffService.updateOrderStatus(staffId, orderId as string, status);
     if (!result.success) return res.status(400).json(result);
     return res.status(200).json(result);
   } catch (err: any) {
@@ -91,7 +91,7 @@ export const placeDelhiveryOrder = async (req: Request, res: Response) => {
 
     const { orderId } = req.params;
 
-    const result = await hubStaffService.placeDelhiveryOrder(staffId, orderId);
+    const result = await hubStaffService.placeDelhiveryOrder(staffId, orderId as string);
     if (!result.success) return res.status(400).json(result);
     return res.status(200).json(result);
   } catch (err: any) {
@@ -110,7 +110,7 @@ export const updateAwb = async (req: Request, res: Response) => {
 
     if (!waybill) return res.status(400).json({ success: false, message: 'waybill is required' });
 
-    const result = await hubStaffService.updateAwb(staffId, orderId, waybill, trackingUrl);
+    const result = await hubStaffService.updateAwb(staffId, orderId as string, waybill, trackingUrl);
     if (!result.success) return res.status(400).json(result);
     return res.status(200).json(result);
   } catch (err: any) {
@@ -139,7 +139,7 @@ export const editOrder = async (req: Request, res: Response) => {
     if (!staffId) return res.status(401).json({ success: false, message: 'Unauthorized' });
 
     const { orderId } = req.params;
-    const result = await hubStaffService.editOrder(staffId, orderId, req.body);
+    const result = await hubStaffService.editOrder(staffId, orderId as string, req.body);
     if (!result.success) return res.status(400).json(result);
     return res.status(200).json(result);
   } catch (err: any) {

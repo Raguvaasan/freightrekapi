@@ -91,7 +91,7 @@ export const getHubOrder = async (req: Request, res: Response) => {
     if (!hubId) return res.status(403).json({ success: false, message: 'Hub staff access required' });
 
     const { orderId } = req.params;
-    const result = await shipmentService.getShipment(orderId, hubId, false, hubId);
+    const result = await shipmentService.getShipment(orderId as string, hubId, false, hubId);
 
     if (!result.success) return res.status(404).json(result);
     return res.status(200).json(result);
@@ -112,10 +112,10 @@ export const updateHubOrder = async (req: Request, res: Response) => {
     const { orderId } = req.params;
 
     // Verify order belongs to this hub
-    const existing = await shipmentService.getShipment(orderId, hubId, false);
+    const existing = await shipmentService.getShipment(orderId as string, hubId, false);
     if (!existing.success) return res.status(404).json(existing);
 
-    const result = await shipmentService.updateShipment(orderId, hubId, req.body);
+    const result = await shipmentService.updateShipment(orderId as string, hubId, req.body);
     if (!result.success) return res.status(400).json(result);
     return res.status(200).json(result);
   } catch (err: any) {
@@ -133,7 +133,7 @@ export const deleteHubOrder = async (req: Request, res: Response) => {
     if (!hubId) return res.status(403).json({ success: false, message: 'Hub staff access required' });
 
     const { orderId } = req.params;
-    const result = await shipmentService.deleteShipment(orderId, hubId);
+    const result = await shipmentService.deleteShipment(orderId as string, hubId);
     if (!result.success) return res.status(400).json(result);
     return res.status(200).json(result);
   } catch (err: any) {
@@ -148,7 +148,7 @@ export const trackHubOrder = async (req: Request, res: Response) => {
     if (!staffId) return res.status(401).json({ success: false, message: 'Unauthorized' });
 
     const { waybill } = req.params;
-    const result = await shipmentService.trackShipment(waybill, staffId, false);
+    const result = await shipmentService.trackShipment(waybill as string, staffId, false);
     if (!result.success) return res.status(404).json(result);
     return res.status(200).json(result);
   } catch (err: any) {

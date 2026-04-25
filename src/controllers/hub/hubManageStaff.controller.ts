@@ -23,7 +23,7 @@ export const getHubStaffById = async (req: Request, res: Response) => {
     const hubId = req.user?.id;
     if (!hubId) return res.status(401).json({ success: false, message: 'Unauthorized' });
 
-    const result = await hubManageStaffService.getHubStaffById(hubId, req.params.id);
+    const result = await hubManageStaffService.getHubStaffById(hubId, req.params.id as string);
     if (!result.success) {
       const status = result.message === 'Staff not found' ? 404 : 400;
       return res.status(status).json(result);
@@ -52,7 +52,7 @@ export const updateHubStaff = async (req: Request, res: Response) => {
     const hubId = req.user?.id;
     if (!hubId) return res.status(401).json({ success: false, message: 'Unauthorized' });
 
-    const result = await hubManageStaffService.updateHubStaff(hubId, req.params.id, req.body);
+    const result = await hubManageStaffService.updateHubStaff(hubId, req.params.id as string, req.body);
     if (!result.success) {
       const status = result.message === 'Staff not found' ? 404 : 400;
       return res.status(status).json(result);
@@ -68,7 +68,7 @@ export const deleteHubStaff = async (req: Request, res: Response) => {
     const hubId = req.user?.id;
     if (!hubId) return res.status(401).json({ success: false, message: 'Unauthorized' });
 
-    const result = await hubManageStaffService.deleteHubStaff(hubId, req.params.id);
+    const result = await hubManageStaffService.deleteHubStaff(hubId, req.params.id as string);
     if (!result.success) {
       const status = result.message === 'Staff not found' ? 404 : 400;
       return res.status(status).json(result);
@@ -89,7 +89,7 @@ export const updateHubStaffStatus = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: 'Status must be Active or Inactive' });
     }
 
-    const result = await hubManageStaffService.updateHubStaffStatus(hubId, req.params.id, status);
+    const result = await hubManageStaffService.updateHubStaffStatus(hubId, req.params.id as string, status);
     if (!result.success) {
       const status404 = result.message === 'Staff not found' ? 404 : 400;
       return res.status(status404).json(result);
