@@ -40,122 +40,92 @@ class MarkupService {
    * Get Rate Calculator Markup
    * Priority: User > Franchise > Global
    */
-  async getRateCalculatorMarkup(userId?: string, franchiseId?: string): Promise<MarkupConfig | null> {
+  private buildParams(userId?: string, franchiseId?: string): string {
+    const params = new URLSearchParams();
+    if (userId) params.append('user_id', userId);
+    if (franchiseId) params.append('franchise_id', franchiseId);
+    return params.toString() ? '?' + params.toString() : '';
+  }
+
+  private async getMarkup(
+    endpoint: 'rate-calculator-markup' | 'rate-card-markup',
+    userId?: string,
+    franchiseId?: string
+  ): Promise<MarkupConfig | null> {
     try {
       const token = this.getAuthToken();
-      const params = new URLSearchParams();
-      if (userId) params.append('user_id', userId);
-      if (franchiseId) params.append('franchise_id', franchiseId);
-      
-      const url = `${API_BASE_URL}/rate-calculator-markup${params.toString() ? '?' + params.toString() : ''}`;
+      const url = `${API_BASE_URL}/${endpoint}${this.buildParams(userId, franchiseId)}`;
       const response = await axios.get<MarkupServiceResponse>(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       return response.data.success ? response.data.data : null;
     } catch (error: any) {
       if (error.response?.status === 404) {
         return null; // No markup configured
       }
-      console.error('Error fetching rate calculator markup:', error);
+      console.error(`Error fetching ${endpoint} markup:`, error);
       throw error;
     }
   }
 
-  /**
-   * Save Rate Calculator Markup (Create or Update)
-   */
+  private async saveMarkup(
+    endpoint: 'rate-calculator-markup' | 'rate-card-markup',
+    markupType: 'percentage' | 'fixed',
+    markupValue: number,
+    userId?: string,
+    franchiseId?: string
+  ): Promise<MarkupConfig> {
+    try {
+      const token = this.getAuthToken();
+      const response = await axios.post<MarkupServiceResponse>(
+        `${API_BASE_URL}/${endpoint}`,
+        {
+          markup_type: markupType,
+          markup_value: markupValue,
+          user_id: userId || null,
+          franchise_id: franchiseId || null
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+
+      if (!response.data.success || !response.data.data) {
+        throw new Error(response.data.message || 'Failed to save markup');
+      }
+
+      return response.data.data;
+    } catch (error: any) {
+      console.error(`Error saving ${endpoint} markup:`, error);
+      throw error;
+    }
+  }
+
+  async getRateCalculatorMarkup(userId?: string, franchiseId?: string): Promise<MarkupConfig | null> {
+    return this.getMarkup('rate-calculator-markup', userId, franchiseId);
+  }
+
   async saveRateCalculatorMarkup(
     markupType: 'percentage' | 'fixed',
     markupValue: number,
     userId?: string,
     franchiseId?: string
   ): Promise<MarkupConfig> {
-    try {
-      const token = this.getAuthToken();
-      const response = await axios.post<MarkupServiceResponse>(
-        `${API_BASE_URL}/rate-calculator-markup`,
-        {
-          markup_type: markupType,
-          markup_value: markupValue,
-          user_id: userId || null,
-          franchise_id: franchiseId || null
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
-      
-      if (!response.data.success || !response.data.data) {
-        throw new Error(response.data.message || 'Failed to save markup');
-      }
-      
-      return response.data.data;
-    } catch (error: any) {
-      console.error('Error saving rate calculator markup:', error);
-      throw error;
-    }
+    return this.saveMarkup('rate-calculator-markup', markupType, markupValue, userId, franchiseId);
   }
 
-  /**
-   * Get Rate Card Markup
-   * Priority: User > Franchise > Global
-   */
   async getRateCardMarkup(userId?: string, franchiseId?: string): Promise<MarkupConfig | null> {
-    try {
-      const token = this.getAuthToken();
-      const params = new URLSearchParams();
-      if (userId) params.append('user_id', userId);
-      if (franchiseId) params.append('franchise_id', franchiseId);
-      
-      const url = `${API_BASE_URL}/rate-card-markup${params.toString() ? '?' + params.toString() : ''}`;
-      const response = await axios.get<MarkupServiceResponse>(url, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      return response.data.success ? response.data.data : null;
-    } catch (error: any) {
-      if (error.response?.status === 404) {
-        return null; // No markup configured
-      }
-      console.error('Error fetching rate card markup:', error);
-      throw error;
-    }
+    return this.getMarkup('rate-card-markup', userId, franchiseId);
   }
 
-  /**
-   * Save Rate Card Markup (Create or Update)
-   */
   async saveRateCardMarkup(
     markupType: 'percentage' | 'fixed',
     markupValue: number,
     userId?: string,
     franchiseId?: string
   ): Promise<MarkupConfig> {
-    try {
-      const token = this.getAuthToken();
-      const response = await axios.post<MarkupServiceResponse>(
-        `${API_BASE_URL}/rate-card-markup`,
-        {
-          markup_type: markupType,
-          markup_value: markupValue,
-          user_id: userId || null,
-          franchise_id: franchiseId || null
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
-      
-      if (!response.data.success || !response.data.data) {
-        throw new Error(response.data.message || 'Failed to save markup');
-      }
-      
-      return response.data.data;
-    } catch (error: any) {
-      console.error('Error saving rate card markup:', error);
-      throw error;
-    }
+    return this.saveMarkup('rate-card-markup', markupType, markupValue, userId, franchiseId);
   }
 
   /**
