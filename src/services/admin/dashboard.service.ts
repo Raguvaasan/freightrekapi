@@ -186,14 +186,12 @@ export class AdminDashboardService {
           ? (((currentPeriodShipments - previousPeriodShipments) / previousPeriodShipments) * 100).toFixed(1)
           : '0.0';
 
-      // Calculate all-time total revenue and markup from per-shipment stored values
-      let totalRevenue = 0;
+      // Calculate all-time revenue breakdown from per-shipment stored values
       let delhiveryCost = 0;
       let markupProfit = 0;
 
       allTimeRevenueData.forEach((shipment) => {
         const shipmentTotal = parseFloat(shipment.totalAmount || shipment.codAmount || '0');
-        totalRevenue += shipmentTotal;
 
         if (shipment.baseAmount != null) {
           delhiveryCost += shipment.baseAmount;
@@ -207,9 +205,9 @@ export class AdminDashboardService {
       });
 
       // Round to 2 decimal places
-      totalRevenue = parseFloat(totalRevenue.toFixed(2));
       delhiveryCost = parseFloat(delhiveryCost.toFixed(2));
       markupProfit = parseFloat(markupProfit.toFixed(2));
+      const totalRevenue = parseFloat((delhiveryCost + markupProfit).toFixed(2));
 
       // Calculate today's revenue
       const todayRevenue = todayRevenueData.reduce((sum, shipment) => {
