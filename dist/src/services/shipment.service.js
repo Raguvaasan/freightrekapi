@@ -587,6 +587,11 @@ exports.shipmentService = {
                     const hubDetails = hubMap.get(s.pickupLocation?.name);
                     const agencyDetails = agencyPickupMap.get(s.pickupLocation?.name);
                     const pickupDetails = hubDetails || agencyDetails;
+                    const baseAmount = s.baseAmount ?? (parseFloat(s.totalAmount || '0') || null);
+                    const markupAmount = s.markupAmount ?? (parseFloat(s.totalAmount || '0') || null);
+                    const markupProfit = markupAmount !== null && baseAmount !== null
+                        ? parseFloat((markupAmount - baseAmount).toFixed(2))
+                        : null;
                     return {
                         orderId: s.orderId,
                         userId: s.userId,
@@ -633,8 +638,9 @@ exports.shipmentService = {
                         assignedStaffId: s.assignedStaffId || null,
                         orderType: s.orderType || 'customer',
                         delhiveryResponse: s.delhiveryResponse || null,
-                        baseAmount: s.baseAmount ?? (parseFloat(s.totalAmount || '0') || null),
-                        markupAmount: s.markupAmount ?? (parseFloat(s.totalAmount || '0') || null),
+                        baseAmount,
+                        markupAmount,
+                        markupProfit,
                         markupType: s.markupType ?? null,
                         markupValue: s.markupValue ?? null,
                         createdAt: s.createdAt,
