@@ -49,10 +49,18 @@ export const createShipment = async (req: Request, res: Response) => {
       });
     }
 
+    // If the user is a franchise staff, use franchiseId for wallet deduction
+    let walletUserId: string | undefined;
+    const staff = await Staff.findById(userId).select('type franchiseId');
+    if (staff && staff.type === 'franchise' && staff.franchiseId) {
+      walletUserId = staff.franchiseId.toString();
+    }
+
     const result = await shipmentService.createShipment({
       userId,
       ...req.body,
       orderType: 'customer',
+      walletUserId,
     });
 
     // Handle error responses (including insufficient wallet balance)

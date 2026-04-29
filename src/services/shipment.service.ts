@@ -60,6 +60,7 @@ interface CreateShipmentData {
   assignedStaffId?: string;
   orderType?: 'hub' | 'customer';
   skipWalletCheck?: boolean;
+  walletUserId?: string;
   baseAmount?: number | string;
   markupAmount?: number | string;
   markupType?: 'percentage' | 'fixed';
@@ -217,9 +218,12 @@ export const shipmentService = {
           };
         }
 
-        let wallet = await Wallet.findOne({ userId });
+        // Use walletUserId (franchise ID) if provided, otherwise fall back to userId
+        const walletOwnerId = shipmentData.walletUserId || userId;
+
+        let wallet = await Wallet.findOne({ userId: walletOwnerId });
         if (!wallet) {
-          wallet = await Wallet.create({ userId, balance: 0 });
+          wallet = await Wallet.create({ userId: walletOwnerId, balance: 0 });
         }
 
         if (wallet.balance < amount) {
@@ -239,7 +243,7 @@ export const shipmentService = {
 
         await Transaction.create({
           transactionId: `TXN_DEBIT_${orderId}_${Date.now()}`,
-          userId,
+          userId: walletOwnerId,
           orderId,
           amount,
           type: 'debit',
@@ -255,7 +259,7 @@ export const shipmentService = {
 
         walletDebited = true;
         debitAmount = amount;
-        debitUserId = userId;
+        debitUserId = walletOwnerId;
       }
 
 

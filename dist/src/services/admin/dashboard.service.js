@@ -155,13 +155,11 @@ class AdminDashboardService {
             const shipmentPercentageChange = previousPeriodShipments > 0
                 ? (((currentPeriodShipments - previousPeriodShipments) / previousPeriodShipments) * 100).toFixed(1)
                 : '0.0';
-            // Calculate all-time total revenue and markup from per-shipment stored values
-            let totalRevenue = 0;
+            // Calculate all-time revenue breakdown from per-shipment stored values
             let delhiveryCost = 0;
             let markupProfit = 0;
             allTimeRevenueData.forEach((shipment) => {
                 const shipmentTotal = parseFloat(shipment.totalAmount || shipment.codAmount || '0');
-                totalRevenue += shipmentTotal;
                 if (shipment.baseAmount != null) {
                     delhiveryCost += shipment.baseAmount;
                 }
@@ -173,9 +171,9 @@ class AdminDashboardService {
                 }
             });
             // Round to 2 decimal places
-            totalRevenue = parseFloat(totalRevenue.toFixed(2));
             delhiveryCost = parseFloat(delhiveryCost.toFixed(2));
             markupProfit = parseFloat(markupProfit.toFixed(2));
+            const totalRevenue = parseFloat((delhiveryCost + markupProfit).toFixed(2));
             // Calculate today's revenue
             const todayRevenue = todayRevenueData.reduce((sum, shipment) => {
                 return sum + parseFloat(shipment.totalAmount || shipment.codAmount || '0');
@@ -435,26 +433,25 @@ class AdminDashboardService {
                 }
                 dateFilter = { createdAt: { $gte: startDate } };
             }
-            // Rank franchises by total wallet credits (recharge amount)
-            const txnPipeline = [
+            // Rank franchises by actual order count and total revenue from shipments
+            const shipmentPipeline = [
                 {
                     $match: {
                         userId: { $in: franchiseIds },
-                        type: 'credit',
                         ...dateFilter,
                     },
                 },
                 {
                     $group: {
                         _id: '$userId',
-                        totalValue: { $sum: '$amount' },
                         orderCount: { $sum: 1 },
+                        totalValue: { $sum: { $toDouble: { $ifNull: ['$totalAmount', 0] } } },
                     },
                 },
-                { $sort: { totalValue: -1 } },
+                { $sort: { orderCount: -1, totalValue: -1 } },
                 { $limit: limit },
             ];
-            const txnData = await transaction_model_1.Transaction.aggregate(txnPipeline);
+            const txnData = await shipment_model_1.Shipment.aggregate(shipmentPipeline);
             // Fill in any franchises that have no transactions with zeros
             // so that all active franchises appear if fewer than `limit` have transactions
             const resultMap = new Map(txnData.map((t) => [t._id, t]));

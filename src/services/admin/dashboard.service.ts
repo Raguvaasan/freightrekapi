@@ -491,27 +491,26 @@ export class AdminDashboardService {
         dateFilter = { createdAt: { $gte: startDate } };
       }
 
-      // Rank franchises by total wallet credits (recharge amount)
-      const txnPipeline: any[] = [
+      // Rank franchises by actual order count and total revenue from shipments
+      const shipmentPipeline: any[] = [
         {
           $match: {
             userId: { $in: franchiseIds },
-            type: 'credit',
             ...dateFilter,
           },
         },
         {
           $group: {
             _id: '$userId',
-            totalValue: { $sum: '$amount' },
             orderCount: { $sum: 1 },
+            totalValue: { $sum: { $toDouble: { $ifNull: ['$totalAmount', 0] } } },
           },
         },
-        { $sort: { totalValue: -1 } },
+        { $sort: { orderCount: -1, totalValue: -1 } },
         { $limit: limit },
       ];
 
-      const txnData = await Transaction.aggregate(txnPipeline);
+      const txnData = await Shipment.aggregate(shipmentPipeline);
 
       // Fill in any franchises that have no transactions with zeros
       // so that all active franchises appear if fewer than `limit` have transactions
