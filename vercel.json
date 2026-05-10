@@ -1,14 +1,26 @@
 {
   "version": 2,
+  "crons": [
+    {
+      "path": "/api/cron/delhivery-sync",
+      "schedule": "0 6 * * *"
+    }
+  ],
   "functions": {
     "api/index.ts": {
       "runtime": "@vercel/node@3.2.6",
       "includeFiles": "public/**",
       "maxDuration": 30,
       "memory": 1024
+    },
+    "api/cron/delhivery-sync.ts": {
+      "runtime": "@vercel/node@3.2.6",
+      "maxDuration": 30,
+      "memory": 1024
     }
   },
   "rewrites": [
+    { "source": "/api/cron/:path*", "destination": "/api/cron/:path*" },
     { "source": "/(.*)", "destination": "/api/index.ts" }
   ]
 }

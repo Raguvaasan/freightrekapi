@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { walletService } from '../services/wallet.service';
 import { AdminUser } from '../models/admin/adminUser.model';
 import { Agency } from '../models/admin/agency.model';
+import { Staff } from '../models/admin/staff.model';
 
 export const getBalance = async (req: Request, res: Response) => {
   try {
@@ -29,7 +30,14 @@ export const getBalance = async (req: Request, res: Response) => {
       }
     }
 
-    const result = await walletService.getBalance(userId);
+    // Check if user is a franchise staff - use franchise's wallet
+    let walletUserId = userId;
+    const staff = await Staff.findById(userId);
+    if (staff && staff.type === 'franchise' && staff.franchiseId) {
+      walletUserId = staff.franchiseId.toString();
+    }
+
+    const result = await walletService.getBalance(walletUserId);
 
     if (!result.success) {
       return res.status(400).json(result);
@@ -145,8 +153,17 @@ export const getTransactions = async (req: Request, res: Response) => {
       }
     }
 
+    // If franchise staff, use franchise's ID for transactions
+    let walletUserId = userId;
+    if (!isAdmin) {
+      const staff = await Staff.findById(userId);
+      if (staff && staff.type === 'franchise' && staff.franchiseId) {
+        walletUserId = staff.franchiseId.toString();
+      }
+    }
+
     const result = await walletService.getTransactions({
-      userId,
+      userId: walletUserId,
       page,
       limit,
       type,

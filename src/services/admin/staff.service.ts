@@ -63,7 +63,7 @@ export class StaffService {
       // Find staff by username
       const staff = await Staff.findOne({ username })
         .select('+password')
-        .populate('franchiseId', 'agencyName');
+        .populate('franchiseId');
 
       if (!staff) {
         return {
@@ -102,12 +102,24 @@ export class StaffService {
       const staffData: any = staff.toObject();
       delete staffData.password;
 
+      // Fetch franchise wallet if franchise staff
+      let walletData = undefined;
+      if (staff.type === 'franchise' && staff.franchiseId) {
+        const franchiseIdStr = (staff.franchiseId as any)._id
+          ? (staff.franchiseId as any)._id.toString()
+          : staff.franchiseId.toString();
+        const wallet = await Wallet.findOne({ userId: franchiseIdStr });
+        walletData = wallet
+          ? { balance: wallet.balance, currency: wallet.currency }
+          : { balance: 0, currency: 'INR' };
+      }
+
       const token = generateToken(staff._id.toString());
 
       return {
         success: true,
         message: 'Login successful',
-        data: { ...staffData, token },
+        data: { ...staffData, token, ...(walletData ? { wallet: walletData } : {}) },
       };
     } catch (error: any) {
       return {
@@ -958,7 +970,7 @@ export class StaffService {
       if (type) query.type = type;
 
       const staff = await Staff.findOne(query)
-        .populate('franchiseId', 'agencyName')
+        .populate('franchiseId')
         .populate('hubId', 'hubName city pincode')
         .lean();
 
@@ -970,6 +982,24 @@ export class StaffService {
       let roleData: any = null;
       if (staff.roleId) {
         roleData = await resolveRole(staff.roleId);
+      }
+
+      // Fetch franchise wallet if franchise staff
+      let walletData = undefined;
+      if (staff.type === 'franchise' && staff.franchiseId) {
+        const franchiseIdStr = (staff.franchiseId as any)._id
+          ? (staff.franchiseId as any)._id.toString()
+          : staff.franchiseId.toString();
+        const wallet = await Wallet.findOne({ userId: franchiseIdStr });
+        walletData = wallet
+          ? { balance: wallet.balance, currency: wallet.currency }
+          : { balance: 0, currency: 'INR' };
+      }
+
+      // Remove password from franchise data if populated
+      const franchiseData = staff.franchiseId ? { ...staff.franchiseId as any } : undefined;
+      if (franchiseData && franchiseData.password) {
+        delete franchiseData.password;
       }
 
       const token = generateToken((staff._id as Types.ObjectId).toString());
@@ -984,10 +1014,11 @@ export class StaffService {
           phone: staff.phone,
           type: staff.type,
           status: staff.status,
-          franchiseId: staff.franchiseId,
+          franchiseId: franchiseData,
           hubId: staff.hubId,
           roleId: roleData || staff.roleId,
           token,
+          ...(walletData ? { wallet: walletData } : {}),
         },
       };
     } catch (error: any) {

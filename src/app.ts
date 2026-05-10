@@ -21,6 +21,9 @@ import hubDashboardRoutes from "./routes/hub/dashboard.routes";
 import hubRoleRoutes from "./routes/hub/hubRole.routes";
 import hubManageStaffRoutes from "./routes/hub/hubManageStaff.routes";
 import { cashfreeWebhook } from "./controllers/wallet.controller";
+import { delhiveryWebhook } from "./controllers/delhivery.webhook.controller";
+import { pollDelhiveryStatuses } from "./services/delhivery.cron.service";
+import { authMiddleware } from "./middleware/auth.middleware";
 import { responseTimeMiddleware } from "./middleware/responseTime.middleware";
 
 const app = express();
@@ -163,5 +166,18 @@ app.use("/v1/settings", markupRoutes);
 
 // Webhook endpoint (no auth, verified by signature)
 app.post("/webhook/cashfree", cashfreeWebhook);
+
+// Delhivery webhook — receives shipment status updates (no auth, public endpoint)
+app.post("/webhook/delhivery", delhiveryWebhook);
+
+// Manual trigger to sync all active shipment statuses from Delhivery (admin use)
+app.post("/admin/delhivery/sync-status", authMiddleware, async (req, res) => {
+  try {
+    const result = await pollDelhiveryStatuses();
+    return res.status(200).json({ success: true, data: result });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
 
 export default app;
