@@ -5,6 +5,8 @@ export interface ICustomerUser {
   lastName: string;
   email: string;
   password: string;
+  mobileNumber: string;
+  gst: string;
   status: 'Active' | 'Inactive' | 'Pending';
   createdAt: Date;
   updatedAt: Date;
@@ -35,10 +37,20 @@ const customerUserSchema = new Schema<ICustomerUser>(
       required: [true, 'Password is required'],
       select: false,
     },
+    mobileNumber: {
+      type: String,
+      required: [true, 'Mobile number is required'],
+      trim: true,
+    },
+    gst: {
+      type: String,
+      required: [true, 'GST number is required'],
+      trim: true,
+    },
     status: {
       type: String,
       enum: ['Active', 'Inactive', 'Pending'],
-      default: 'Active',
+      default: 'Pending',
     },
   },
   { timestamps: true }

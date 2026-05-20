@@ -9,6 +9,8 @@ export const customerEmailSignupSchema = yup.object({
       .string()
       .min(6, 'Password must be at least 6 characters')
       .required('Password is required'),
+    mobileNumber: yup.string().trim().required('Mobile number is required'),
+    gst: yup.string().trim().required('GST number is required'),
   }),
 });
 

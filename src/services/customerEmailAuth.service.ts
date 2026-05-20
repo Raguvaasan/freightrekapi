@@ -7,9 +7,11 @@ export const signup = async (rb: {
   lastName: string;
   email: string;
   password: string;
+  mobileNumber: string;
+  gst: string;
 }) => {
   try {
-    const { firstName, lastName, email, password } = rb;
+    const { firstName, lastName, email, password, mobileNumber, gst } = rb;
 
     const existingCustomer = await CustomerUser.findOne({ email });
     if (existingCustomer) {
@@ -23,6 +25,8 @@ export const signup = async (rb: {
       lastName,
       email,
       password: hashedPassword,
+      mobileNumber,
+      gst,
     });
 
     const token = generateToken(customer._id.toString());
@@ -35,6 +39,9 @@ export const signup = async (rb: {
         firstName: customer.firstName,
         lastName: customer.lastName,
         email: customer.email,
+        mobileNumber: customer.mobileNumber,
+        gst: customer.gst,
+        status: customer.status,
       },
       token,
     };
@@ -67,6 +74,9 @@ export const login = async (rb: { email: string; password: string }) => {
         firstName: customer.firstName,
         lastName: customer.lastName,
         email: customer.email,
+        mobileNumber: customer.mobileNumber,
+        gst: customer.gst,
+        status: customer.status,
       },
       token,
     };
