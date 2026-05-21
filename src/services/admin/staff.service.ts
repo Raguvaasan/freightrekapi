@@ -34,7 +34,7 @@ interface CreateStaffInput {
   name: string;
   email: string;
   phone: string;
-  type: 'head_quarter' | 'franchise' | 'hub';
+  type: 'head_quarter' | 'franchise' | 'hub' | 'b2b';
   roleId?: string;
   status?: 'Active' | 'Inactive';
   franchiseId?: string;
@@ -47,7 +47,7 @@ interface UpdateStaffInput {
   name?: string;
   email?: string;
   phone?: string;
-  type?: 'head_quarter' | 'franchise' | 'hub';
+  type?: 'head_quarter' | 'franchise' | 'hub' | 'b2b';
   roleId?: string;
   status?: 'Active' | 'Inactive';
   franchiseId?: string;
@@ -907,6 +907,166 @@ export class StaffService {
       return { success: false, message: error.message || 'Error during login' };
     }
   }
+  // B2B Staff Login - Only Relationship Manager role allowed
+  async loginB2bStaff(username: string, password: string): Promise<ServiceResponse> {
+    try {
+      const staff = await Staff.findOne({ username })
+        .select('+password');
+
+      if (!staff) {
+        return { success: false, message: 'Invalid credentials' };
+      }
+
+      // Check if staff type is b2b
+      if (staff.type !== 'b2b') {
+        return { success: false, message: 'Invalid credentials. This is not a B2B staff account.' };
+      }
+
+      // Verify password
+      const isPasswordValid = await bcrypt.compare(password, staff.password!);
+      if (!isPasswordValid) {
+        return { success: false, message: 'Invalid credentials' };
+      }
+
+      // Check if staff is active
+      if (staff.status !== 'Active') {
+        return { success: false, message: 'Staff account is inactive' };
+      }
+
+      // Check if staff has a role assigned
+      if (!staff.roleId) {
+        return { success: false, message: 'No role assigned. Contact administrator.' };
+      }
+
+      // Resolve role
+      const roleData = await resolveRole(staff.roleId);
+
+      if (!roleData) {
+        return { success: false, message: 'Role not found. Contact administrator.' };
+      }
+
+      // Verify role is "Relationship Manager"
+      if (roleData.roleName !== 'Relationship Manager') {
+        return { success: false, message: 'Access denied. Only Relationship Manager can login here.' };
+      }
+
+      const staffData: any = staff.toObject();
+      delete staffData.password;
+      staffData.roleId = roleData;
+
+      const token = generateToken(staff._id.toString());
+
+      return {
+        success: true,
+        message: 'B2B staff login successful',
+        data: { ...staffData, token },
+      };
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Error during login' };
+    }
+  }
+
+  // B2B Staff Login - Send OTP (only for type b2b)
+  async sendB2bOtp(phone: string, countryCode: string): Promise<ServiceResponse> {
+    try {
+      const staff = await Staff.findOne({ phone, type: 'b2b', status: 'Active' }).lean();
+      if (!staff) {
+        return { success: false, message: 'No active B2B staff account found with this phone number' };
+      }
+
+      // Verify role is Relationship Manager
+      if (!staff.roleId) {
+        return { success: false, message: 'No role assigned. Contact administrator.' };
+      }
+      const roleData = await resolveRole(staff.roleId);
+      if (!roleData || roleData.roleName !== 'Relationship Manager') {
+        return { success: false, message: 'Access denied. Only Relationship Manager can login here.' };
+      }
+
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+      await Otp.deleteMany({ phone, userType: 'staff' });
+      await Otp.create({ phone, countryCode, otp, expiresAt, userType: 'staff' });
+
+      const apiKey = process.env.PING4SMS_API_KEY;
+      const sender = process.env.PING4SMS_SENDER;
+      const templateId = process.env.PING4SMS_TEMPLATE_ID;
+      const route = process.env.PING4SMS_ROUTE || '2';
+      const fullPhone = `${countryCode.replace('+', '')}${phone}`;
+      const message = `Your OTP for login is ${otp}. Do not share it with anyone. - FREIGHTREK`;
+      const url = `https://site.ping4sms.com/api/smsapi?key=${apiKey}&route=${route}&sender=${sender}&number=${fullPhone}&sms=${encodeURIComponent(message)}&templateid=${templateId}`;
+
+      console.log('[Ping4SMS] B2B OTP URL:', url);
+      const smsResponse = await axios.get(url);
+      console.log('[Ping4SMS] B2B OTP Response:', JSON.stringify(smsResponse.data));
+
+      const responseStr = typeof smsResponse.data === 'string' ? smsResponse.data : JSON.stringify(smsResponse.data);
+      if (responseStr.includes('-1') || responseStr.includes('-2') || responseStr.toLowerCase().includes('error') || responseStr.includes('INVALID')) {
+        return { success: false, message: `SMS sending failed: ${responseStr}` };
+      }
+
+      return { success: true, message: 'OTP sent successfully' };
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Error sending OTP' };
+    }
+  }
+
+  // B2B Staff Login - Verify OTP (only for type b2b + Relationship Manager)
+  async verifyB2bOtp(phone: string, countryCode: string, otp: string): Promise<ServiceResponse> {
+    try {
+      const record = await Otp.findOne({ phone, used: false, userType: 'staff' }).lean();
+      if (!record) {
+        return { success: false, message: 'OTP not found. Please request a new one' };
+      }
+
+      if (new Date() > record.expiresAt) {
+        await Otp.deleteOne({ _id: record._id });
+        return { success: false, message: 'OTP has expired. Please request a new one' };
+      }
+
+      if (record.otp !== otp) {
+        return { success: false, message: 'Invalid OTP' };
+      }
+
+      await Otp.updateOne({ _id: record._id }, { used: true });
+
+      const staff = await Staff.findOne({ phone, type: 'b2b', status: 'Active' }).lean();
+      if (!staff) {
+        return { success: false, message: 'No active B2B staff account found with this phone number' };
+      }
+
+      // Resolve role and verify Relationship Manager
+      let roleData: any = null;
+      if (staff.roleId) {
+        roleData = await resolveRole(staff.roleId);
+      }
+
+      if (!roleData || roleData.roleName !== 'Relationship Manager') {
+        return { success: false, message: 'Access denied. Only Relationship Manager can login here.' };
+      }
+
+      const token = generateToken((staff._id as Types.ObjectId).toString());
+
+      return {
+        success: true,
+        message: 'B2B login successful',
+        data: {
+          id: staff._id,
+          name: staff.name,
+          email: staff.email,
+          phone: staff.phone,
+          type: staff.type,
+          status: staff.status,
+          roleId: roleData,
+          token,
+        },
+      };
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Error verifying OTP' };
+    }
+  }
+
   // OTP Login - Send OTP
   async sendLoginOtp(phone: string, countryCode: string, type?: string): Promise<ServiceResponse> {
     try {

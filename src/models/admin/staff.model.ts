@@ -4,7 +4,7 @@ export interface IStaff {
   name: string;
   email: string;
   phone: string;
-  type: 'head_quarter' | 'franchise' | 'hub';
+  type: 'head_quarter' | 'franchise' | 'hub' | 'b2b';
   roleId?: Types.ObjectId;
   status: 'Active' | 'Inactive';
   franchiseId?: Types.ObjectId;
@@ -36,7 +36,7 @@ const staffSchema = new Schema<IStaff>(
     },
     type: {
       type: String,
-      enum: ['head_quarter', 'franchise', 'hub'],
+      enum: ['head_quarter', 'franchise', 'hub', 'b2b'],
       required: [true, 'Type is required'],
     },
     roleId: {

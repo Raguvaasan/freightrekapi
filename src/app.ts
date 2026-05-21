@@ -21,6 +21,7 @@ import hubStaffRoutes from "./routes/hub/hubStaff.routes";
 import hubDashboardRoutes from "./routes/hub/dashboard.routes";
 import hubRoleRoutes from "./routes/hub/hubRole.routes";
 import hubManageStaffRoutes from "./routes/hub/hubManageStaff.routes";
+import b2bAuthRoutes from "./routes/b2b/auth.routes";
 import { cashfreeWebhook } from "./controllers/wallet.controller";
 import { delhiveryWebhook } from "./controllers/delhivery.webhook.controller";
 import { pollDelhiveryStatuses } from "./services/delhivery.cron.service";
@@ -162,6 +163,7 @@ app.use("/hub/staff", hubStaffRoutes);
 app.use("/hub/role", hubRoleRoutes);
 app.use("/hub/manage/staff", hubManageStaffRoutes);
 app.use("/hub/dashboard", hubDashboardRoutes);
+app.use("/b2b/auth", b2bAuthRoutes);
 
 // Mobile team markup routes (no /api prefix, proxy-friendly)
 app.use("/v1/settings", markupRoutes);
