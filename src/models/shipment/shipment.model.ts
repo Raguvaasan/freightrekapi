@@ -46,7 +46,7 @@ export interface IShipment {
     address?: string;
     pincode?: string;
   };
-  orderType: 'hub' | 'customer';
+  orderType: 'hub' | 'customer' | 'b2b';
   status: 'pending' | 'created' | 'Active' | 'in_transit' | 'delivered' | 'failed' | 'cancelled';
   baseAmount?: number;
   markupAmount?: number;
@@ -170,7 +170,7 @@ const shipmentSchema = new Schema<IShipment>(
     },
     orderType: {
       type: String,
-      enum: ['hub', 'customer'],
+      enum: ['hub', 'customer', 'b2b'],
       default: 'customer',
       index: true,
     },
