@@ -6,6 +6,8 @@ import {
   updateCollectionAgency,
   deleteCollectionAgency,
   updateCollectionAgencyStatus,
+  sendCollectionAgencyOtp,
+  verifyCollectionAgencyOtp,
 } from '../../controllers/admin/collectionAgency.controller';
 import { authMiddleware } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validate.middleware';
@@ -15,13 +17,42 @@ import {
   updateCollectionAgencyStatusSchema,
   getCollectionAgencyByIdSchema,
   deleteCollectionAgencySchema,
+  collectionAgencySendOtpSchema,
+  collectionAgencyVerifyOtpSchema,
 } from '../../validators/admin/collectionAgency.validator';
 import { checkPermission } from '../../middleware/checkPermission.middleware';
 import { adminModule } from '../../config/adminModule';
+import collectionAgencyStaffRoutes from './collectionAgency-staff.routes';
+import collectionAgencyRoleRoutes from './collectionAgencyRole.routes';
+import collectionAgencyOrderRoutes from './collectionAgency-order.routes';
 
 const router = Router();
 
-// All routes require authentication
+/**
+ * @swagger
+ * /admin/collection-agency/login/send-otp:
+ *   post:
+ *     summary: Send OTP to collection agency phone for login
+ *     tags: [Collection Agency Management]
+ *     security: []
+ *   /admin/collection-agency/login/verify-otp:
+ *     post:
+ *       summary: Verify OTP and login collection agency (returns JWT token)
+ *       tags: [Collection Agency Management]
+ *       security: []
+ */
+// Public routes - OTP login only
+router.post('/login/send-otp', validate(collectionAgencySendOtpSchema), sendCollectionAgencyOtp);
+router.post('/login/verify-otp', validate(collectionAgencyVerifyOtpSchema), verifyCollectionAgencyOtp);
+
+// Collection agency portal sub-routes (authenticated with the collection agency's own JWT).
+// Mounted BEFORE the admin authMiddleware and the '/:id' routes so '/staff' and '/role'
+// are matched as literal paths instead of being treated as an ':id'.
+router.use('/staff', collectionAgencyStaffRoutes);
+router.use('/role', collectionAgencyRoleRoutes);
+router.use('/orders', collectionAgencyOrderRoutes);
+
+// All remaining routes require admin authentication
 router.use(authMiddleware);
 
 /**

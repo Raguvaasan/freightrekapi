@@ -6,6 +6,7 @@ import agencyRoutes from "./agency.routes";
 import collectionAgencyRoutes from "./collectionAgency.routes";
 import staffRoutes from "./staff.routes";
 import franchiseStaffRoutes from "./franchise-staff.routes";
+import franchiseOrderRoutes from "./franchise-order.routes";
 import customerUserRoutes from "./customerUser.routes";
 const router = Router();
 
@@ -16,6 +17,7 @@ router.use("/agency", agencyRoutes);
 router.use("/collection-agency", collectionAgencyRoutes);
 router.use("/staff", staffRoutes);
 router.use("/franchise/staff", franchiseStaffRoutes);
+router.use("/franchise/orders", franchiseOrderRoutes);
 router.use("/customers", customerUserRoutes);
 
 export default router;

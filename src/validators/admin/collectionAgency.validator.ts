@@ -1,5 +1,39 @@
 import * as yup from 'yup';
 
+// OTP Login - Send OTP
+export const collectionAgencySendOtpSchema = yup.object({
+  body: yup.object({
+    phone: yup
+      .string()
+      .required('Phone number is required')
+      .matches(/^[0-9]{10}$/, 'Phone number must be 10 digits')
+      .trim(),
+    countryCode: yup
+      .string()
+      .required('Country code is required')
+      .trim(),
+  }),
+});
+
+// OTP Login - Verify OTP
+export const collectionAgencyVerifyOtpSchema = yup.object({
+  body: yup.object({
+    phone: yup
+      .string()
+      .required('Phone number is required')
+      .matches(/^[0-9]{10}$/, 'Phone number must be 10 digits')
+      .trim(),
+    countryCode: yup
+      .string()
+      .required('Country code is required')
+      .trim(),
+    otp: yup
+      .string()
+      .required('OTP is required')
+      .matches(/^[0-9]{6}$/, 'OTP must be 6 digits'),
+  }),
+});
+
 // Create collection agency validation schema
 export const createCollectionAgencySchema = yup.object({
   body: yup.object({

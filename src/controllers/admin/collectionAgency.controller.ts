@@ -1,6 +1,43 @@
 import { Request, Response } from 'express';
 import { collectionAgencyService } from '../../services/admin/collectionAgency.service';
 
+export const sendCollectionAgencyOtp = async (req: Request, res: Response) => {
+  try {
+    const { phone, countryCode } = req.body;
+    const result = await collectionAgencyService.sendLoginOtp(phone, countryCode);
+    if (!result.success) {
+      return res.status(400).json({ success: false, message: result.message });
+    }
+    return res.status(200).json({ success: true, message: result.message });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Internal server error',
+    });
+  }
+};
+
+export const verifyCollectionAgencyOtp = async (req: Request, res: Response) => {
+  try {
+    const { phone, countryCode, otp } = req.body;
+    const result = await collectionAgencyService.verifyLoginOtp(phone, countryCode, otp);
+    if (!result.success) {
+      return res.status(401).json({ success: false, message: result.message });
+    }
+    return res.status(200).json({
+      success: true,
+      message: result.message,
+      token: result.token,
+      data: result.data,
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Internal server error',
+    });
+  }
+};
+
 export const createCollectionAgency = async (req: Request, res: Response) => {
   try {
     const result = await collectionAgencyService.createCollectionAgency(req.body);

@@ -6,7 +6,7 @@ export interface IOtp {
   otp: string;
   expiresAt: Date;
   used: boolean;
-  userType: 'customer' | 'franchise' | 'staff';
+  userType: 'customer' | 'franchise' | 'staff' | 'collection_agency';
 }
 
 const otpSchema = new Schema<IOtp>({
@@ -15,7 +15,7 @@ const otpSchema = new Schema<IOtp>({
   otp: { type: String, required: true },
   expiresAt: { type: Date, required: true },
   used: { type: Boolean, default: false },
-  userType: { type: String, enum: ['customer', 'franchise', 'staff'], default: 'customer' },
+  userType: { type: String, enum: ['customer', 'franchise', 'staff', 'collection_agency'], default: 'customer' },
 });
 
 // Fast lookup for OTP verification (every login/register hits this)

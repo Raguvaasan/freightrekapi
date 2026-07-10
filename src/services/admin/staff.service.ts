@@ -1,8 +1,10 @@
 import { Staff, IStaff } from '../../models/admin/staff.model';
 import { Role } from '../../models/admin/role.model';
 import { FranchiseRole } from '../../models/admin/franchiseRole.model';
+import { CollectionAgencyRole } from '../../models/admin/collectionAgencyRole.model';
 import { HubRole } from '../../models/hub/hubRole.model';
 import { Agency } from '../../models/admin/agency.model';
+import { CollectionAgency } from '../../models/admin/collectionAgency.model';
 import { HubModel as Hub } from '../../models/hub/hub.model';
 import { Wallet } from '../../models/wallet/wallet.model';
 import { Types } from 'mongoose';
@@ -19,6 +21,8 @@ async function resolveRole(roleId: Types.ObjectId | string): Promise<any> {
   if (roleData) return { ...roleData, _type: 'AdminRole' };
   roleData = await FranchiseRole.findById(roleId).select('roleName franchiseId permissions').lean();
   if (roleData) return { ...roleData, _type: 'FranchiseRole' };
+  roleData = await CollectionAgencyRole.findById(roleId).select('roleName collectionAgencyId permissions').lean();
+  if (roleData) return { ...roleData, _type: 'CollectionAgencyRole' };
   roleData = await HubRole.findById(roleId).select('roleName hubId permissions').lean();
   if (roleData) return { ...roleData, _type: 'HubRole' };
   return null;
@@ -34,11 +38,12 @@ interface CreateStaffInput {
   name: string;
   email: string;
   phone: string;
-  type: 'head_quarter' | 'franchise' | 'hub' | 'b2b';
+  type: 'head_quarter' | 'franchise' | 'hub' | 'b2b' | 'collection_agency';
   roleId?: string;
   status?: 'Active' | 'Inactive';
   franchiseId?: string;
   hubId?: string;
+  collectionAgencyId?: string;
   username: string;
   password: string;
 }
@@ -47,11 +52,12 @@ interface UpdateStaffInput {
   name?: string;
   email?: string;
   phone?: string;
-  type?: 'head_quarter' | 'franchise' | 'hub' | 'b2b';
+  type?: 'head_quarter' | 'franchise' | 'hub' | 'b2b' | 'collection_agency';
   roleId?: string;
   status?: 'Active' | 'Inactive';
   franchiseId?: string;
   hubId?: string;
+  collectionAgencyId?: string;
   username?: string;
   password?: string;
 }
@@ -431,6 +437,21 @@ export class StaffService {
             return { success: false, message: 'Role not found' };
           }
         }
+      } else if (data.type === 'collection_agency') {
+        // Collection agency staff must have collectionAgencyId
+        if (!data.collectionAgencyId) {
+          return { success: false, message: 'Collection agency is required for collection agency staff' };
+        }
+        const collectionAgencyExists = await CollectionAgency.findById(data.collectionAgencyId);
+        if (!collectionAgencyExists) {
+          return { success: false, message: 'Collection agency not found' };
+        }
+        if (data.roleId) {
+          const roleExists = await Role.findById(data.roleId) || await CollectionAgencyRole.findById(data.roleId);
+          if (!roleExists) {
+            return { success: false, message: 'Role not found' };
+          }
+        }
       }
 
       // Hash password if provided
@@ -447,7 +468,8 @@ export class StaffService {
       // Fetch created staff and manually populate roleId from correct collection
       const populatedStaff = await Staff.findById(staff._id)
         .populate('franchiseId', 'agencyName agencyOwner')
-        .populate('hubId', 'hubName city');
+        .populate('hubId', 'hubName city')
+        .populate('collectionAgencyId', 'collectionAgencyName ownerName');
       
       // Manually populate roleId - check both AdminRole and FranchiseRole
       if (populatedStaff && populatedStaff.roleId) {
@@ -456,6 +478,12 @@ export class StaffService {
           roleData = await FranchiseRole.findById(populatedStaff.roleId).select('roleName permissions').lean();
           if (roleData) {
             // Map roleName to name for consistency
+            roleData = { ...roleData, name: roleData.roleName };
+          }
+        }
+        if (!roleData) {
+          roleData = await CollectionAgencyRole.findById(populatedStaff.roleId).select('roleName permissions').lean();
+          if (roleData) {
             roleData = { ...roleData, name: roleData.roleName };
           }
         }
@@ -486,6 +514,7 @@ export class StaffService {
     franchiseId?: string,
     roleId?: string,
     type?: string,
+    collectionAgencyId?: string,
   ): Promise<ServiceResponse> {
     try {
       const skip = (page - 1) * limit;
@@ -516,6 +545,11 @@ export class StaffService {
         query.franchiseId = franchiseId;
       }
 
+      // Collection agency filter
+      if (collectionAgencyId && Types.ObjectId.isValid(collectionAgencyId)) {
+        query.collectionAgencyId = collectionAgencyId;
+      }
+
       // Role filter
       if (roleId && Types.ObjectId.isValid(roleId)) {
         query.roleId = roleId;
@@ -526,7 +560,8 @@ export class StaffService {
         .limit(limit)
         .sort({ createdAt: -1 })
         .populate('franchiseId', 'agencyName agencyOwner')
-        .populate('hubId', 'hubName city');
+        .populate('hubId', 'hubName city')
+        .populate('collectionAgencyId', 'collectionAgencyName ownerName');
 
       // Manually populate roleId for each staff - check both AdminRole and FranchiseRole
       for (const s of staff) {
@@ -536,6 +571,12 @@ export class StaffService {
             roleData = await FranchiseRole.findById(s.roleId).select('roleName permissions').lean();
             if (roleData) {
               // Map roleName to name for consistency
+              roleData = { ...roleData, name: roleData.roleName };
+            }
+          }
+          if (!roleData) {
+            roleData = await CollectionAgencyRole.findById(s.roleId).select('roleName permissions').lean();
+            if (roleData) {
               roleData = { ...roleData, name: roleData.roleName };
             }
           }
@@ -579,7 +620,8 @@ export class StaffService {
 
       const staff = await Staff.findById(id)
         .populate('franchiseId', 'agencyName agencyOwner')
-        .populate('hubId', 'hubName city');
+        .populate('hubId', 'hubName city')
+        .populate('collectionAgencyId', 'collectionAgencyName ownerName');
 
       if (!staff) {
         return {
@@ -595,6 +637,12 @@ export class StaffService {
           roleData = await FranchiseRole.findById(staff.roleId).select('roleName permissions').lean();
           if (roleData) {
             // Map roleName to name for consistency
+            roleData = { ...roleData, name: roleData.roleName };
+          }
+        }
+        if (!roleData) {
+          roleData = await CollectionAgencyRole.findById(staff.roleId).select('roleName permissions').lean();
+          if (roleData) {
             roleData = { ...roleData, name: roleData.roleName };
           }
         }
@@ -749,7 +797,8 @@ export class StaffService {
       // Fetch updated staff and manually populate roleId from correct collection
       const updatedStaff = await Staff.findById(id)
         .populate('franchiseId', 'agencyName agencyOwner')
-        .populate('hubId', 'hubName city');
+        .populate('hubId', 'hubName city')
+        .populate('collectionAgencyId', 'collectionAgencyName ownerName');
       
       // Manually populate roleId - check both AdminRole and FranchiseRole
       if (updatedStaff && updatedStaff.roleId) {
@@ -758,6 +807,12 @@ export class StaffService {
           roleData = await FranchiseRole.findById(updatedStaff.roleId).select('roleName permissions').lean();
           if (roleData) {
             // Map roleName to name for consistency
+            roleData = { ...roleData, name: roleData.roleName };
+          }
+        }
+        if (!roleData) {
+          roleData = await CollectionAgencyRole.findById(updatedStaff.roleId).select('roleName permissions').lean();
+          if (roleData) {
             roleData = { ...roleData, name: roleData.roleName };
           }
         }
@@ -837,7 +892,8 @@ export class StaffService {
       const updatedStaff = await Staff.findById(id)
         .populate('roleId', 'name permissions')
         .populate('franchiseId', 'agencyName agencyOwner')
-        .populate('hubId', 'hubName city');
+        .populate('hubId', 'hubName city')
+        .populate('collectionAgencyId', 'collectionAgencyName ownerName');
 
       return {
         success: true,
