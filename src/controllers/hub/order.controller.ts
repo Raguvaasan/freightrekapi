@@ -48,7 +48,9 @@ export const createHubOrder = async (req: Request, res: Response) => {
       }
     }
 
-    const result = await shipmentService.createShipment({ userId: hubId, ...req.body, orderType, skipWalletCheck: true });
+    // The creating hub owns this order so it appears in the hub's order list
+    // (which filters by assignedHubId).
+    const result = await shipmentService.createShipment({ userId: hubId, ...req.body, orderType, assignedHubId: hubId, skipWalletCheck: true });
 
     if (!result.success) {
       return res.status(400).json({ success: false, message: result.message });

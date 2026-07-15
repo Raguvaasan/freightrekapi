@@ -58,6 +58,7 @@ interface CreateShipmentData {
     phone?: string;
   };
   assignedStaffId?: string;
+  assignedHubId?: string;
   orderType?: 'hub' | 'customer';
   skipWalletCheck?: boolean;
   walletUserId?: string;
@@ -263,6 +264,9 @@ export const shipmentService = {
       }
 
 
+      // Preserve an explicitly provided assignedHubId (e.g. hub-created orders own themselves)
+      const providedHubId = (shipmentData as any).assignedHubId as string | undefined;
+
       // Auto-assign nearest hub if pickupLocation not provided
       if (!shipmentData.pickupLocation || !shipmentData.pickupLocation.name) {
         // Use FROM address (sender) to find nearest hub, not consignee address
@@ -280,7 +284,10 @@ export const shipmentService = {
             state: nearestHub.state,
             phone: nearestHub.phoneNo?.toString(),
           };
-          (shipmentData as any).assignedHubId = nearestHub._id.toString();
+          // Don't clobber an explicitly provided owner hub (hub-created orders)
+          if (!providedHubId) {
+            (shipmentData as any).assignedHubId = nearestHub._id.toString();
+          }
         } else {
           return { success: false, message: 'No active hub available. Please try again later.' };
         }
