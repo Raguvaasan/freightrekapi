@@ -38,35 +38,57 @@ const auth_middleware_1 = require("../../middleware/auth.middleware");
 const validate_middleware_1 = require("../../middleware/validate.middleware");
 const hubRoleController = __importStar(require("../../controllers/hub/hubRole.controller"));
 const hubRole_validator_1 = require("../../validators/hub/hubRole.validator");
+const parcelActor_middleware_1 = require("../../middleware/parcelActor.middleware");
+const hubModule_1 = require("../../config/hubModule");
 const router = (0, express_1.Router)();
+router.use(auth_middleware_1.authMiddleware);
+router.use((0, parcelActor_middleware_1.requireParcelRole)('hub'));
+/**
+ * A direct hub login manages its own roles; hub staff need the matching
+ * "Access Management" permission on their HubRole.
+ */
+const access = (action) => (0, parcelActor_middleware_1.requireModulePermission)({ hub: (0, hubModule_1.hubPermission)(hubModule_1.hubModule.access_management) }, action);
+/**
+ * @swagger
+ * /hub/role/modules:
+ *   get:
+ *     summary: Modules a hub role can be given permissions on
+ *     description: Drives the hub role/permission screen.
+ *     tags: [Hub Role]
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200:
+ *         description: '{ modules: ["Dashboard", "Parcel Management", ...] }'
+ */
+router.get('/modules', access('read'), (_req, res) => res.status(200).json({ success: true, data: { modules: (0, hubModule_1.hubModules)() } }));
 /**
  * @route   POST /hub/role
  * @desc    Create a new hub role
  * @access  Private (Hub only)
  */
-router.post('/', auth_middleware_1.authMiddleware, (0, validate_middleware_1.validate)(hubRole_validator_1.createHubRoleSchema), hubRoleController.createHubRole);
+router.post('/', access('write'), (0, validate_middleware_1.validate)(hubRole_validator_1.createHubRoleSchema), hubRoleController.createHubRole);
 /**
  * @route   GET /hub/role
  * @desc    Get all hub roles
  * @access  Private (Hub only)
  */
-router.get('/', auth_middleware_1.authMiddleware, hubRoleController.getHubRoles);
+router.get('/', access('read'), hubRoleController.getHubRoles);
 /**
  * @route   GET /hub/role/:id
  * @desc    Get hub role by ID
  * @access  Private (Hub only)
  */
-router.get('/:id', auth_middleware_1.authMiddleware, hubRoleController.getHubRoleById);
+router.get('/:id', access('read'), hubRoleController.getHubRoleById);
 /**
  * @route   PUT /hub/role/:id
  * @desc    Update hub role
  * @access  Private (Hub only)
  */
-router.put('/:id', auth_middleware_1.authMiddleware, (0, validate_middleware_1.validate)(hubRole_validator_1.updateHubRoleSchema), hubRoleController.updateHubRole);
+router.put('/:id', access('update'), (0, validate_middleware_1.validate)(hubRole_validator_1.updateHubRoleSchema), hubRoleController.updateHubRole);
 /**
  * @route   DELETE /hub/role/:id
  * @desc    Delete hub role
  * @access  Private (Hub only)
  */
-router.delete('/:id', auth_middleware_1.authMiddleware, hubRoleController.deleteHubRole);
+router.delete('/:id', access('delete'), hubRoleController.deleteHubRole);
 exports.default = router;

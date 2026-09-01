@@ -5,12 +5,65 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.agencyService = exports.AgencyService = void 0;
 const agency_model_1 = require("../../models/admin/agency.model");
+const staff_model_1 = require("../../models/admin/staff.model");
+const franchiseRole_model_1 = require("../../models/admin/franchiseRole.model");
 const mongoose_1 = require("mongoose");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const jwt_1 = require("../../utils/jwt");
 const otp_model_1 = require("../../models/customer/otp.model");
 const axios_1 = __importDefault(require("axios"));
 const phoneCheck_1 = require("../../utils/phoneCheck");
+// Picks the agency that the staff of `agencyBeingDeleted` should move to.
+// Nearest first — same city, then same state — so staff stay with an agency
+// they can realistically work out of; any other active agency is the last
+// resort.
+const findReassignmentAgency = async (agencyBeingDeleted, preferredAgencyId) => {
+    if (preferredAgencyId) {
+        if (!mongoose_1.Types.ObjectId.isValid(preferredAgencyId)) {
+            return { error: 'Invalid reassignAgencyId' };
+        }
+        if (preferredAgencyId === agencyBeingDeleted._id.toString()) {
+            return { error: 'reassignAgencyId cannot be the agency being deleted' };
+        }
+        const preferred = await agency_model_1.Agency.findById(preferredAgencyId);
+        if (!preferred) {
+            return { error: 'Agency to reassign staff to was not found' };
+        }
+        if (preferred.status !== 'Active') {
+            return { error: 'Agency to reassign staff to is inactive' };
+        }
+        return { agency: preferred };
+    }
+    const exclude = { _id: { $ne: agencyBeingDeleted._id }, status: 'Active' };
+    // city / state are optional on an agency, so only match on them when the
+    // agency being deleted actually has one - otherwise every agency missing a
+    // city would look like a match.
+    const agency = (agencyBeingDeleted.city &&
+        (await agency_model_1.Agency.findOne({ ...exclude, city: agencyBeingDeleted.city }).sort({ createdAt: 1 }))) ||
+        (agencyBeingDeleted.state &&
+            (await agency_model_1.Agency.findOne({ ...exclude, state: agencyBeingDeleted.state }).sort({ createdAt: 1 }))) ||
+        (await agency_model_1.Agency.findOne(exclude).sort({ createdAt: 1 }));
+    return agency ? { agency } : { error: null };
+};
+// Franchise-scoped roles don't travel with the staff — a FranchiseRole belongs
+// to the agency it was created under. Match by name in the target agency when
+// one exists, and otherwise drop the role so nobody keeps permissions granted
+// by an agency that no longer exists.
+const remapFranchiseRoles = async (staffList, targetAgencyId) => {
+    for (const staff of staffList) {
+        if (!staff.roleId)
+            continue;
+        const oldRole = await franchiseRole_model_1.FranchiseRole.findById(staff.roleId).lean();
+        if (!oldRole)
+            continue; // not a FranchiseRole (AdminRole etc.) - leave it alone
+        const newRole = await franchiseRole_model_1.FranchiseRole.findOne({
+            franchiseId: targetAgencyId,
+            roleName: oldRole.roleName,
+            status: true,
+        }).lean();
+        await staff_model_1.Staff.updateOne({ _id: staff._id }, newRole ? { $set: { roleId: newRole._id } } : { $unset: { roleId: '' } });
+    }
+};
 class AgencyService {
     // Franchise Login
     async loginFranchise(username, password) {
@@ -117,7 +170,7 @@ class AgencyService {
         }
     }
     // Get all agencies with pagination and search
-    async getAllAgencies(page = 1, limit = 10, search, status) {
+    async getAllAgencies(page = 1, limit = 10, search, status, type) {
         try {
             const skip = (page - 1) * limit;
             const query = {};
@@ -135,6 +188,10 @@ class AgencyService {
             // Status filter
             if (status) {
                 query.status = status;
+            }
+            // Ownership filter: Third Party / Own
+            if (type) {
+                query.type = type;
             }
             const agencies = await agency_model_1.Agency.find(query)
                 .skip(skip)
@@ -266,7 +323,7 @@ class AgencyService {
         }
     }
     // Delete agency
-    async deleteAgency(id) {
+    async deleteAgency(id, reassignAgencyId) {
         try {
             if (!mongoose_1.Types.ObjectId.isValid(id)) {
                 return {
@@ -281,10 +338,43 @@ class AgencyService {
                     message: 'Agency not found',
                 };
             }
+            const staffList = await staff_model_1.Staff.find({ type: 'franchise', franchiseId: agency._id });
+            let reassignedTo = null;
+            if (staffList.length) {
+                const { agency: targetAgency, error } = await findReassignmentAgency(agency, reassignAgencyId);
+                if (error) {
+                    return { success: false, message: error };
+                }
+                // Deleting anyway would leave the staff pointing at an agency that no
+                // longer exists - they vanish from the admin agency staff list while
+                // still holding the phone / email / username uniqueness slots.
+                if (!targetAgency) {
+                    return {
+                        success: false,
+                        message: `Cannot delete agency: ${staffList.length} staff are assigned to it and there is no other active agency to move them to. Create another agency or remove the staff first.`,
+                    };
+                }
+                await staff_model_1.Staff.updateMany({ type: 'franchise', franchiseId: agency._id }, { $set: { franchiseId: targetAgency._id } });
+                await remapFranchiseRoles(staffList, targetAgency._id);
+                reassignedTo = targetAgency;
+            }
             await agency_model_1.Agency.findByIdAndDelete(id);
+            await franchiseRole_model_1.FranchiseRole.deleteMany({ franchiseId: agency._id });
             return {
                 success: true,
-                message: 'Agency deleted successfully',
+                message: reassignedTo
+                    ? `Agency deleted successfully. ${staffList.length} staff reassigned to "${reassignedTo.agencyName}"`
+                    : 'Agency deleted successfully',
+                data: {
+                    reassignedStaffCount: staffList.length,
+                    reassignedToAgency: reassignedTo
+                        ? {
+                            _id: reassignedTo._id,
+                            agencyName: reassignedTo.agencyName,
+                            city: reassignedTo.city,
+                        }
+                        : null,
+                },
             };
         }
         catch (error) {
@@ -323,6 +413,59 @@ class AgencyService {
             };
         }
     }
+    /**
+     * Set the branch's profit percentage.
+     *
+     * It applies to bookings made from now on — settlements already recorded keep
+     * the percentage they were booked under.
+     */
+    async updateProfitPercentage(id, profitPercentage, charges = {}) {
+        try {
+            if (!mongoose_1.Types.ObjectId.isValid(id)) {
+                return {
+                    success: false,
+                    message: 'Invalid agency ID',
+                };
+            }
+            const agency = await agency_model_1.Agency.findById(id);
+            if (!agency) {
+                return {
+                    success: false,
+                    message: 'Agency not found',
+                };
+            }
+            // Commission only applies to a third-party agency
+            if (agency.type === 'Own' && profitPercentage > 0) {
+                return {
+                    success: false,
+                    message: `"${agency.agencyName}" is an Own agency, so no commission is applicable. Change its type to "Third Party" first.`,
+                };
+            }
+            agency.profitPercentage = profitPercentage;
+            // Loading and miscellaneous are set from the same screen; either may be
+            // left out of the body to keep the value the agency already has.
+            if (charges.loadingChargePercentage !== undefined) {
+                agency.loadingChargePercentage = charges.loadingChargePercentage;
+            }
+            if (charges.miscChargePercentage !== undefined) {
+                agency.miscChargePercentage = charges.miscChargePercentage;
+            }
+            await agency.save();
+            return {
+                success: true,
+                message: `Commission set to ${profitPercentage}% for "${agency.agencyName}" ` +
+                    `(loading ${agency.loadingChargePercentage}%, miscellaneous ` +
+                    `${agency.miscChargePercentage}%). Applies to new bookings.`,
+                data: agency,
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                message: error.message || 'Error updating profit percentage',
+            };
+        }
+    }
     // OTP Login - Send OTP
     async sendLoginOtp(phone, countryCode) {
         try {
@@ -342,7 +485,10 @@ class AgencyService {
             const message = `Your OTP for login is ${otp}. Do not share it with anyone. - FREIGHTREK`;
             const url = `https://site.ping4sms.com/api/smsapi?key=${apiKey}&route=${route}&sender=${sender}&number=${fullPhone}&sms=${encodeURIComponent(message)}&templateid=${templateId}`;
             console.log('[Ping4SMS] Franchise OTP URL:', url);
-            const smsResponse = await axios_1.default.get(url);
+            // Timeout so a stalled SMS gateway can't hold the request until the
+            // serverless function is killed (a killed function returns no CORS
+            // headers, which the browser reports as a failed/CORS request)
+            const smsResponse = await axios_1.default.get(url, { timeout: 10000 });
             console.log('[Ping4SMS] Franchise OTP Response:', JSON.stringify(smsResponse.data));
             const responseStr = typeof smsResponse.data === 'string' ? smsResponse.data : JSON.stringify(smsResponse.data);
             if (responseStr.includes('-1') || responseStr.includes('-2') || responseStr.toLowerCase().includes('error') || responseStr.includes('INVALID')) {
@@ -351,7 +497,25 @@ class AgencyService {
             return { success: true, message: 'OTP sent successfully' };
         }
         catch (error) {
-            return { success: false, message: error.message || 'Error sending OTP' };
+            console.error('[Ping4SMS] Franchise OTP send failed:', {
+                code: error?.code,
+                status: error?.response?.status,
+                message: error?.message,
+            });
+            // A timeout/refusal here means the SMS gateway was unreachable from the
+            // server, not a problem with the caller's input — don't leak the raw
+            // axios message to the login screen
+            const isNetworkFailure = error?.code === 'ECONNABORTED' ||
+                error?.code === 'ETIMEDOUT' ||
+                error?.code === 'ECONNREFUSED' ||
+                error?.code === 'ENOTFOUND' ||
+                /timeout/i.test(error?.message || '');
+            return {
+                success: false,
+                message: isNetworkFailure
+                    ? 'Unable to reach the SMS service right now. Please try again in a moment.'
+                    : error.message || 'Error sending OTP',
+            };
         }
     }
     // OTP Login - Verify OTP
@@ -384,11 +548,17 @@ class AgencyService {
                     agencyOwner: agency.agencyOwner,
                     phone: agency.phone,
                     email: agency.email,
+                    // Ownership of the agency: `type` is the stored wording, `agencyType`
+                    // the boolean the agency form uses. Both are returned so the module
+                    // the login lands on can branch on either.
+                    type: agency.type,
+                    agencyType: agency.type === 'Own',
                     status: agency.status,
                     address: agency.address,
                     city: agency.city,
                     state: agency.state,
                     pincode: agency.pincode,
+                    profitPercentage: agency.profitPercentage,
                 },
             };
         }

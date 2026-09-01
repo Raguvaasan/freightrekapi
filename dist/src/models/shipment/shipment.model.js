@@ -111,7 +111,7 @@ const shipmentSchema = new mongoose_1.Schema({
     },
     orderType: {
         type: String,
-        enum: ['hub', 'customer'],
+        enum: ['hub', 'customer', 'b2b'],
         default: 'customer',
         index: true,
     },

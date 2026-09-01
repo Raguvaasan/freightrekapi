@@ -57,12 +57,14 @@ export const getAllAgencies = async (req: Request, res: Response) => {
     const limit = parseInt(req.query.limit as string) || 10;
     const search = req.query.search as string;
     const status = req.query.status as string;
+    const type = req.query.type as string;
 
     const result = await agencyService.getAllAgencies(
       page,
       limit,
       search,
-      status
+      status,
+      type
     );
 
     if (!result.success) {
@@ -136,10 +138,16 @@ export const updateAgency = async (req: Request, res: Response) => {
 export const deleteAgency = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const result = await agencyService.deleteAgency(id as string);
+    // Optional - which agency the staff should move to. Left out, the service
+    // picks the nearest active agency itself.
+    const reassignAgencyId = (req.body?.reassignAgencyId || req.query.reassignAgencyId) as
+      | string
+      | undefined;
+    const result = await agencyService.deleteAgency(id as string, reassignAgencyId);
 
     if (!result.success) {
-      return res.status(404).json({
+      const status = result.message === 'Agency not found' ? 404 : 400;
+      return res.status(status).json({
         success: false,
         message: result.message,
       });
@@ -148,6 +156,7 @@ export const deleteAgency = async (req: Request, res: Response) => {
     return res.status(200).json({
       success: true,
       message: result.message,
+      data: result.data,
     });
   } catch (err: any) {
     return res.status(500).json({
@@ -178,6 +187,36 @@ export const updateAgencyStatus = async (req: Request, res: Response) => {
     const { status } = req.body;
 
     const result = await agencyService.updateAgencyStatus(id as string, status);
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: result.message,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: result.message,
+      data: result.data,
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Internal server error',
+    });
+  }
+};
+
+export const updateAgencyProfitPercentage = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { profitPercentage } = req.body;
+
+    const result = await agencyService.updateProfitPercentage(
+      id as string,
+      profitPercentage
+    );
 
     if (!result.success) {
       return res.status(400).json({

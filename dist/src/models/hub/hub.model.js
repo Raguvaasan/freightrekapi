@@ -43,14 +43,15 @@ const hubSchema = new mongoose_1.Schema({
         default: true,
     },
     username: {
+        // `sparse` matters: without it every credential-less hub would store
+        // username: null and the second one would collide on the unique index
         type: String,
-        required: true,
         trim: true,
         unique: true,
+        sparse: true,
     },
     password: {
         type: String,
-        required: true,
         select: false,
     },
 }, { timestamps: true });

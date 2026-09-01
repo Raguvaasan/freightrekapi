@@ -173,8 +173,19 @@
             "default": "Active"
           },
           "agencyType": {
+            "type": "boolean",
+            "default": false,
+            "description": "Ownership as a boolean: true = Own, false = Third Party. The same thing as `type`, for a checkbox on the form — send either one. Sending both is allowed only if they agree. An Own agency keeps no commission.",
+            "example": false
+          },
+          "type": {
             "type": "string",
-            "example": "Express Delivery"
+            "enum": [
+              "Third Party",
+              "Own"
+            ],
+            "default": "Third Party",
+            "description": "Ownership in words. Kept in step with `agencyType`."
           },
           "email": {
             "type": "string",
@@ -188,6 +199,30 @@
           "gstNumber": {
             "type": "string",
             "example": "29ABCDE1234F2Z5"
+          },
+          "profitPercentage": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "default": 0,
+            "description": "Share of each parcel booking amount this branch keeps. The rest is debited from the branch wallet and credited to the admin settlement wallet on every booking.",
+            "example": 10
+          },
+          "loadingChargePercentage": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "default": 10,
+            "description": "Loading charge added on top of the transportation charge at booking time. Read-only here — set it with PATCH /admin/agency/{id}/profit-percentage.",
+            "example": 10
+          },
+          "miscChargePercentage": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "default": 10,
+            "description": "Miscellaneous charge added on top of the transportation charge at booking time. Read-only here — set it with PATCH /admin/agency/{id}/profit-percentage.",
+            "example": 10
           }
         }
       },
@@ -396,7 +431,8 @@
         }
       },
       "delete": {
-        "summary": "Delete agency",
+        "summary": "Delete agency (staff are auto-reassigned to another agency)",
+        "description": "Any agency staff assigned to this agency are moved to another active agency before the agency is removed. The target agency is picked automatically (same city, then same state, then any active agency) unless reassignAgencyId is supplied. Franchise-scoped roles are remapped to the same role name in the target agency, or cleared if it has none. The delete is rejected when staff exist and no other active agency is available.\n",
         "tags": [
           "Agency Management"
         ],
@@ -413,11 +449,50 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "reassignAgencyId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Agency to move this agency's staff to. Auto-selected when omitted."
           }
         ],
         "responses": {
           "200": {
-            "description": "Agency deleted successfully"
+            "description": "Agency deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "reassignedStaffCount": {
+                          "type": "number"
+                        },
+                        "reassignedToAgency": {
+                          "type": "object",
+                          "nullable": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No active agency available for the staff, or invalid reassignAgencyId"
           },
           "404": {
             "description": "Agency not found"
@@ -471,6 +546,1015 @@
           },
           "404": {
             "description": "Agency not found"
+          }
+        }
+      }
+    },
+    "/admin/agency/{id}/profit-percentage": {
+      "patch": {
+        "summary": "Set the branch profit percentage",
+        "description": "Share of every parcel booking amount this branch keeps. The remainder is debited from the branch wallet and credited to the admin settlement wallet on each booking — a ₹200 booking at 10% leaves ₹20 with the branch and sends ₹180 to admin. Applies to new bookings only; settlements already recorded keep the percentage they were booked under.\n\nThe loading and miscellaneous charge percentages are not set here — they belong to the wallet module: `PATCH /admin/agency-wallet/{agencyId}/percentage`.\n",
+        "tags": [
+          "Agency Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Branch (Agency) ObjectId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "profitPercentage"
+                ],
+                "properties": {
+                  "profitPercentage": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100,
+                    "example": 10
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profit percentage updated"
+          },
+          "400": {
+            "description": "Validation error / agency not found"
+          }
+        }
+      }
+    },
+    "/admin/agency/dashboard": {
+      "get": {
+        "summary": "This agency's dashboard",
+        "description": "Orders and revenue mean what this agency booked; parcels addressed to it for delivery are counted separately as inwardOrders, and drop off that count once delivered. Revenue is the total the customer pays (transportation + loading + miscellaneous). totalOutstanding is the To Pay and Credit bookings not handed over yet; totalPayoutDue is the commission earned across settled bookings.\n",
+        "tags": [
+          "Dashboard - Agency"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "agency { agencyId, agencyName, city, state, status, profitPercentage } and overview { totalOrders, todayOrders, totalRevenue, todayRevenue, totalOutstanding, totalPayoutDue, deliveredOrders, inTransitOrders, inwardOrders, walletBalance }\n"
+          },
+          "403": {
+            "description": "Agency access required"
+          }
+        }
+      }
+    },
+    "/admin/agency/invoice": {
+      "get": {
+        "summary": "This agency's invoices",
+        "tags": [
+          "Invoice - Agency"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "issued",
+                "cancelled"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "orderId",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Parcel order ObjectId (alias: order)"
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateFrom",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateTo",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invoices plus totals for this agency"
+          },
+          "403": {
+            "description": "Agency access required"
+          }
+        }
+      }
+    },
+    "/admin/agency/invoice/summary": {
+      "get": {
+        "summary": "This agency's billing summary",
+        "tags": [
+          "Invoice - Agency"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dateFrom",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateTo",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Totals billed by this agency"
+          }
+        }
+      }
+    },
+    "/admin/agency/invoice/number/{invoiceNumber}": {
+      "get": {
+        "summary": "Look up one of this agency's invoices by number",
+        "tags": [
+          "Invoice - Agency"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "invoiceNumber",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invoice details"
+          },
+          "403": {
+            "description": "Invoice belongs to another agency"
+          }
+        }
+      }
+    },
+    "/admin/agency/invoice/order/{orderId}": {
+      "get": {
+        "summary": "The invoice for one of this agency's orders",
+        "tags": [
+          "Invoice - Agency"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "orderId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invoice details"
+          },
+          "403": {
+            "description": "Invoice belongs to another agency"
+          }
+        }
+      }
+    },
+    "/admin/agency/invoice/order/{orderId}/generate": {
+      "post": {
+        "summary": "Raise an invoice for one of this agency's orders",
+        "description": "New bookings are invoiced automatically. Use this for orders booked before invoicing existed, or to re-issue after a cancellation (a fresh invoice number is allocated). Only orders booked at this agency are accepted.\n",
+        "tags": [
+          "Invoice - Agency"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "orderId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Invoice raised"
+          },
+          "403": {
+            "description": "Order was booked at another agency"
+          },
+          "404": {
+            "description": "Parcel order not found"
+          },
+          "409": {
+            "description": "An issued invoice already exists"
+          }
+        }
+      }
+    },
+    "/admin/agency/invoice/{id}": {
+      "get": {
+        "summary": "Get one of this agency's invoices",
+        "tags": [
+          "Invoice - Agency"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invoice details"
+          },
+          "403": {
+            "description": "Invoice belongs to another agency"
+          }
+        }
+      }
+    },
+    "/admin/agency-payout": {
+      "get": {
+        "summary": "Every agency with what it has earned and what is still owed",
+        "tags": [
+          "Agency Payout"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Matches agency name, owner, phone or city"
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Active",
+                "Inactive"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "agencies[] each with totalBookingAmount, profit, paid, remainingToPay — plus company-wide totals and pagination\n"
+          }
+        }
+      }
+    },
+    "/admin/agency-payout/{agencyId}": {
+      "get": {
+        "summary": "One agency's payout details and order history",
+        "description": "The four cards at the top of the screen (Total Booking Amount, Profit, Paid, Remaining to Pay) plus the settled bookings behind them. `lrNo` on each row is the parcel order number.\n",
+        "tags": [
+          "Agency Payout"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agencyId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filters the order history by LR number"
+          },
+          {
+            "in": "query",
+            "name": "dateFrom",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateTo",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "agency, summary { totalBookingAmount, profit, paid, remainingToPay }, orders[] { serialNo, date, lrNo, bookingAmount, profit }, pagination\n"
+          },
+          "404": {
+            "description": "Agency not found"
+          }
+        }
+      }
+    },
+    "/admin/agency-payout/{agencyId}/pay": {
+      "post": {
+        "summary": "Record a commission payment to an agency (the \"Pay\" button)",
+        "description": "Records that the amount was paid to the agency, so it counts towards `paid` and comes off `remainingToPay`. No wallet moves — the agency wallet is a prepaid float for booking and commission is settled by bank transfer. Paying more than is outstanding is refused with 400.\n",
+        "tags": [
+          "Agency Payout"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agencyId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "amount"
+                ],
+                "properties": {
+                  "amount": {
+                    "type": "number",
+                    "example": 500
+                  },
+                  "paymentMethod": {
+                    "type": "string",
+                    "example": "bank_transfer"
+                  },
+                  "reference": {
+                    "type": "string",
+                    "example": "NEFT-99120"
+                  },
+                  "remarks": {
+                    "type": "string",
+                    "example": "August commission"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Payment recorded; returns the payout and the refreshed summary"
+          },
+          "400": {
+            "description": "Amount exceeds what is outstanding, or nothing is owed"
+          }
+        }
+      }
+    },
+    "/admin/agency-payout/{agencyId}/payments": {
+      "get": {
+        "summary": "Payments already made to this agency",
+        "tags": [
+          "Agency Payout"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agencyId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "paid",
+                "reversed"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "summary plus payments and pagination"
+          }
+        }
+      }
+    },
+    "/admin/agency-payout/payments/{paymentId}": {
+      "delete": {
+        "summary": "Reverse a payment recorded by mistake",
+        "description": "The row is kept and marked reversed rather than deleted, so the history still shows it happened; the amount stops counting towards `paid`.\n",
+        "tags": [
+          "Agency Payout"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "paymentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "example": "Paid to the wrong agency"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Payment reversed; returns the refreshed summary"
+          },
+          "409": {
+            "description": "Already reversed"
+          }
+        }
+      }
+    },
+    "/admin/agency/payout": {
+      "get": {
+        "summary": "This agency's payout details and order history",
+        "description": "The four cards at the top of the screen (Total Booking Amount, Profit, Paid, Remaining to Pay) plus the settled bookings behind them. `lrNo` on each row is the parcel order number. Commission is paid by bank transfer, so `paid` counts the payments admin has recorded — it is not a wallet balance.\n",
+        "tags": [
+          "Agency Payout - Agency"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filters the order history by LR number"
+          },
+          {
+            "in": "query",
+            "name": "dateFrom",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateTo",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "agency, summary { totalBookingAmount, profit, paid, remainingToPay }, orders[] { serialNo, date, lrNo, bookingAmount, profit }, pagination\n"
+          },
+          "403": {
+            "description": "Agency access required"
+          }
+        }
+      }
+    },
+    "/admin/agency/payout/payments": {
+      "get": {
+        "summary": "Commission payments this agency has received",
+        "description": "Newest first. A reversed row is one admin entered by mistake and undone; it stays visible but stops counting towards `paid`.\n",
+        "tags": [
+          "Agency Payout - Agency"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "paid",
+                "reversed"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateFrom",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateTo",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "summary plus payments and pagination"
+          },
+          "403": {
+            "description": "Agency access required"
+          }
+        }
+      }
+    },
+    "/admin/agency/users": {
+      "get": {
+        "summary": "List this agency's users",
+        "tags": [
+          "Agency Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Active",
+                "Inactive"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "roleId",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Users of this agency"
+          },
+          "403": {
+            "description": "Agency access required"
+          }
+        }
+      },
+      "post": {
+        "summary": "Add a user to this agency",
+        "description": "Only a name and phone number are needed — the user then logs in with that number through /admin/login/send-otp. The phone must be unused across the whole system. Email, username and password are optional.\n",
+        "tags": [
+          "Agency Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "phone"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "example": "Priya"
+                  },
+                  "phone": {
+                    "type": "string",
+                    "example": "9876500011"
+                  },
+                  "email": {
+                    "type": "string"
+                  },
+                  "roleId": {
+                    "type": "string",
+                    "description": "FranchiseRole ObjectId"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "Active",
+                      "Inactive"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User created; can log in by phone"
+          },
+          "400": {
+            "description": "Validation error / phone already registered"
+          }
+        }
+      }
+    },
+    "/admin/agency/users/{id}": {
+      "get": {
+        "summary": "Get one of this agency's users",
+        "tags": [
+          "Agency Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User details"
+          },
+          "403": {
+            "description": "User belongs to another agency"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update one of this agency's users",
+        "description": "`type`, `franchiseId`, `hubId` are ignored — a user cannot be moved to another agency from here.\n",
+        "tags": [
+          "Agency Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated"
+          },
+          "403": {
+            "description": "User belongs to another agency"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove one of this agency's users",
+        "tags": [
+          "Agency Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted"
+          },
+          "400": {
+            "description": "Cannot delete the logged-in user"
+          }
+        }
+      }
+    },
+    "/admin/agency/users/{id}/status": {
+      "patch": {
+        "summary": "Activate or deactivate one of this agency's users",
+        "tags": [
+          "Agency Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "status"
+                ],
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "Active",
+                      "Inactive"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Status updated"
           }
         }
       }
@@ -567,6 +1651,2541 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/admin/booking-customer": {
+      "get": {
+        "summary": "Every booking customer with what they have booked",
+        "description": "One row per mobile number. `name`, `address` and `gstNumber` come from the customer's most recent booking; `outstandingAmount` is the To Pay and Credit bookings, `paidAmount` the ones already settled. `totals` is across every customer matching the filters, not just this page.\n",
+        "tags": [
+          "Customer Management - Booking"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Matches customer name, mobile number or GST"
+          },
+          {
+            "in": "query",
+            "name": "agency",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only customers who booked at this agency (admin only)"
+          },
+          {
+            "in": "query",
+            "name": "paymentType",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Paid",
+                "To Pay",
+                "Credit"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateFrom",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateTo",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sortBy",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "recent",
+                "orders",
+                "amount",
+                "name"
+              ],
+              "default": "recent"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "customers[] { serialNo, mobileNumber, name, address, gstNumber, totalOrders, deliveredOrders, pendingOrders, totalAmount, paidAmount, outstandingAmount, firstOrderDate, lastOrderDate, agencies[] }, totals and pagination\n"
+          },
+          "403": {
+            "description": "Admin or agency access required"
+          }
+        }
+      }
+    },
+    "/admin/booking-customer/{mobileNumber}": {
+      "get": {
+        "summary": "One customer's details and every order they have placed",
+        "description": "`summary` is the customer's lifetime position and does not move as the order list is filtered; `totals` next to `orders` is the filtered set. The order rows are the same shape the parcel list screen uses, invoice included, so the two can share a table.\n",
+        "tags": [
+          "Customer Management - Booking"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mobileNumber",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "9876543210"
+            },
+            "description": "The booking customer's mobile number — their identity here"
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          },
+          {
+            "in": "query",
+            "name": "agency",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only this customer's bookings at one agency (admin only)"
+          },
+          {
+            "in": "query",
+            "name": "paymentType",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Paid",
+                "To Pay",
+                "Credit"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateFrom",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateTo",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "customer, summary, orders[] (full parcel orders), totals, pagination\n"
+          },
+          "404": {
+            "description": "No bookings found for this mobile number"
+          }
+        }
+      }
+    },
+    "/admin/branch/parcel-order": {
+      "post": {
+        "summary": "Book a parcel order (branch / franchise login)",
+        "tags": [
+          "Parcel Flow - Branch"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "bookingCustomer",
+                  "paymentType",
+                  "deliveryCustomer",
+                  "parcelDetails"
+                ],
+                "properties": {
+                  "bookingCustomer": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "mobileNumber": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "paymentType": {
+                    "type": "string",
+                    "enum": [
+                      "Paid",
+                      "To Pay",
+                      "Credit"
+                    ]
+                  },
+                  "deliveryCustomer": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "mobileNumber": {
+                        "type": "string"
+                      },
+                      "deliveryAgency": {
+                        "type": "string",
+                        "description": "Optional. Destination agency ObjectId, picked from GET /admin/agency/parcel-order/options/delivery-branches. Can be set later via PUT /admin/agency/parcel-order/{{id}}.\n"
+                      },
+                      "deliveryBranch": {
+                        "type": "string",
+                        "description": "Deprecated alias for deliveryAgency"
+                      }
+                    }
+                  },
+                  "pickupAddress": {
+                    "type": "string",
+                    "description": "Where the parcel is collected from the booking customer"
+                  },
+                  "deliveryAddress": {
+                    "type": "string",
+                    "description": "Where the parcel is delivered to the delivery customer"
+                  },
+                  "parcelDetails": {
+                    "type": "object",
+                    "properties": {
+                      "article": {
+                        "type": "string"
+                      },
+                      "remarks": {
+                        "type": "string"
+                      },
+                      "numberOfParcels": {
+                        "type": "integer"
+                      },
+                      "approximateValue": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "transportationCharge": {
+                    "type": "number"
+                  },
+                  "waybill": {
+                    "type": "string",
+                    "description": "Optional. Carrier waybill / AWB number"
+                  },
+                  "vehicleType": {
+                    "type": "string",
+                    "description": "Optional. Vehicle class booked for the movement"
+                  },
+                  "vehicleCapacity": {
+                    "type": "string",
+                    "description": "Optional. Capacity of that vehicle (e.g. \"2 Ton\")"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Order booked with status \"Order Created\""
+          },
+          "403": {
+            "description": "Branch access required"
+          }
+        }
+      },
+      "get": {
+        "summary": "List this branch's parcel orders",
+        "tags": [
+          "Parcel Flow - Branch"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hubAssignment",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "assigned",
+                "unassigned"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "direction",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "outgoing",
+                "incoming"
+              ]
+            },
+            "description": "outgoing = booked at this branch, incoming = addressed to this branch for delivery. Omit for both.\n"
+          },
+          {
+            "in": "query",
+            "name": "paymentType",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Orders booked at or addressed to this branch"
+          }
+        }
+      }
+    },
+    "/admin/branch/parcel-order/outward": {
+      "get": {
+        "summary": "This branch's outward register",
+        "description": "Parcels booked at this branch and sent out. The branch comes from the token. Same filters as the list; counterpartAgency narrows it to one destination branch.\n",
+        "tags": [
+          "Parcel Flow - Branch"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "counterpartAgency",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Destination branch ObjectId"
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "paymentType",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateFrom",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateTo",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ direction: outward, agency, orders, totals, pagination }"
+          }
+        }
+      }
+    },
+    "/admin/branch/parcel-order/inward": {
+      "get": {
+        "summary": "This branch's inward register",
+        "description": "Parcels booked at another branch and addressed to this one for delivery. counterpartAgency here narrows it to one origin branch.\n",
+        "tags": [
+          "Parcel Flow - Branch"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "counterpartAgency",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Origin (booking) branch ObjectId"
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "paymentType",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateFrom",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateTo",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ direction: inward, agency, orders, totals, pagination }"
+          }
+        }
+      }
+    },
+    "/admin/branch/parcel-order/options/delivery-branches": {
+      "get": {
+        "summary": "Dropdown - available delivery branches",
+        "description": "Active franchises that can be chosen as the destination branch.",
+        "tags": [
+          "Parcel Flow - Branch"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Matches branch name, city or pincode"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "[{ _id, agencyName, agencyOwner, phone, city, state, pincode }]"
+          }
+        }
+      }
+    },
+    "/admin/branch/parcel-order/wallet-preview": {
+      "get": {
+        "summary": "What a booking of this amount will take from the branch wallet",
+        "description": "Booking a parcel debits the admin's share of the transportation charge from this branch's wallet. Call this before booking to show the split and warn on a low balance.\n",
+        "tags": [
+          "Parcel Flow - Branch"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "amount",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "example": 200
+            },
+            "description": "The transportation charge being quoted"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "orderAmount, profitPercentage, branchProfitAmount, adminShareAmount, walletDebitAmount (the full order amount taken from the wallet), walletBalance, balanceAfterBooking, sufficientBalance\n"
+          },
+          "400": {
+            "description": "A valid amount is required"
+          }
+        }
+      }
+    },
+    "/admin/branch/parcel-order/{id}": {
+      "get": {
+        "summary": "Get one of this branch's parcel orders",
+        "tags": [
+          "Parcel Flow - Branch"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Order details (branch/hub populated)"
+          },
+          "403": {
+            "description": "Order belongs to another branch"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update booking details of this branch's order",
+        "tags": [
+          "Parcel Flow - Branch"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated"
+          },
+          "403": {
+            "description": "Order belongs to another branch"
+          }
+        }
+      }
+    },
+    "/admin/branch/parcel-order/{id}/tracking": {
+      "get": {
+        "summary": "Status timeline of this branch's order",
+        "tags": [
+          "Parcel Flow - Branch"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current status + timeline"
+          }
+        }
+      }
+    },
+    "/admin/branch/parcel-order/{id}/charge": {
+      "patch": {
+        "summary": "Update transportation charge on this branch's order",
+        "tags": [
+          "Parcel Flow - Branch"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "transportationCharge"
+                ],
+                "properties": {
+                  "transportationCharge": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Charge updated"
+          }
+        }
+      }
+    },
+    "/admin/branch/parcel-order/{id}/status": {
+      "patch": {
+        "summary": "Branch-side status update",
+        "description": "A branch may set only its own stages — Parcel Collected, Parcel Dispatched, Parcel Arrived at Branch, Parcel Received at Branch, Delivered. The lifecycle moves forward only.\n",
+        "tags": [
+          "Parcel Flow - Branch"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "status"
+                ],
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "Parcel Collected",
+                      "Parcel Dispatched",
+                      "Parcel Arrived at Branch",
+                      "Parcel Received at Branch",
+                      "Delivered"
+                    ]
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Status updated"
+          },
+          "400": {
+            "description": "Backwards move",
+            "or hub stage without a hub": null
+          },
+          "403": {
+            "description": "Status not allowed for a branch"
+          }
+        }
+      }
+    },
+    "/admin/branch-wallet": {
+      "get": {
+        "summary": "List branch wallets with balances and settlement totals",
+        "tags": [
+          "Wallet Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Matches branch name, owner, phone or city"
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Active",
+                "Inactive"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Per branch: balance, profitPercentage, settledOrders, totalBookingAmount, totalProfitEarned, totalPaidToAdmin\n"
+          }
+        }
+      }
+    },
+    "/admin/branch-wallet/admin-wallet": {
+      "get": {
+        "summary": "The admin settlement wallet (everything branches have remitted)",
+        "tags": [
+          "Wallet Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "balance, settledOrders, totalBookingAmount, totalBranchProfitGiven, totalReceivedFromBranches, allBranchesBalance\n"
+          }
+        }
+      }
+    },
+    "/admin/branch-wallet/admin-wallet/transactions": {
+      "get": {
+        "summary": "Admin settlement wallet statement",
+        "tags": [
+          "Wallet Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "credit",
+                "debit",
+                "refund",
+                "reversal"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateFrom",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateTo",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Statement rows",
+            "newest first": null
+          }
+        }
+      }
+    },
+    "/admin/branch-wallet/transactions/{transactionId}": {
+      "get": {
+        "summary": "Get one wallet statement row",
+        "tags": [
+          "Wallet Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "transactionId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transaction details"
+          },
+          "404": {
+            "description": "Transaction not found"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Edit the remarks on a manual admin entry",
+        "description": "Only manual admin top-ups / deductions can be edited, and only their remarks — amounts are corrected by reversing and re-adding, so the statement stays auditable. Parcel settlement and payment gateway rows are read-only.\n",
+        "tags": [
+          "Wallet Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "transactionId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "remarks"
+                ],
+                "properties": {
+                  "remarks": {
+                    "type": "string",
+                    "example": "Cash received on 05-Aug — corrected note"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Remarks updated"
+          },
+          "403": {
+            "description": "Not a manual admin entry"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Reverse a manual admin entry",
+        "description": "Writes an opposite entry instead of deleting the row, so the balance is corrected without a hole in the statement.\n",
+        "tags": [
+          "Wallet Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "transactionId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "example": "Added to the wrong branch"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Entry reversed"
+          },
+          "402": {
+            "description": "Branch balance too low to take the credit back"
+          },
+          "409": {
+            "description": "Already reversed"
+          }
+        }
+      }
+    },
+    "/admin/branch-wallet/{branchId}": {
+      "get": {
+        "summary": "One branch's wallet, profit percentage and settlement totals",
+        "tags": [
+          "Wallet Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Branch (Agency) ObjectId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Wallet details"
+          },
+          "404": {
+            "description": "Branch not found"
+          }
+        }
+      }
+    },
+    "/admin/branch-wallet/{branchId}/credit": {
+      "post": {
+        "summary": "Add wallet amount to a branch (admin top-up)",
+        "tags": [
+          "Wallet Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "amount"
+                ],
+                "properties": {
+                  "amount": {
+                    "type": "number",
+                    "example": 5000
+                  },
+                  "remarks": {
+                    "type": "string",
+                    "example": "Opening balance for August"
+                  },
+                  "paymentMethod": {
+                    "type": "string",
+                    "example": "cash"
+                  },
+                  "reference": {
+                    "type": "string",
+                    "example": "NEFT-88213"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Amount added; returns the new balance"
+          },
+          "400": {
+            "description": "Validation error / branch inactive"
+          },
+          "404": {
+            "description": "Branch not found"
+          }
+        }
+      }
+    },
+    "/admin/branch-wallet/{branchId}/debit": {
+      "post": {
+        "summary": "Deduct wallet amount from a branch (manual correction)",
+        "tags": [
+          "Wallet Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "amount"
+                ],
+                "properties": {
+                  "amount": {
+                    "type": "number",
+                    "example": 250
+                  },
+                  "remarks": {
+                    "type": "string",
+                    "example": "Excess credit adjusted"
+                  },
+                  "reference": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Amount deducted; returns the new balance"
+          },
+          "402": {
+            "description": "Insufficient wallet balance"
+          },
+          "404": {
+            "description": "Branch not found"
+          }
+        }
+      }
+    },
+    "/admin/branch-wallet/{branchId}/transactions": {
+      "get": {
+        "summary": "A branch's wallet statement",
+        "tags": [
+          "Wallet Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "credit",
+                "debit",
+                "refund",
+                "reversal"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateFrom",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateTo",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Statement rows",
+            "newest first": null
+          }
+        }
+      }
+    },
+    "/admin/agency-wallet/{agencyId}/percentage": {
+      "patch": {
+        "summary": "Set an agency's commission, loading and miscellaneous percentages",
+        "description": "The three percentages an agency is booked under, all on one wallet screen. `profitPercentage` is the share of each booking total the agency keeps; the remainder is debited from its wallet to the admin settlement wallet. `loadingChargePercentage` and `miscChargePercentage` are added on top of the transportation charge at booking time — transport ₹100 at 10% each gives loading ₹10 + miscellaneous ₹10 for a ₹120 total, and the commission split applies to that total.\n\nEvery field is optional; send only what is changing. All of them apply to new bookings — settlements and invoices already raised keep the percentages they were booked under.\n\nThese percentages are reported back by the admin wallet endpoints only. The agency's own screens show the resulting rupee amounts on each order and invoice instead.\n",
+        "tags": [
+          "Wallet Flow - Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agencyId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Agency ObjectId (the path segment is `branchId` on the deprecated alias)"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "profitPercentage": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100,
+                    "example": 10
+                  },
+                  "loadingChargePercentage": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100,
+                    "example": 10
+                  },
+                  "miscChargePercentage": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100,
+                    "example": 10
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Percentages updated"
+          },
+          "400": {
+            "description": "No percentage sent",
+            "or commission set on an Own agency": null
+          },
+          "404": {
+            "description": "Agency not found"
+          }
+        }
+      }
+    },
+    "/admin/branch/wallet": {
+      "get": {
+        "summary": "This branch's wallet balance, profit percentage and totals",
+        "tags": [
+          "Wallet Flow - Branch"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "balance, profitPercentage, totalCredited, settledOrders, totalBookingAmount, totalProfitEarned, totalPaidToAdmin\n"
+          },
+          "403": {
+            "description": "Branch access required"
+          }
+        }
+      }
+    },
+    "/admin/branch/wallet/transactions": {
+      "get": {
+        "summary": "This branch's wallet statement",
+        "tags": [
+          "Wallet Flow - Branch"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "credit",
+                "debit",
+                "refund",
+                "reversal"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateFrom",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateTo",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Statement rows",
+            "newest first": null
+          }
+        }
+      }
+    },
+    "/admin/branch/wallet/preview": {
+      "get": {
+        "summary": "Preview what a booking amount will cost this branch",
+        "tags": [
+          "Wallet Flow - Branch"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "amount",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "example": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "orderAmount, profitPercentage, branchProfitAmount, adminShareAmount, walletDebitAmount (the full order amount taken from the wallet), walletBalance, balanceAfterBooking, sufficientBalance\n"
+          }
+        }
+      }
+    },
+    "/admin/branch/wallet/settlements": {
+      "get": {
+        "summary": "This branch's parcel settlements",
+        "description": "Per booking - amount, profit kept, and amount sent to admin.",
+        "tags": [
+          "Wallet Flow - Branch"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "settled",
+                "reversed"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "orderNumber",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateFrom",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateTo",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Settlements plus totals for this branch"
+          }
+        }
+      }
+    },
+    "/admin/branch/wallet/settlements/summary": {
+      "get": {
+        "summary": "This branch's earnings summary",
+        "tags": [
+          "Wallet Flow - Branch"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dateFrom",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateTo",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Totals booked",
+            "kept as profit and paid to admin": null
+          }
+        }
+      }
+    },
+    "/admin/branch/wallet/settlements/{id}": {
+      "get": {
+        "summary": "One of this branch's settlements with its transaction trail",
+        "tags": [
+          "Wallet Flow - Branch"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Settlement details"
+          },
+          "403": {
+            "description": "Settlement belongs to another branch"
+          }
+        }
+      }
+    },
+    "/admin/collection-agency/staff": {
+      "get": {
+        "summary": "Get all staff for logged-in collection agency",
+        "tags": [
+          "Collection Agency Staff Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Active",
+                "Inactive"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "roleId",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Staff list retrieved successfully"
+          },
+          "401": {
+            "description": "Unauthorized - collection agency login required"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a new staff member for logged-in collection agency",
+        "tags": [
+          "Collection Agency Staff Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "email",
+                  "phone",
+                  "username",
+                  "password"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string"
+                  },
+                  "phone": {
+                    "type": "string"
+                  },
+                  "roleId": {
+                    "type": "string"
+                  },
+                  "username": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "Active",
+                      "Inactive"
+                    ],
+                    "default": "Active"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Staff created successfully"
+          },
+          "400": {
+            "description": "Validation error or staff already exists"
+          },
+          "401": {
+            "description": "Unauthorized - collection agency login required"
+          }
+        }
+      }
+    },
+    "/admin/collection-agency/staff/{id}": {
+      "get": {
+        "summary": "Get staff by ID (only if belongs to collection agency)",
+        "tags": [
+          "Collection Agency Staff Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Staff details"
+          },
+          "403": {
+            "description": "Access denied - staff does not belong to your collection agency"
+          },
+          "404": {
+            "description": "Staff not found"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update staff (only if belongs to collection agency)",
+        "tags": [
+          "Collection Agency Staff Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Staff updated successfully"
+          },
+          "403": {
+            "description": "Access denied - staff does not belong to your collection agency"
+          },
+          "404": {
+            "description": "Staff not found"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete staff (only if belongs to collection agency)",
+        "tags": [
+          "Collection Agency Staff Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Staff deleted successfully"
+          },
+          "403": {
+            "description": "Access denied - staff does not belong to your collection agency"
+          },
+          "404": {
+            "description": "Staff not found"
+          }
+        }
+      }
+    },
+    "/admin/collection-agency/staff/{id}/status": {
+      "patch": {
+        "summary": "Update staff status (only if belongs to collection agency)",
+        "tags": [
+          "Collection Agency Staff Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "status"
+                ],
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "Active",
+                      "Inactive"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Staff status updated successfully"
+          },
+          "403": {
+            "description": "Access denied - staff does not belong to your collection agency"
+          },
+          "404": {
+            "description": "Staff not found"
+          }
+        }
+      }
+    },
+    "/admin/collection-agency/login/send-otp": {
+      "post": {
+        "summary": "Send OTP to collection agency phone for login",
+        "tags": [
+          "Collection Agency Management"
+        ],
+        "security": []
+      },
+      "/admin/collection-agency/login/verify-otp": {
+        "post": {
+          "summary": "Verify OTP and login collection agency (returns JWT token)",
+          "tags": [
+            "Collection Agency Management"
+          ],
+          "security": []
+        }
+      }
+    },
+    "/admin/collection-agency": {
+      "post": {
+        "summary": "Create a new collection agency",
+        "tags": [
+          "Collection Agency Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Collection agency created successfully"
+          },
+          "400": {
+            "description": "Validation error or collection agency already exists"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Permission denied"
+          }
+        }
+      },
+      "get": {
+        "summary": "Get all collection agencies with pagination and filters",
+        "tags": [
+          "Collection Agency Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Active",
+                "Inactive"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of collection agencies"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Permission denied"
+          }
+        }
+      }
+    },
+    "/admin/collection-agency/{id}": {
+      "get": {
+        "summary": "Get collection agency by ID",
+        "tags": [
+          "Collection Agency Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Collection agency details"
+          },
+          "404": {
+            "description": "Collection agency not found"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update collection agency",
+        "tags": [
+          "Collection Agency Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Collection agency updated successfully"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "404": {
+            "description": "Collection agency not found"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete collection agency",
+        "tags": [
+          "Collection Agency Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Collection agency deleted successfully"
+          },
+          "404": {
+            "description": "Collection agency not found"
+          }
+        }
+      }
+    },
+    "/admin/collection-agency/{id}/status": {
+      "patch": {
+        "summary": "Update collection agency status",
+        "tags": [
+          "Collection Agency Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Status updated successfully"
+          },
+          "404": {
+            "description": "Collection agency not found"
+          }
+        }
+      }
+    },
+    "/admin/dashboard": {
+      "get": {
+        "summary": "Admin dashboard (parcel flow)",
+        "description": "Agency and hub counts, all-time and today's orders and revenue, the Prepaid / ToPay / Credit split, recent bookings, top agencies and the settlement money summary. Revenue is the total the customer pays (transportation + loading + miscellaneous) on parcel bookings. The courier-shipment screen is at /admin/dashboard/shipments.\n",
+        "tags": [
+          "Dashboard"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "period",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "today",
+                "week",
+                "month",
+                "year",
+                "all"
+              ],
+              "default": "all"
+            },
+            "description": "Scopes the payment-type chart and the top-agency table. The headline totals are always all-time, next to today's figures.\n"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "overview { totalAgencies, totalHubs, totalOrders, totalRevenue, todayOrders, todayRevenue }, paymentTypeDistribution[], recentBookings[], topAgencies[], walletSummary\n"
+          }
+        }
+      }
+    },
+    "/admin/dashboard/top-agencies": {
+      "get": {
+        "summary": "Top agencies by parcel bookings",
+        "tags": [
+          "Dashboard"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 5
+            }
+          },
+          {
+            "in": "query",
+            "name": "period",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "today",
+                "week",
+                "month",
+                "year",
+                "all"
+              ],
+              "default": "all"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "agencies[] with agencyId, agencyName, city, orders, revenue"
+          }
+        }
+      }
+    },
+    "/admin/dashboard/wallet-statistics": {
+      "get": {
+        "summary": "Wallet and settlement money summary",
+        "description": "Total wallet movements, plus how every booking total was split - paymentForTruecargo is the admin's share remitted out of the agency wallets, agencyPayment is the commission the agencies kept. Settled bookings only; a reversed settlement has been undone in the wallets.\n",
+        "tags": [
+          "Dashboard"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "totalTransactions, paymentForTruecargo, agencyPayment, settledOrders, totalBookingAmount, totalBalance, totalWallets, credits, debits\n"
+          }
+        }
+      }
+    },
+    "/admin/driver": {
+      "post": {
+        "summary": "Create a new driver",
+        "tags": [
+          "Driver Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "driverName",
+                  "phoneNumber",
+                  "licenseNumber",
+                  "dateOfExpiry"
+                ],
+                "properties": {
+                  "driverName": {
+                    "type": "string",
+                    "example": "Ramesh Kumar"
+                  },
+                  "phoneNumber": {
+                    "type": "string",
+                    "example": "9876543210"
+                  },
+                  "licenseNumber": {
+                    "type": "string",
+                    "example": "TN1420110012345"
+                  },
+                  "dateOfExpiry": {
+                    "type": "string",
+                    "format": "date",
+                    "example": "2028-05-31"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "Active",
+                      "Inactive"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Driver created successfully"
+          },
+          "400": {
+            "description": "Validation error or driver already exists"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Permission denied"
+          }
+        }
+      },
+      "get": {
+        "summary": "Get all drivers with pagination and filters",
+        "tags": [
+          "Driver Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Active",
+                "Inactive"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of drivers"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Permission denied"
+          }
+        }
+      }
+    },
+    "/admin/driver/{id}": {
+      "get": {
+        "summary": "Get driver by ID",
+        "tags": [
+          "Driver Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Driver details"
+          },
+          "404": {
+            "description": "Driver not found"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update driver",
+        "tags": [
+          "Driver Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "driverName": {
+                    "type": "string"
+                  },
+                  "phoneNumber": {
+                    "type": "string"
+                  },
+                  "licenseNumber": {
+                    "type": "string"
+                  },
+                  "dateOfExpiry": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "Active",
+                      "Inactive"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Driver updated successfully"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "404": {
+            "description": "Driver not found"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete driver",
+        "tags": [
+          "Driver Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Driver deleted successfully"
+          },
+          "404": {
+            "description": "Driver not found"
+          }
+        }
+      }
+    },
+    "/admin/driver/{id}/status": {
+      "patch": {
+        "summary": "Update driver status",
+        "tags": [
+          "Driver Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "Active",
+                      "Inactive"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Status updated successfully"
+          },
+          "404": {
+            "description": "Driver not found"
           }
         }
       }
@@ -887,6 +4506,25 @@
         }
       }
     },
+    "/admin/franchise/role/modules": {
+      "get": {
+        "summary": "Modules an agency role can be given permissions on",
+        "description": "Drives the agency role/permission screen.",
+        "tags": [
+          "Franchise Role"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ modules: [\"Dashboard\", \"Parcel Management\", ...] }"
+          }
+        }
+      }
+    },
     "/admin/hub/login": {
       "post": {
         "summary": "Hub direct login",
@@ -1133,9 +4771,370 @@
         }
       },
       "delete": {
-        "summary": "Delete hub",
+        "summary": "Delete hub (staff are auto-reassigned to another hub)",
+        "description": "Any hub staff assigned to this hub are moved to another active hub before the hub is removed. The target hub is picked automatically (same city, then same state, then any active hub) unless reassignHubId is supplied. Hub-scoped roles are remapped to the same role name in the target hub, or cleared if it has none. The delete is rejected when staff exist and no other active hub is available.\n",
         "tags": [
           "Hub Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reassignHubId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Hub to move this hub's staff to. Auto-selected when omitted."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Hub deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "reassignedStaffCount": {
+                          "type": "number"
+                        },
+                        "reassignedToHub": {
+                          "type": "object",
+                          "nullable": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No active hub available for the staff, or invalid reassignHubId"
+          },
+          "404": {
+            "description": "Hub not found"
+          }
+        }
+      }
+    },
+    "/admin/hub/dashboard": {
+      "get": {
+        "summary": "This hub's dashboard (parcel flow)",
+        "description": "Identical to GET /hub/dashboard. Only the parcels an admin has routed to this hub. pendingOrders are assigned but not dispatched onward — the hub's own queue; inTransitOrders have left the hub and are not delivered yet. A hub never books, so there is no revenue here.\n",
+        "tags": [
+          "Dashboard - Hub"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "hub { hubId, hubName, city, state, status } and overview { todayOrders, todayAssigned, assignedOrders, pendingOrders, inTransitOrders, deliveredOrders }\n"
+          },
+          "403": {
+            "description": "Hub access required"
+          }
+        }
+      }
+    },
+    "/admin/modules": {
+      "get": {
+        "summary": "Modules available in this deployment",
+        "description": "Drives menus and the role/permission screen. Hidden modules (currently Collection Agency) are left out.\n",
+        "tags": [
+          "Access Management"
+        ],
+        "responses": {
+          "200": {
+            "description": "{ modules: [\"Dashboard\", \"Agency Management\", ...] }"
+          }
+        }
+      }
+    },
+    "/admin/invoice": {
+      "get": {
+        "summary": "List invoices",
+        "tags": [
+          "Invoice"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          },
+          {
+            "in": "query",
+            "name": "agency",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Agency ObjectId"
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "issued",
+                "cancelled"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "invoiceNumber",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "orderId",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Parcel order ObjectId (alias: order). Returns the single invoice of that order"
+          },
+          {
+            "in": "query",
+            "name": "orderNumber",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "paymentType",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Paid",
+                "To Pay",
+                "Credit"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Matches invoice/order number, customer name, mobile or GST"
+          },
+          {
+            "in": "query",
+            "name": "dateFrom",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateTo",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invoices plus totals — totalTransportation, totalLoading, totalMiscellaneous, totalAmount\n"
+          }
+        }
+      }
+    },
+    "/admin/invoice/summary": {
+      "get": {
+        "summary": "Billing summary, overall and per agency",
+        "tags": [
+          "Invoice"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "agency",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateFrom",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateTo",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "issuedInvoices, totalTransportation, totalLoading, totalMiscellaneous, totalAmount, cancelledInvoices, perAgency[]\n"
+          }
+        }
+      }
+    },
+    "/admin/invoice/number/{invoiceNumber}": {
+      "get": {
+        "summary": "Look an invoice up by its number",
+        "tags": [
+          "Invoice"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "invoiceNumber",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "INV-2026-27-000001"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invoice details"
+          },
+          "404": {
+            "description": "Invoice not found"
+          }
+        }
+      }
+    },
+    "/admin/invoice/order/{orderId}": {
+      "get": {
+        "summary": "The invoice raised for a parcel order",
+        "tags": [
+          "Invoice"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "orderId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invoice details"
+          },
+          "404": {
+            "description": "No invoice for this order"
+          }
+        }
+      }
+    },
+    "/admin/invoice/order/{orderId}/generate": {
+      "post": {
+        "summary": "Raise an invoice for an order that has none",
+        "description": "New bookings are invoiced automatically. Use this for orders booked before invoicing existed, or to re-issue after a cancellation (a fresh invoice number is allocated).\n",
+        "tags": [
+          "Invoice"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "orderId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Invoice raised"
+          },
+          "404": {
+            "description": "Parcel order not found"
+          },
+          "409": {
+            "description": "An issued invoice already exists"
+          }
+        }
+      }
+    },
+    "/admin/invoice/{id}": {
+      "get": {
+        "summary": "Get an invoice by ID",
+        "tags": [
+          "Invoice"
         ],
         "security": [
           {
@@ -1154,10 +5153,1250 @@
         ],
         "responses": {
           "200": {
-            "description": "Hub deleted successfully"
+            "description": "Invoice details"
           },
           "404": {
-            "description": "Hub not found"
+            "description": "Invoice not found"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Edit invoice notes",
+        "description": "Only the notes are editable. Amounts follow the order's charges — change those with PATCH /admin/parcel-order/{id}/charge and the invoice is revised automatically, keeping a revision trail.\n",
+        "tags": [
+          "Invoice"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "notes"
+                ],
+                "properties": {
+                  "notes": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Notes updated"
+          }
+        }
+      }
+    },
+    "/admin/invoice/{id}/cancel": {
+      "post": {
+        "summary": "Cancel an invoice",
+        "description": "The record is kept and marked cancelled so the numbering stays intact. Deleting a parcel order cancels its invoice automatically.\n",
+        "tags": [
+          "Invoice"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "example": "Booking cancelled by customer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Invoice cancelled"
+          },
+          "409": {
+            "description": "Already cancelled"
+          }
+        }
+      }
+    },
+    "/admin/parcel-order": {
+      "post": {
+        "summary": "Create a parcel order (booking)",
+        "tags": [
+          "Parcel Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "branch",
+                  "bookingCustomer",
+                  "paymentType",
+                  "deliveryCustomer",
+                  "parcelDetails"
+                ],
+                "properties": {
+                  "branch": {
+                    "type": "string",
+                    "description": "Branch (franchise / agency) ObjectId"
+                  },
+                  "bookingCustomer": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "mobileNumber": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "paymentType": {
+                    "type": "string",
+                    "enum": [
+                      "Paid",
+                      "To Pay",
+                      "Credit"
+                    ]
+                  },
+                  "deliveryCustomer": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "mobileNumber": {
+                        "type": "string"
+                      },
+                      "deliveryAgency": {
+                        "type": "string",
+                        "description": "Optional. Destination agency ObjectId, picked from GET /admin/parcel-order/options/delivery-branches. Can be set later via PUT /admin/parcel-order/{{id}}.\n"
+                      },
+                      "deliveryBranch": {
+                        "type": "string",
+                        "description": "Deprecated alias for deliveryAgency"
+                      }
+                    }
+                  },
+                  "pickupAddress": {
+                    "type": "string",
+                    "description": "Where the parcel is collected from the booking customer"
+                  },
+                  "deliveryAddress": {
+                    "type": "string",
+                    "description": "Where the parcel is delivered to the delivery customer"
+                  },
+                  "parcelDetails": {
+                    "type": "object",
+                    "properties": {
+                      "article": {
+                        "type": "string"
+                      },
+                      "remarks": {
+                        "type": "string"
+                      },
+                      "numberOfParcels": {
+                        "type": "integer"
+                      },
+                      "approximateValue": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "transportationCharge": {
+                    "type": "number",
+                    "description": "Optional. Defaults to 0; editable later via /charge."
+                  },
+                  "waybill": {
+                    "type": "string",
+                    "description": "Optional. Carrier waybill / AWB number"
+                  },
+                  "vehicleType": {
+                    "type": "string",
+                    "description": "Optional. Vehicle class booked for the movement"
+                  },
+                  "vehicleCapacity": {
+                    "type": "string",
+                    "description": "Optional. Capacity of that vehicle (e.g. \"2 Ton\")"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Parcel order created"
+          },
+          "400": {
+            "description": "Validation error / branch (franchise) invalid or inactive"
+          }
+        }
+      },
+      "get": {
+        "summary": "List parcel orders (pagination, search, filters)",
+        "tags": [
+          "Parcel Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "branch",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Booking branch ObjectId"
+          },
+          {
+            "in": "query",
+            "name": "deliveryBranch",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Destination branch ObjectId"
+          },
+          {
+            "in": "query",
+            "name": "hub",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hubAssignment",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "assigned",
+                "unassigned"
+              ]
+            },
+            "description": "Use \"unassigned\" for the admin hub-assignment queue"
+          },
+          {
+            "in": "query",
+            "name": "paymentType",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of parcel orders. Each row carries its invoice as invoiceId, invoiceNumber and invoice { _id, invoiceNumber, invoiceDate, status, totalAmount }, null when no invoice has been raised for the order.\n"
+          }
+        }
+      }
+    },
+    "/admin/parcel-order/outward": {
+      "get": {
+        "summary": "Outward register - parcels booked at an agency and sent out",
+        "description": "Admin must name the agency with `agency`; an agency login always gets its own register. Same filters as the list, plus counterpartAgency.\n",
+        "tags": [
+          "Parcel Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "agency",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Agency whose register this is. Required for admin, ignored for an agency login"
+          },
+          {
+            "in": "query",
+            "name": "counterpartAgency",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Destination agency, to see only what went to one agency"
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "paymentType",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hubAssignment",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "assigned",
+                "unassigned"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateFrom",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateTo",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ direction: outward, agency, orders, totals, pagination }"
+          },
+          "400": {
+            "description": "agency is required for an admin login"
+          },
+          "403": {
+            "description": "Not available to a hub login"
+          }
+        }
+      }
+    },
+    "/admin/parcel-order/inward": {
+      "get": {
+        "summary": "Inward register - parcels addressed to an agency for delivery",
+        "description": "Same shape as the outward register; counterpartAgency here filters the origin (booking) agency.\n",
+        "tags": [
+          "Parcel Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "agency",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Agency whose register this is. Required for admin, ignored for an agency login"
+          },
+          {
+            "in": "query",
+            "name": "counterpartAgency",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Origin agency, to see only what came from one agency"
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "paymentType",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateFrom",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateTo",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ direction: inward, agency, orders, totals, pagination }"
+          },
+          "400": {
+            "description": "agency is required for an admin login"
+          },
+          "403": {
+            "description": "Not available to a hub login"
+          }
+        }
+      }
+    },
+    "/admin/parcel-order/options/delivery-branches": {
+      "get": {
+        "summary": "Dropdown - available delivery branches (active franchises)",
+        "tags": [
+          "Parcel Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "[{ _id, agencyName, agencyOwner, phone, city, state, pincode }]"
+          }
+        }
+      }
+    },
+    "/admin/parcel-order/options/vehicles": {
+      "get": {
+        "summary": "Dropdown - active vehicles",
+        "tags": [
+          "Parcel Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "[{ _id, vehicleType, vehicleRegistrationNumber, capacity }]"
+          }
+        }
+      }
+    },
+    "/admin/parcel-order/options/drivers": {
+      "get": {
+        "summary": "Dropdown - active drivers",
+        "tags": [
+          "Parcel Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "[{ _id, driverName, phoneNumber, licenseNumber, dateOfExpiry }]"
+          }
+        }
+      }
+    },
+    "/admin/parcel-order/{id}": {
+      "get": {
+        "summary": "Get a parcel order by ID",
+        "tags": [
+          "Parcel Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Parcel order details"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update parcel order booking details",
+        "tags": [
+          "Parcel Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a parcel order",
+        "tags": [
+          "Parcel Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted"
+          }
+        }
+      }
+    },
+    "/admin/parcel-order/{id}/assign-hub": {
+      "patch": {
+        "summary": "Assign the processing hub to a branch booking (admin only)",
+        "tags": [
+          "Parcel Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "hub"
+                ],
+                "properties": {
+                  "hub": {
+                    "type": "string",
+                    "description": "Hub ObjectId"
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Hub assigned; status moves to \"Hub Assigned\""
+          },
+          "400": {
+            "description": "Hub invalid/inactive",
+            "or parcel already at hub": null
+          },
+          "403": {
+            "description": "Only admin can assign a hub"
+          }
+        }
+      }
+    },
+    "/admin/parcel-order/{id}/assign-vehicle": {
+      "patch": {
+        "summary": "Assign the vehicle and driver (admin override of the hub action)",
+        "tags": [
+          "Parcel Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "vehicle": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Vehicle ObjectId"
+                  },
+                  "driver": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Driver ObjectId"
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Vehicle / driver assigned"
+          },
+          "400": {
+            "description": "Vehicle or driver invalid or inactive"
+          }
+        }
+      }
+    },
+    "/admin/parcel-order/{id}/tracking": {
+      "get": {
+        "summary": "Full status timeline for a parcel order",
+        "tags": [
+          "Parcel Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current status + statusHistory timeline"
+          }
+        }
+      }
+    },
+    "/admin/parcel-order/{id}/charge": {
+      "patch": {
+        "summary": "Update transportation charge (2.4)",
+        "tags": [
+          "Parcel Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "transportationCharge"
+                ],
+                "properties": {
+                  "transportationCharge": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Charge updated"
+          }
+        }
+      }
+    },
+    "/admin/parcel-order/{id}/status": {
+      "patch": {
+        "summary": "Update parcel tracking status (2.5)",
+        "tags": [
+          "Parcel Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "status"
+                ],
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "Order Created",
+                      "Parcel Collected",
+                      "Parcel Dispatched",
+                      "Parcel Arrived at Branch",
+                      "Parcel Received at Branch",
+                      "Delivered"
+                    ]
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Status updated"
+          }
+        }
+      }
+    },
+    "/admin/parcel-settlement": {
+      "get": {
+        "summary": "List parcel wallet settlements",
+        "tags": [
+          "Wallet Settlement"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          },
+          {
+            "in": "query",
+            "name": "branch",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Branch (Agency) ObjectId"
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "settled",
+                "reversed"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "orderNumber",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateFrom",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateTo",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Settlements plus totals — totalOrderAmount, totalBranchProfit, totalAdminShare\n"
+          }
+        }
+      }
+    },
+    "/admin/parcel-settlement/summary": {
+      "get": {
+        "summary": "Admin earnings summary, overall and per branch",
+        "tags": [
+          "Wallet Settlement"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "branch",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateFrom",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateTo",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "settledOrders, totalOrderAmount, totalBranchProfit, totalAdminShare, reversedOrders, reversedAmount, perBranch[]\n"
+          }
+        }
+      }
+    },
+    "/admin/parcel-settlement/preview": {
+      "get": {
+        "summary": "Preview the split for a booking amount before booking it",
+        "description": "Shows what a booking of this amount would take from the branch wallet, what the branch keeps, and whether the balance covers it.\n",
+        "tags": [
+          "Wallet Settlement"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "amount",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "example": 200
+            }
+          },
+          {
+            "in": "query",
+            "name": "branch",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Branch ObjectId (admin only; a branch login uses its own)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "orderAmount, profitPercentage, branchProfitAmount, adminShareAmount, walletDebitAmount (the full order amount taken from the wallet), walletBalance, balanceAfterBooking, sufficientBalance\n"
+          },
+          "400": {
+            "description": "A valid amount is required"
+          }
+        }
+      }
+    },
+    "/admin/parcel-settlement/order/{orderId}/settle": {
+      "post": {
+        "summary": "Settle a parcel order manually",
+        "description": "For bookings that have no active settlement — orders created before the wallet flow existed, or a settlement that was reversed and now needs to be re-applied. New bookings settle themselves.\n",
+        "tags": [
+          "Wallet Settlement"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "orderId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Parcel order ObjectId"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Settled; branch wallet debited",
+            "admin wallet credited": null
+          },
+          "402": {
+            "description": "Insufficient branch wallet balance"
+          },
+          "404": {
+            "description": "Parcel order not found"
+          },
+          "409": {
+            "description": "Order is already settled"
+          }
+        }
+      }
+    },
+    "/admin/parcel-settlement/{id}": {
+      "get": {
+        "summary": "One settlement with its wallet transaction trail",
+        "tags": [
+          "Wallet Settlement"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Settlement plus the transactions that carried it"
+          },
+          "404": {
+            "description": "Settlement not found"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Edit settlement notes",
+        "tags": [
+          "Wallet Settlement"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "notes"
+                ],
+                "properties": {
+                  "notes": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Notes updated"
+          }
+        }
+      }
+    },
+    "/admin/parcel-settlement/{id}/reverse": {
+      "post": {
+        "summary": "Reverse a settlement (refund the booked amount to the branch)",
+        "description": "Use when a booking is cancelled. The amount debited at booking leaves the admin settlement wallet and goes back to the branch wallet. Deleting a parcel order reverses its settlement automatically.\n",
+        "tags": [
+          "Wallet Settlement"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "example": "Booking cancelled by customer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reversed; amount refunded to the branch wallet"
+          },
+          "409": {
+            "description": "Already reversed"
           }
         }
       }
@@ -1381,6 +6620,371 @@
           },
           "404": {
             "description": "Role not found"
+          }
+        }
+      }
+    },
+    "/admin/route": {
+      "post": {
+        "summary": "Create a new route",
+        "tags": [
+          "Route Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "routeName",
+                  "from",
+                  "to"
+                ],
+                "properties": {
+                  "routeName": {
+                    "type": "string",
+                    "example": "Chennai - Bangalore Express"
+                  },
+                  "from": {
+                    "type": "string",
+                    "example": "Chennai"
+                  },
+                  "to": {
+                    "type": "string",
+                    "example": "Bangalore"
+                  },
+                  "branches": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "example": [
+                      "Guindy",
+                      "Tambaram"
+                    ]
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "Active",
+                      "Inactive"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Route created successfully"
+          },
+          "400": {
+            "description": "Validation error or route already exists"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Permission denied"
+          }
+        }
+      },
+      "get": {
+        "summary": "Get all routes with pagination and filters",
+        "tags": [
+          "Route Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Active",
+                "Inactive"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of routes"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Permission denied"
+          }
+        }
+      }
+    },
+    "/admin/route/{id}": {
+      "get": {
+        "summary": "Get route by ID",
+        "tags": [
+          "Route Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Route details"
+          },
+          "404": {
+            "description": "Route not found"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update route",
+        "tags": [
+          "Route Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "routeName": {
+                    "type": "string"
+                  },
+                  "from": {
+                    "type": "string"
+                  },
+                  "to": {
+                    "type": "string"
+                  },
+                  "branches": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "Active",
+                      "Inactive"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Route updated successfully"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "404": {
+            "description": "Route not found"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete route",
+        "tags": [
+          "Route Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Route deleted successfully"
+          },
+          "404": {
+            "description": "Route not found"
+          }
+        }
+      }
+    },
+    "/admin/route/{id}/status": {
+      "patch": {
+        "summary": "Update route status",
+        "tags": [
+          "Route Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "Active",
+                      "Inactive"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Status updated successfully"
+          },
+          "404": {
+            "description": "Route not found"
+          }
+        }
+      }
+    },
+    "/admin/route/{id}/branches": {
+      "patch": {
+        "summary": "Update the branch list of a route (Branch Management)",
+        "tags": [
+          "Route Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "branches"
+                ],
+                "properties": {
+                  "branches": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "example": [
+                      "Chengalpattu",
+                      "Villupuram",
+                      "Trichy",
+                      "Erode"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Branches updated successfully"
+          },
+          "404": {
+            "description": "Route not found"
           }
         }
       }
@@ -1628,6 +7232,1364 @@
           },
           "404": {
             "description": "Staff not found"
+          }
+        }
+      }
+    },
+    "/admin/login/send-otp": {
+      "post": {
+        "summary": "Single login - send OTP to a phone number",
+        "description": "Works for agency, hub, staff and admin logins. The phone number is unique across all of them, so no user type has to be chosen. The response includes the resolved userType and module so the UI can show who is logging in.\n",
+        "tags": [
+          "Unified Login"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "phone"
+                ],
+                "properties": {
+                  "phone": {
+                    "type": "string",
+                    "example": "9876543210"
+                  },
+                  "countryCode": {
+                    "type": "string",
+                    "default": "+91"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OTP sent; returns { userType, module }"
+          },
+          "403": {
+            "description": "Account is inactive"
+          },
+          "404": {
+            "description": "No account with this phone number"
+          }
+        }
+      }
+    },
+    "/admin/login/verify-otp": {
+      "post": {
+        "summary": "Single login - verify OTP and get a token",
+        "description": "Returns the JWT plus `userType` (admin | agency | hub | staff), `staffType` for staff, and `module` (admin | agency | hub) telling the frontend which area to open.\n",
+        "tags": [
+          "Unified Login"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "phone",
+                  "otp"
+                ],
+                "properties": {
+                  "phone": {
+                    "type": "string",
+                    "example": "9876543210"
+                  },
+                  "countryCode": {
+                    "type": "string",
+                    "default": "+91"
+                  },
+                  "otp": {
+                    "type": "string",
+                    "example": "123456"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ token, data: { userType, staffType, module, name, agencyId, agencyName, hubId, hubName, user } }\n"
+          },
+          "400": {
+            "description": "OTP missing or expired"
+          },
+          "401": {
+            "description": "Invalid OTP"
+          },
+          "403": {
+            "description": "Account is inactive"
+          }
+        }
+      }
+    },
+    "/admin/login/lookup": {
+      "post": {
+        "summary": "Which account does this phone number belong to (no OTP sent)",
+        "tags": [
+          "Unified Login"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "phone"
+                ],
+                "properties": {
+                  "phone": {
+                    "type": "string",
+                    "example": "9876543210"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ userType, staffType, module, name, active }"
+          },
+          "404": {
+            "description": "No account with this phone number"
+          }
+        }
+      }
+    },
+    "/admin/vehicle": {
+      "post": {
+        "summary": "Create a new vehicle",
+        "tags": [
+          "Vehicle Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "vehicleType",
+                  "capacity",
+                  "vehicleRegistrationNumber",
+                  "rcNumber",
+                  "insuranceNumber"
+                ],
+                "properties": {
+                  "vehicleType": {
+                    "type": "string",
+                    "example": "Truck"
+                  },
+                  "capacity": {
+                    "type": "string",
+                    "example": "10 Ton"
+                  },
+                  "vehicleRegistrationNumber": {
+                    "type": "string",
+                    "example": "TN01AB1234"
+                  },
+                  "rcNumber": {
+                    "type": "string",
+                    "example": "RC123456789"
+                  },
+                  "insuranceNumber": {
+                    "type": "string",
+                    "example": "INS987654321"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "Active",
+                      "Inactive"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Vehicle created successfully"
+          },
+          "400": {
+            "description": "Validation error or vehicle already exists"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Permission denied"
+          }
+        }
+      },
+      "get": {
+        "summary": "Get all vehicles with pagination and filters",
+        "tags": [
+          "Vehicle Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Active",
+                "Inactive"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of vehicles"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Permission denied"
+          }
+        }
+      }
+    },
+    "/admin/vehicle/{id}": {
+      "get": {
+        "summary": "Get vehicle by ID",
+        "tags": [
+          "Vehicle Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Vehicle details"
+          },
+          "404": {
+            "description": "Vehicle not found"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update vehicle",
+        "tags": [
+          "Vehicle Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "vehicleType": {
+                    "type": "string"
+                  },
+                  "capacity": {
+                    "type": "string"
+                  },
+                  "vehicleRegistrationNumber": {
+                    "type": "string"
+                  },
+                  "rcNumber": {
+                    "type": "string"
+                  },
+                  "insuranceNumber": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "Active",
+                      "Inactive"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Vehicle updated successfully"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "404": {
+            "description": "Vehicle not found"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete vehicle",
+        "tags": [
+          "Vehicle Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Vehicle deleted successfully"
+          },
+          "404": {
+            "description": "Vehicle not found"
+          }
+        }
+      }
+    },
+    "/admin/vehicle/{id}/status": {
+      "patch": {
+        "summary": "Update vehicle status",
+        "tags": [
+          "Vehicle Management"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "Active",
+                      "Inactive"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Status updated successfully"
+          },
+          "404": {
+            "description": "Vehicle not found"
+          }
+        }
+      }
+    },
+    "/hub/dashboard": {
+      "get": {
+        "summary": "This hub's dashboard (parcel flow)",
+        "description": "Only the parcels an admin has routed to this hub. pendingOrders are the ones assigned but not dispatched onward — the hub's own queue; inTransitOrders have left the hub and are not delivered yet. A hub never books, so there is no revenue here. todayOrders counts parcels booked today and routed here; todayAssigned counts the ones handed to this hub today, whenever they were booked.\n",
+        "tags": [
+          "Dashboard - Hub"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "hub { hubId, hubName, city, state, status } and overview { todayOrders, todayAssigned, assignedOrders, pendingOrders, inTransitOrders, deliveredOrders }\n"
+          },
+          "403": {
+            "description": "Hub access required"
+          }
+        }
+      }
+    },
+    "/hub/role/modules": {
+      "get": {
+        "summary": "Modules a hub role can be given permissions on",
+        "description": "Drives the hub role/permission screen.",
+        "tags": [
+          "Hub Role"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ modules: [\"Dashboard\", \"Parcel Management\", ...] }"
+          }
+        }
+      }
+    },
+    "/hub/staff/profile": {
+      "get": {
+        "summary": "Get hub staff profile with delivery stats",
+        "tags": [
+          "Hub Staff"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Staff profile with totalDeliveries and totalOrders"
+          }
+        }
+      }
+    },
+    "/hub/staff/my-tasks": {
+      "get": {
+        "summary": "Get active/in-progress orders assigned to this hub",
+        "tags": [
+          "Hub Staff"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of active tasks"
+          }
+        }
+      }
+    },
+    "/hub/staff/delivery-history": {
+      "get": {
+        "summary": "Get completed/cancelled/failed delivery history",
+        "tags": [
+          "Hub Staff"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Delivery history list"
+          }
+        }
+      }
+    },
+    "/hub/staff/booking/{orderId}": {
+      "get": {
+        "summary": "Get full booking detail with address, package, charges",
+        "tags": [
+          "Hub Staff"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "orderId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Full booking detail with charges breakdown"
+          }
+        }
+      }
+    },
+    "/hub/staff/booking/{orderId}/status": {
+      "patch": {
+        "summary": "Update order status (confirm pickup/delivery)",
+        "tags": [
+          "Hub Staff"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "orderId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "status"
+                ],
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "Active",
+                      "in_transit",
+                      "delivered",
+                      "failed"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Order status updated"
+          }
+        }
+      }
+    },
+    "/hub/staff/booking/{orderId}/place-delhivery": {
+      "post": {
+        "summary": "Place order in Delhivery and get AWB number + tracking URL",
+        "tags": [
+          "Hub Staff"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "orderId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns waybill (AWB) and tracking URL from Delhivery"
+          }
+        }
+      }
+    },
+    "/hub/staff/booking/{orderId}/awb": {
+      "patch": {
+        "summary": "Update AWB number and tracking URL (after placing order directly in Delhivery)",
+        "tags": [
+          "Hub Staff"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "orderId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "waybill"
+                ],
+                "properties": {
+                  "waybill": {
+                    "type": "string",
+                    "description": "AWB number from Delhivery"
+                  },
+                  "trackingUrl": {
+                    "type": "string",
+                    "description": "Optional custom tracking URL (auto-generated if not provided)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "AWB and tracking URL saved"
+          }
+        }
+      }
+    },
+    "/hub/staff/booking/{orderId}/edit": {
+      "put": {
+        "summary": "Edit order details (weight, dimensions, amount, address)",
+        "tags": [
+          "Hub Staff"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "orderId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "weight": {
+                    "type": "string"
+                  },
+                  "shipmentWidth": {
+                    "type": "string"
+                  },
+                  "shipmentHeight": {
+                    "type": "string"
+                  },
+                  "quantity": {
+                    "type": "string"
+                  },
+                  "totalAmount": {
+                    "type": "string"
+                  },
+                  "codAmount": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Order updated with recalculated charges and extra amount"
+          }
+        }
+      }
+    },
+    "/hub/staff/account-settings": {
+      "put": {
+        "summary": "Update hub staff account settings (name, phone, password)",
+        "tags": [
+          "Hub Staff"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "phone": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Account settings updated"
+          }
+        }
+      }
+    },
+    "/hub/invoice": {
+      "get": {
+        "summary": "List the invoices for parcels routed through this hub",
+        "tags": [
+          "Invoice - Hub"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "issued",
+                "cancelled"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "invoiceNumber",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "orderNumber",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "paymentType",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Paid",
+                "To Pay",
+                "Credit"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateFrom",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateTo",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invoices for this hub's parcels"
+          },
+          "403": {
+            "description": "Hub access or \"Invoice Management\" read permission required"
+          }
+        }
+      }
+    },
+    "/hub/invoice/summary": {
+      "get": {
+        "summary": "Billing summary for the parcels routed through this hub",
+        "tags": [
+          "Invoice - Hub"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dateFrom",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateTo",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Totals",
+            "overall and per agency": null
+          }
+        }
+      }
+    },
+    "/hub/invoice/number/{invoiceNumber}": {
+      "get": {
+        "summary": "Get one invoice by its number",
+        "tags": [
+          "Invoice - Hub"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "invoiceNumber",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invoice"
+          },
+          "403": {
+            "description": "The parcel is not assigned to this hub"
+          },
+          "404": {
+            "description": "Invoice not found"
+          }
+        }
+      }
+    },
+    "/hub/invoice/order/{orderId}": {
+      "get": {
+        "summary": "Get the invoice raised for one parcel order",
+        "tags": [
+          "Invoice - Hub"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "orderId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invoice"
+          },
+          "403": {
+            "description": "The parcel is not assigned to this hub"
+          },
+          "404": {
+            "description": "Invoice not found"
+          }
+        }
+      }
+    },
+    "/hub/invoice/{id}": {
+      "get": {
+        "summary": "Get one invoice by id",
+        "tags": [
+          "Invoice - Hub"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invoice"
+          },
+          "403": {
+            "description": "The parcel is not assigned to this hub"
+          },
+          "404": {
+            "description": "Invoice not found"
+          }
+        }
+      }
+    },
+    "/hub/parcel-order": {
+      "get": {
+        "summary": "List parcel orders assigned to this hub",
+        "tags": [
+          "Parcel Flow - Hub"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string"
+            },
+            "description": "e.g. \"Hub Assigned\" for the incoming queue"
+          },
+          {
+            "in": "query",
+            "name": "paymentType",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Orders assigned to this hub only"
+          },
+          "403": {
+            "description": "Hub access required"
+          }
+        }
+      }
+    },
+    "/hub/parcel-order/options/vehicles": {
+      "get": {
+        "summary": "Dropdown - active vehicles the hub can assign",
+        "tags": [
+          "Parcel Flow - Hub"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Matches registration number or vehicle type"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "[{ _id, vehicleType, vehicleRegistrationNumber, capacity }]"
+          }
+        }
+      }
+    },
+    "/hub/parcel-order/options/drivers": {
+      "get": {
+        "summary": "Dropdown - active drivers the hub can assign",
+        "tags": [
+          "Parcel Flow - Hub"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Matches driver name, phone or licence number"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "[{ _id, driverName, phoneNumber, licenseNumber, dateOfExpiry }]"
+          }
+        }
+      }
+    },
+    "/hub/parcel-order/{id}": {
+      "get": {
+        "summary": "Get one parcel order assigned to this hub",
+        "tags": [
+          "Parcel Flow - Hub"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Order details"
+          },
+          "403": {
+            "description": "Order is not assigned to this hub"
+          }
+        }
+      }
+    },
+    "/hub/parcel-order/{id}/tracking": {
+      "get": {
+        "summary": "Status timeline of an order assigned to this hub",
+        "tags": [
+          "Parcel Flow - Hub"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current status + timeline"
+          }
+        }
+      }
+    },
+    "/hub/parcel-order/{id}/status": {
+      "patch": {
+        "summary": "Hub-side status update",
+        "description": "A hub may set only its own stages - Parcel Arrived at Hub, Parcel Processed at Hub, Parcel Dispatched from Hub. The lifecycle moves forward only.\n",
+        "tags": [
+          "Parcel Flow - Hub"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "status"
+                ],
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "Parcel Arrived at Hub",
+                      "Parcel Processed at Hub",
+                      "Parcel Dispatched from Hub"
+                    ]
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Status updated"
+          },
+          "400": {
+            "description": "Backwards move"
+          },
+          "403": {
+            "description": "Status not allowed for a hub",
+            "or order not assigned here": null
+          }
+        }
+      }
+    },
+    "/hub/parcel-order/{id}/assign-vehicle": {
+      "patch": {
+        "summary": "Assign the vehicle and driver for onward movement",
+        "description": "Send either field on its own to change just that one. Send an empty string or null to clear an existing assignment. Vehicle and driver must be Active. The change is recorded in statusHistory without moving the lifecycle status.\n",
+        "tags": [
+          "Parcel Flow - Hub"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "vehicle": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Vehicle ObjectId"
+                  },
+                  "driver": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Driver ObjectId"
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Vehicle / driver assigned"
+          },
+          "400": {
+            "description": "Vehicle or driver invalid or inactive"
+          },
+          "403": {
+            "description": "Order is not assigned to this hub"
           }
         }
       }

@@ -147,9 +147,11 @@ exports.shipmentService = {
                         message: 'Invalid amount for prepaid order',
                     };
                 }
-                let wallet = await wallet_model_1.Wallet.findOne({ userId });
+                // Use walletUserId (franchise ID) if provided, otherwise fall back to userId
+                const walletOwnerId = shipmentData.walletUserId || userId;
+                let wallet = await wallet_model_1.Wallet.findOne({ userId: walletOwnerId });
                 if (!wallet) {
-                    wallet = await wallet_model_1.Wallet.create({ userId, balance: 0 });
+                    wallet = await wallet_model_1.Wallet.create({ userId: walletOwnerId, balance: 0 });
                 }
                 if (wallet.balance < amount) {
                     return {
@@ -166,7 +168,7 @@ exports.shipmentService = {
                 await wallet.save();
                 await transaction_model_1.Transaction.create({
                     transactionId: `TXN_DEBIT_${orderId}_${Date.now()}`,
-                    userId,
+                    userId: walletOwnerId,
                     orderId,
                     amount,
                     type: 'debit',
@@ -181,8 +183,10 @@ exports.shipmentService = {
                 });
                 walletDebited = true;
                 debitAmount = amount;
-                debitUserId = userId;
+                debitUserId = walletOwnerId;
             }
+            // Preserve an explicitly provided assignedHubId (e.g. hub-created orders own themselves)
+            const providedHubId = shipmentData.assignedHubId;
             // Auto-assign nearest hub if pickupLocation not provided
             if (!shipmentData.pickupLocation || !shipmentData.pickupLocation.name) {
                 // Use FROM address (sender) to find nearest hub, not consignee address
@@ -200,7 +204,10 @@ exports.shipmentService = {
                         state: nearestHub.state,
                         phone: nearestHub.phoneNo?.toString(),
                     };
-                    shipmentData.assignedHubId = nearestHub._id.toString();
+                    // Don't clobber an explicitly provided owner hub (hub-created orders)
+                    if (!providedHubId) {
+                        shipmentData.assignedHubId = nearestHub._id.toString();
+                    }
                 }
                 else {
                     return { success: false, message: 'No active hub available. Please try again later.' };

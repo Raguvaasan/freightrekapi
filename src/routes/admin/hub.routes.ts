@@ -6,7 +6,12 @@ import { authMiddleware } from "../../middleware/auth.middleware"
 import { checkPermission } from "../../middleware/checkPermission.middleware"
 import { adminModule } from "../../config/adminModule"
 import { staffLoginSchema } from "../../validators/admin/staff.validator";
+import { objectIdParam } from "../../middleware/objectIdParam.middleware";
 const router = Router();
+
+// `/:id` below would otherwise swallow every unmatched sub-path and answer
+// "Access denied" from the permission check instead of a plain 404
+router.param("id", objectIdParam("/admin/hub"));
 
 /**
  * @swagger
@@ -171,7 +176,13 @@ router.get("/", authMiddleware, checkPermission(adminModule.hub_management, 'rea
  *       404:
  *         description: Hub not found
  *   delete:
- *     summary: Delete hub
+ *     summary: Delete hub (staff are auto-reassigned to another hub)
+ *     description: >
+ *       Any hub staff assigned to this hub are moved to another active hub before the
+ *       hub is removed. The target hub is picked automatically (same city, then same
+ *       state, then any active hub) unless reassignHubId is supplied. Hub-scoped roles
+ *       are remapped to the same role name in the target hub, or cleared if it has none.
+ *       The delete is rejected when staff exist and no other active hub is available.
  *     tags: [Hub Management]
  *     security:
  *       - bearerAuth: []
@@ -181,9 +192,34 @@ router.get("/", authMiddleware, checkPermission(adminModule.hub_management, 'rea
  *         required: true
  *         schema:
  *           type: string
+ *       - in: query
+ *         name: reassignHubId
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: Hub to move this hub's staff to. Auto-selected when omitted.
  *     responses:
  *       200:
  *         description: Hub deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     reassignedStaffCount:
+ *                       type: number
+ *                     reassignedToHub:
+ *                       type: object
+ *                       nullable: true
+ *       400:
+ *         description: No active hub available for the staff, or invalid reassignHubId
  *       404:
  *         description: Hub not found
  */

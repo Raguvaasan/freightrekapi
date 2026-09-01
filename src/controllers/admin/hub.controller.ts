@@ -79,13 +79,17 @@ export const updateHub = async (req: Request, res: Response) => {
 export const deleteHub = async (req: Request, res: Response) => {
   try {
     const id = req.params.id
-    const hub = await hubService.deleteHub(id);
+    // Optional - which hub the staff should move to. Left out, the service
+    // picks the nearest active hub itself.
+    const reassignHubId = (req.body?.reassignHubId || req.query.reassignHubId) as string | undefined;
+    const result = await hubService.deleteHub(id, reassignHubId);
 
-    if (!hub) {
-      return res.status(404).json({ success: false, message: "Hub not found" });
+    if (!result.success) {
+      const status = result.message === "Hub not found" ? 404 : 400;
+      return res.status(status).json({ success: false, message: result.message });
     }
 
-    res.status(200).json({ success: true, message: "Hub deleted" });
+    res.status(200).json({ success: true, message: result.message, data: result.data });
   }
   catch (err: any) {
     res.status(400).json({ success: false, message: err.message });

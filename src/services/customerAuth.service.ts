@@ -71,7 +71,7 @@ export const customerAuthService = {
     const url = `https://site.ping4sms.com/api/smsapi?key=${apiKey}&route=${route}&sender=${sender}&number=${fullPhone}&sms=${encodeURIComponent(message)}&templateid=${templateId}`;
 
     console.log('[Ping4SMS] URL:', url);
-    const smsResponse = await axios.get(url);
+    const smsResponse = await axios.get(url, { timeout: 10000 });
     console.log('[Ping4SMS] Response:', JSON.stringify(smsResponse.data));
 
     const responseData = smsResponse.data;
@@ -119,7 +119,7 @@ export const customerAuthService = {
     const url = `https://site.ping4sms.com/api/smsapi?key=${apiKey}&route=${route}&sender=${sender}&number=${fullPhone}&sms=${encodeURIComponent(message)}&templateid=${templateId}`;
 
     console.log('[Ping4SMS] URL:', url);
-    const smsResponse = await axios.get(url);
+    const smsResponse = await axios.get(url, { timeout: 10000 });
     console.log('[Ping4SMS] Response:', JSON.stringify(smsResponse.data));
 
     // Ping4SMS returns error codes in the body (still HTTP 200)

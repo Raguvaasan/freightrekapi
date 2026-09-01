@@ -35,9 +35,17 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteHubRole = exports.updateHubRole = exports.getHubRoleById = exports.getHubRoles = exports.createHubRole = void 0;
 const hubRoleService = __importStar(require("../../services/hub/hubRole.service"));
+const parcelActor_1 = require("../../utils/parcelActor");
+/**
+ * The hub these roles belong to. A direct hub login is the hub; a hub staff
+ * member has an id of their own, so the hub is read off their record.
+ */
+const hubOf = (req) => req.parcelActor?.hubId
+    ? Promise.resolve(req.parcelActor.hubId)
+    : (0, parcelActor_1.resolveHubId)(req.user?.id);
 const createHubRole = async (req, res) => {
     try {
-        const hubId = req.user?.id;
+        const hubId = await hubOf(req);
         if (!hubId) {
             return res.status(401).json({
                 success: false,
@@ -57,7 +65,7 @@ const createHubRole = async (req, res) => {
 exports.createHubRole = createHubRole;
 const getHubRoles = async (req, res) => {
     try {
-        const hubId = req.user?.id;
+        const hubId = await hubOf(req);
         if (!hubId) {
             return res.status(401).json({
                 success: false,
@@ -77,7 +85,7 @@ const getHubRoles = async (req, res) => {
 exports.getHubRoles = getHubRoles;
 const getHubRoleById = async (req, res) => {
     try {
-        const hubId = req.user?.id;
+        const hubId = await hubOf(req);
         const roleId = req.params.id;
         if (!hubId) {
             return res.status(401).json({
@@ -99,7 +107,7 @@ const getHubRoleById = async (req, res) => {
 exports.getHubRoleById = getHubRoleById;
 const updateHubRole = async (req, res) => {
     try {
-        const hubId = req.user?.id;
+        const hubId = await hubOf(req);
         const roleId = req.params.id;
         if (!hubId) {
             return res.status(401).json({
@@ -121,7 +129,7 @@ const updateHubRole = async (req, res) => {
 exports.updateHubRole = updateHubRole;
 const deleteHubRole = async (req, res) => {
     try {
-        const hubId = req.user?.id;
+        const hubId = await hubOf(req);
         const roleId = req.params.id;
         if (!hubId) {
             return res.status(401).json({

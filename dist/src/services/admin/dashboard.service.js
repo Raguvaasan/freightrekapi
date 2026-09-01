@@ -6,6 +6,19 @@ const agency_model_1 = require("../../models/admin/agency.model");
 const wallet_model_1 = require("../../models/wallet/wallet.model");
 const transaction_model_1 = require("../../models/wallet/transaction.model");
 const hub_model_1 = require("../../models/hub/hub.model");
+const parcelOrder_model_1 = require("../../models/admin/parcelOrder.model");
+const parcelSettlement_model_1 = require("../../models/admin/parcelSettlement.model");
+const walletLedger_1 = require("../../utils/walletLedger");
+/**
+ * How the three parcel payment types are labelled on the dashboard chart.
+ * The stored values are the ones bookings are made under; renaming them would
+ * rewrite every order, so the display name is mapped here instead.
+ */
+const PAYMENT_TYPE_LABELS = {
+    Paid: 'Prepaid',
+    'To Pay': 'ToPay',
+    Credit: 'Credit',
+};
 class AdminDashboardService {
     // Internal helper to compute a Mongo date filter from a period string
     getDateFilter(period, startDate, endDate) {
@@ -73,8 +86,203 @@ class AdminDashboardService {
         }
         return range;
     }
-    // Get admin dashboard statistics (aggregated across all franchises)
-    async getAdminDashboard(period = 'week') {
+    /** Start of the window a dashboard section is measured over; null = all time */
+    periodStart(period) {
+        const start = new Date();
+        start.setHours(0, 0, 0, 0);
+        switch (period) {
+            case 'today':
+                return start;
+            case 'week':
+                start.setDate(start.getDate() - 7);
+                return start;
+            case 'month':
+                start.setDate(start.getDate() - 30);
+                return start;
+            case 'year':
+                start.setFullYear(start.getFullYear() - 1);
+                return start;
+            default:
+                return null;
+        }
+    }
+    /**
+     * Agencies ranked by what they booked, richest first.
+     *
+     * Orders with no booking agency are left out: they cannot be named, so they
+     * would rank as a single nameless row. They still count towards the headline
+     * order and revenue totals. An order booked before the branch -> agency
+     * rename has its id under `branch` and reads as agency-less until
+     * scripts/migrate-branch-to-agency.js has been run.
+     */
+    topAgenciesPipeline(periodMatch, limit) {
+        return [
+            { $match: { ...periodMatch, agency: { $ne: null } } },
+            {
+                $group: {
+                    _id: '$agency',
+                    orders: { $sum: 1 },
+                    revenue: { $sum: '$totalAmount' },
+                },
+            },
+            { $sort: { revenue: -1, orders: -1 } },
+            { $limit: limit },
+            {
+                $lookup: {
+                    from: 'agencies',
+                    localField: '_id',
+                    foreignField: '_id',
+                    as: 'agency',
+                },
+            },
+            { $unwind: { path: '$agency', preserveNullAndEmptyArrays: true } },
+            {
+                $project: {
+                    _id: 0,
+                    agencyId: '$_id',
+                    agencyName: '$agency.agencyName',
+                    type: '$agency.type',
+                    agencyType: { $eq: ['$agency.type', 'Own'] },
+                    city: '$agency.city',
+                    orders: 1,
+                    revenue: { $round: ['$revenue', 2] },
+                },
+            },
+        ];
+    }
+    /** Top agencies by parcel bookings — the dashboard table on its own */
+    async getTopAgencies(limit = 5, period = 'all') {
+        try {
+            const start = this.periodStart(period);
+            const rows = await parcelOrder_model_1.ParcelOrder.aggregate(this.topAgenciesPipeline(start ? { createdAt: { $gte: start } } : {}, limit));
+            return { success: true, data: { agencies: rows, period } };
+        }
+        catch (error) {
+            return {
+                success: false,
+                message: error.message || 'Error fetching top agencies',
+            };
+        }
+    }
+    /**
+     * The admin dashboard for the parcel flow.
+     *
+     * Counts and revenue come from parcel bookings (ParcelOrder) — revenue is the
+     * total the customer pays, i.e. transportation + loading + miscellaneous.
+     * The courier-shipment dashboard is a separate screen, see
+     * `getShipmentDashboard`.
+     *
+     * The headline totals are all-time, alongside today's figures. `period`
+     * scopes the payment-type chart and the top-agency table only.
+     */
+    async getAdminDashboard(period = 'all') {
+        try {
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
+            const start = this.periodStart(period);
+            const periodMatch = start ? { createdAt: { $gte: start } } : {};
+            // One pipeline that returns a count and a revenue sum for a set of orders
+            const totalsFor = (match) => parcelOrder_model_1.ParcelOrder.aggregate([
+                { $match: match },
+                {
+                    $group: {
+                        _id: null,
+                        orders: { $sum: 1 },
+                        revenue: { $sum: '$totalAmount' },
+                    },
+                },
+            ]);
+            const [totalAgencies, activeAgencies, totalHubs, activeHubs, allTime, today, paymentTypeRows, topAgencyRows, recentOrders, walletSummary,] = await Promise.all([
+                agency_model_1.Agency.countDocuments(),
+                agency_model_1.Agency.countDocuments({ status: 'Active' }),
+                hub_model_1.HubModel.countDocuments(),
+                hub_model_1.HubModel.countDocuments({ status: true }),
+                totalsFor({}),
+                totalsFor({ createdAt: { $gte: todayStart } }),
+                // 7. Payment split — Prepaid / ToPay / Credit
+                parcelOrder_model_1.ParcelOrder.aggregate([
+                    { $match: periodMatch },
+                    {
+                        $group: {
+                            _id: '$paymentType',
+                            count: { $sum: 1 },
+                            amount: { $sum: '$totalAmount' },
+                        },
+                    },
+                ]),
+                // 9. Top agencies, by what they booked
+                parcelOrder_model_1.ParcelOrder.aggregate(this.topAgenciesPipeline(periodMatch, 5)),
+                // 8. Recent bookings
+                parcelOrder_model_1.ParcelOrder.find()
+                    .select('orderNumber agency bookingCustomer.name deliveryCustomer.name ' +
+                    'deliveryCustomer.deliveryAgency paymentType totalAmount status createdAt')
+                    .populate([
+                    { path: 'agency', select: 'agencyName city' },
+                    { path: 'deliveryCustomer.deliveryAgency', select: 'agencyName city' },
+                ])
+                    .sort({ createdAt: -1 })
+                    .limit(10)
+                    .lean(),
+                this.getWalletStatistics(),
+            ]);
+            const totals = allTime[0] || { orders: 0, revenue: 0 };
+            const todayTotals = today[0] || { orders: 0, revenue: 0 };
+            // Always report all three payment types, even the ones with no bookings —
+            // a chart that silently drops an empty slice reads as if it does not exist
+            const byType = new Map(paymentTypeRows.map((row) => [row._id, row]));
+            const chartTotal = paymentTypeRows.reduce((sum, r) => sum + r.count, 0);
+            const paymentTypeDistribution = parcelOrder_model_1.PAYMENT_TYPES.map((type) => {
+                const row = byType.get(type);
+                const count = row?.count || 0;
+                return {
+                    type,
+                    label: PAYMENT_TYPE_LABELS[type] || type,
+                    count,
+                    amount: (0, walletLedger_1.round2)(row?.amount || 0),
+                    percentage: chartTotal ? (0, walletLedger_1.round2)((count / chartTotal) * 100) : 0,
+                };
+            });
+            return {
+                success: true,
+                data: {
+                    overview: {
+                        totalAgencies: { total: totalAgencies, active: activeAgencies },
+                        totalHubs: { total: totalHubs, active: activeHubs },
+                        totalOrders: totals.orders,
+                        totalRevenue: (0, walletLedger_1.round2)(totals.revenue),
+                        todayOrders: todayTotals.orders,
+                        todayRevenue: (0, walletLedger_1.round2)(todayTotals.revenue),
+                        currency: '₹',
+                    },
+                    paymentTypeDistribution,
+                    recentBookings: recentOrders.map((order) => ({
+                        orderId: order._id,
+                        orderNumber: order.orderNumber,
+                        agencyName: order.agency?.agencyName || 'Unknown',
+                        deliveryAgencyName: order.deliveryCustomer?.deliveryAgency?.agencyName || 'Unknown',
+                        bookingCustomer: order.bookingCustomer?.name,
+                        deliveryCustomer: order.deliveryCustomer?.name,
+                        paymentType: order.paymentType,
+                        paymentTypeLabel: PAYMENT_TYPE_LABELS[order.paymentType] || order.paymentType,
+                        amount: (0, walletLedger_1.round2)(order.totalAmount || 0),
+                        status: order.status,
+                        createdAt: order.createdAt,
+                    })),
+                    topAgencies: topAgencyRows,
+                    walletSummary: walletSummary.data,
+                    period,
+                },
+            };
+        }
+        catch (error) {
+            return {
+                success: false,
+                message: error.message || 'Error fetching admin dashboard data',
+            };
+        }
+    }
+    // Courier-shipment dashboard (the pre-parcel screen), kept as its own endpoint
+    async getShipmentDashboard(period = 'week') {
         try {
             const now = new Date();
             let startDate = new Date();
@@ -489,61 +697,104 @@ class AdminDashboardService {
             };
         }
     }
-    // Get wallet statistics across all franchises only
+    /**
+     * The money tile on the admin dashboard: how many wallet movements there have
+     * been, and how each booking's total was split.
+     *
+     * Every booking splits into two halves — the admin's share, remitted out of
+     * the agency's wallet, and the commission the agency keeps:
+     *
+     *   ₹120 booking at 10% commission -> Truecargo ₹108, agency ₹12
+     *
+     * `paymentForTruecargo` is the first half and `agencyPayment` the second, both
+     * over settled bookings only (a reversed settlement has been undone in the
+     * wallets, so counting it would overstate both).
+     *
+     * Balances are reported alongside because the same numbers back the wallet
+     * screen; the full per-agency breakdown lives at /admin/agency-wallet.
+     */
     async getWalletStatistics() {
         try {
-            // Only consider franchise (Agency) wallets and transactions
-            const agencies = await agency_model_1.Agency.find({}, '_id');
-            const franchiseIds = agencies.map(a => a._id.toString());
-            const walletStats = await wallet_model_1.Wallet.aggregate([
-                {
-                    $match: { userId: { $in: franchiseIds } },
-                },
-                {
-                    $group: {
-                        _id: null,
-                        totalBalance: { $sum: '$balance' },
-                        totalWallets: { $sum: 1 },
+            // Wallets are keyed by a plain string, so customer and admin wallets share
+            // the collection — restrict to Agency ids on purpose
+            const agencies = await agency_model_1.Agency.find({}, '_id').lean();
+            const franchiseIds = agencies.map((a) => a._id.toString());
+            const [walletStats, transactionStats, settlement] = await Promise.all([
+                wallet_model_1.Wallet.aggregate([
+                    { $match: { userId: { $in: franchiseIds } } },
+                    {
+                        $group: {
+                            _id: null,
+                            totalBalance: { $sum: '$balance' },
+                            totalWallets: { $sum: 1 },
+                        },
                     },
-                },
-            ]);
-            const totalCredits = await transaction_model_1.Transaction.aggregate([
-                {
-                    $match: { type: 'credit', userId: { $in: franchiseIds } },
-                },
-                {
-                    $group: {
-                        _id: null,
-                        total: { $sum: '$amount' },
-                        count: { $sum: 1 },
+                ]),
+                transaction_model_1.Transaction.aggregate([
+                    { $match: { userId: { $in: franchiseIds } } },
+                    {
+                        $group: {
+                            _id: null,
+                            totalTransactions: { $sum: 1 },
+                            creditAmount: {
+                                $sum: {
+                                    $cond: [{ $in: ['$type', ['credit', 'refund']] }, '$amount', 0],
+                                },
+                            },
+                            creditCount: {
+                                $sum: { $cond: [{ $in: ['$type', ['credit', 'refund']] }, 1, 0] },
+                            },
+                            debitAmount: {
+                                $sum: { $cond: [{ $eq: ['$type', 'debit'] }, '$amount', 0] },
+                            },
+                            debitCount: {
+                                $sum: { $cond: [{ $eq: ['$type', 'debit'] }, 1, 0] },
+                            },
+                        },
                     },
-                },
-            ]);
-            const totalDebits = await transaction_model_1.Transaction.aggregate([
-                {
-                    $match: { type: 'debit', userId: { $in: franchiseIds } },
-                },
-                {
-                    $group: {
-                        _id: null,
-                        total: { $sum: '$amount' },
-                        count: { $sum: 1 },
+                ]),
+                parcelSettlement_model_1.ParcelSettlement.aggregate([
+                    { $match: { status: 'settled' } },
+                    {
+                        $group: {
+                            _id: null,
+                            settledOrders: { $sum: 1 },
+                            bookingAmount: { $sum: '$orderAmount' },
+                            adminShare: { $sum: '$adminShareAmount' },
+                            agencyProfit: { $sum: '$agencyProfitAmount' },
+                        },
                     },
-                },
+                ]),
             ]);
+            const wallets = walletStats[0] || { totalBalance: 0, totalWallets: 0 };
+            const txns = transactionStats[0] || {
+                totalTransactions: 0,
+                creditAmount: 0,
+                creditCount: 0,
+                debitAmount: 0,
+                debitCount: 0,
+            };
+            const split = settlement[0] || {
+                settledOrders: 0,
+                bookingAmount: 0,
+                adminShare: 0,
+                agencyProfit: 0,
+            };
             return {
                 success: true,
                 data: {
-                    totalBalance: walletStats.length > 0 ? walletStats[0].totalBalance : 0,
-                    totalWallets: walletStats.length > 0 ? walletStats[0].totalWallets : 0,
-                    credits: {
-                        amount: totalCredits.length > 0 ? totalCredits[0].total : 0,
-                        count: totalCredits.length > 0 ? totalCredits[0].count : 0,
-                    },
-                    debits: {
-                        amount: totalDebits.length > 0 ? totalDebits[0].total : 0,
-                        count: totalDebits.length > 0 ? totalDebits[0].count : 0,
-                    },
+                    totalTransactions: txns.totalTransactions,
+                    /** Admin's share of every booking, remitted by the agencies */
+                    paymentForTruecargo: (0, walletLedger_1.round2)(split.adminShare),
+                    /** Commission the agencies kept on those bookings */
+                    agencyPayment: (0, walletLedger_1.round2)(split.agencyProfit),
+                    settledOrders: split.settledOrders,
+                    totalBookingAmount: (0, walletLedger_1.round2)(split.bookingAmount),
+                    totalBalance: (0, walletLedger_1.round2)(wallets.totalBalance),
+                    totalWallets: wallets.totalWallets,
+                    credits: { amount: (0, walletLedger_1.round2)(txns.creditAmount), count: txns.creditCount },
+                    debits: { amount: (0, walletLedger_1.round2)(txns.debitAmount), count: txns.debitCount },
+                    currency: '₹',
                 },
             };
         }

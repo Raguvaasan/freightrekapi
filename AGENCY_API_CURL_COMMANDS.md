@@ -39,6 +39,34 @@ curl -X POST http://localhost:3000/admin/hub \
 
 # 1. CREATE NEW AGENCY
 # ---------------------
+#
+# AGENCY TYPE
+# -----------
+# `agencyType` is a boolean:  true = Own,  false = Third Party.
+#
+#   Third Party (false) -> commission applies; the agency keeps
+#                          profitPercentage of every booking total
+#   Own         (true)  -> company-run, NO commission; the whole booking
+#                          total is remitted to admin
+#
+# It is the same setting as the older string field `type` ("Own" /
+# "Third Party"), just shaped for a checkbox. Send EITHER one - both are
+# accepted and the two are kept in step on every save, so every response
+# carries both:
+#
+#   "type": "Third Party",  "agencyType": false
+#   "type": "Own",          "agencyType": true
+#
+# Sending both is allowed only if they agree; a create/update with
+# { "type": "Third Party", "agencyType": true } is rejected with 400.
+# Omitting both gives a Third Party agency (agencyType false).
+#
+# Setting agencyType true forces profitPercentage to 0 - an Own agency never
+# keeps a commission, whatever was sent.
+#
+# TAMIL: agencyType true-nu potta "Own" agency - commission kidaiyaathu,
+# mothra thoga-vum admin-ku poidum. false-nu potta "Third Party" - avanga
+# profitPercentage-a vechukuvaanga.
 curl -X POST http://localhost:3000/admin/agency \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
@@ -48,7 +76,7 @@ curl -X POST http://localhost:3000/admin/agency \
     \"phone\": \"9185647852\",
     \"assignedHub\": \"HUB_ID_HERE\",
     \"status\": \"Active\",
-    \"agencyType\": \"Express Delivery\",
+    \"agencyType\": false,
     \"email\": \"speedx@example.com\",
     \"address\": \"123 Main Street, Chennai\"
   }"
@@ -64,7 +92,7 @@ curl -X POST http://localhost:3000/admin/agency \
     \"phone\": \"9876543210\",
     \"assignedHub\": \"HUB_ID_HERE\",
     \"status\": \"Active\",
-    \"agencyType\": \"Standard Delivery\",
+    \"agencyType\": true,
     \"email\": \"metro@example.com\",
     \"address\": \"456 Park Avenue, Coimbatore\"
   }"
@@ -139,7 +167,7 @@ $body = @{
     phone = "9185647852"
     assignedHub = "HUB_ID_HERE"
     status = "Active"
-    agencyType = "Express Delivery"
+    agencyType = $false
     email = "speedx@example.com"
     address = "Chennai, Tamil Nadu"
 } | ConvertTo-Json

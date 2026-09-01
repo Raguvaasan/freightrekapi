@@ -44,12 +44,13 @@ exports.createStaffSchema = yup.object({
             .min(2, 'Name must be at least 2 characters')
             .max(100, 'Name must not exceed 100 characters')
             .trim(),
+        // Optional: users are identified by phone, which is unique system-wide
         email: yup
             .string()
-            .required('Email is required')
             .email('Invalid email format')
             .max(100, 'Email must not exceed 100 characters')
-            .trim(),
+            .trim()
+            .optional(),
         phone: yup
             .string()
             .required('Phone number is required')

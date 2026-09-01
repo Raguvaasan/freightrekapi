@@ -69,16 +69,15 @@ exports.createHubSchema = yup.object({
         .number()
         .min(6, "pincode must be 6 characters")
         .required("pincode is required"),
+    // Optional. A hub signs in by phone OTP (POST /admin/login/send-otp), so a
+    // hub is created without any credentials — no password is accepted here.
+    // A password can still be set later through PUT /admin/hub/{id} for the
+    // older username/password login at POST /admin/hub/login.
     username: yup
         .string()
         .trim()
         .min(2, "username must be at least 2 characters")
-        .required("username is required"),
-    password: yup
-        .string()
-        .trim()
-        .min(2, "password must be at least 2 characters")
-        .required("password is required"),
+        .optional(),
     status: yup
         .boolean()
         .optional(),

@@ -20,17 +20,27 @@ const jobPosting_routes_1 = __importDefault(require("./routes/jobPosting.routes"
 const careerApplication_routes_1 = __importDefault(require("./routes/careerApplication.routes"));
 const customer_routes_1 = __importDefault(require("./routes/customer/customer.routes"));
 const auth_routes_1 = __importDefault(require("./routes/customer/auth.routes"));
+const emailAuth_routes_1 = __importDefault(require("./routes/customer/emailAuth.routes"));
+const ltlShipment_routes_1 = __importDefault(require("./routes/ltlShipment.routes"));
 const order_routes_1 = __importDefault(require("./routes/hub/order.routes"));
+const parcelOrder_routes_1 = __importDefault(require("./routes/hub/parcelOrder.routes"));
 const hubStaff_routes_1 = __importDefault(require("./routes/hub/hubStaff.routes"));
 const dashboard_routes_3 = __importDefault(require("./routes/hub/dashboard.routes"));
 const hubRole_routes_1 = __importDefault(require("./routes/hub/hubRole.routes"));
 const hubManageStaff_routes_1 = __importDefault(require("./routes/hub/hubManageStaff.routes"));
+const invoice_routes_1 = __importDefault(require("./routes/hub/invoice.routes"));
+const auth_routes_2 = __importDefault(require("./routes/b2b/auth.routes"));
+const b2bMarkup_routes_1 = __importDefault(require("./routes/b2b/b2bMarkup.routes"));
 const wallet_controller_1 = require("./controllers/wallet.controller");
+const delhivery_webhook_controller_1 = require("./controllers/delhivery.webhook.controller");
+const delhivery_cron_service_1 = require("./services/delhivery.cron.service");
+const auth_middleware_1 = require("./middleware/auth.middleware");
 const responseTime_middleware_1 = require("./middleware/responseTime.middleware");
 const app = (0, express_1.default)();
-app.use(responseTime_middleware_1.responseTimeMiddleware);
-app.use(express_1.default.json());
 // CORS configuration for frontend API access
+// Registered before any body parser so the headers are present even when a
+// request fails early (malformed JSON, payload too large, etc.) — otherwise the
+// browser reports a CORS error instead of the real status.
 const configuredOrigins = (process.env.CORS_ORIGIN || '*')
     .split(',')
     .map((origin) => origin.trim())
@@ -38,20 +48,30 @@ const configuredOrigins = (process.env.CORS_ORIGIN || '*')
 app.use((req, res, next) => {
     const requestOrigin = req.headers.origin;
     const allowAllOrigins = configuredOrigins.includes('*');
-    if (allowAllOrigins) {
-        res.header('Access-Control-Allow-Origin', '*');
-    }
-    else if (requestOrigin && configuredOrigins.includes(requestOrigin)) {
+    if (requestOrigin && (allowAllOrigins || configuredOrigins.includes(requestOrigin))) {
+        // Echo the origin (never '*') so credentialed requests are also accepted
         res.header('Access-Control-Allow-Origin', requestOrigin);
+        res.header('Access-Control-Allow-Credentials', 'true');
         res.header('Vary', 'Origin');
     }
+    else if (allowAllOrigins) {
+        res.header('Access-Control-Allow-Origin', '*');
+    }
     res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    // Reflect whatever the preflight asked for so custom headers don't fail
+    const requestedHeaders = req.headers['access-control-request-headers'];
+    res.header('Access-Control-Allow-Headers', typeof requestedHeaders === 'string' && requestedHeaders
+        ? requestedHeaders
+        : 'Content-Type, Authorization');
+    res.header('Access-Control-Expose-Headers', 'X-Response-Time');
+    res.header('Access-Control-Max-Age', '86400');
     if (req.method === 'OPTIONS') {
         return res.sendStatus(204);
     }
     return next();
 });
+app.use(responseTime_middleware_1.responseTimeMiddleware);
+app.use(express_1.default.json());
 // Serve static files (for HTML page)
 app.use(express_1.default.static(path_1.default.join(__dirname, '../public')));
 // Serve swagger spec as JSON (from pre-generated static file)
@@ -138,18 +158,37 @@ app.use("/location", location_routes_1.default);
 app.use("/api/v1/settings", markup_routes_1.default);
 app.use("/api/wallet", wallet_routes_1.default);
 app.use("/api/shipment", shipment_routes_1.default);
+app.use("/api/ltl-shipment", ltlShipment_routes_1.default);
 app.use("/api/dashboard", dashboard_routes_1.default);
 app.use("/api/careers", jobPosting_routes_1.default);
 app.use("/api/applications", careerApplication_routes_1.default);
 app.use("/api/customers", customer_routes_1.default);
 app.use("/api/customer/auth", auth_routes_1.default);
+app.use("/api/customer/email-auth", emailAuth_routes_1.default);
 app.use("/hub/orders", order_routes_1.default);
+app.use("/hub/parcel-order", parcelOrder_routes_1.default);
 app.use("/hub/staff", hubStaff_routes_1.default);
 app.use("/hub/role", hubRole_routes_1.default);
 app.use("/hub/manage/staff", hubManageStaff_routes_1.default);
 app.use("/hub/dashboard", dashboard_routes_3.default);
+// Read-only: the invoices for the parcels routed through this hub
+app.use("/hub/invoice", invoice_routes_1.default);
+app.use("/b2b/auth", auth_routes_2.default);
+app.use("/b2b/markup", b2bMarkup_routes_1.default);
 // Mobile team markup routes (no /api prefix, proxy-friendly)
 app.use("/v1/settings", markup_routes_1.default);
 // Webhook endpoint (no auth, verified by signature)
 app.post("/webhook/cashfree", wallet_controller_1.cashfreeWebhook);
+// Delhivery webhook — receives shipment status updates (no auth, public endpoint)
+app.post("/webhook/delhivery", delhivery_webhook_controller_1.delhiveryWebhook);
+// Manual trigger to sync all active shipment statuses from Delhivery (admin use)
+app.post("/admin/delhivery/sync-status", auth_middleware_1.authMiddleware, async (req, res) => {
+    try {
+        const result = await (0, delhivery_cron_service_1.pollDelhiveryStatuses)();
+        return res.status(200).json({ success: true, data: result });
+    }
+    catch (err) {
+        return res.status(500).json({ success: false, message: err.message });
+    }
+});
 exports.default = app;

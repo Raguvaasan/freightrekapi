@@ -20,10 +20,21 @@ Reference document listing **every API available under Hub login and Franchise l
 ```
 Returns a JWT token used for all `/hub/*` endpoints below.
 
+> **Credentials are optional now.** `POST /admin/hub` no longer requires
+> `username` / `password`, so a hub created today has none and signs in by phone
+> OTP at `/admin/login/send-otp` → `/admin/login/verify-otp` instead. The two
+> username/password routes above still work for hubs that do have credentials;
+> a hub without a password gets a clear message rather than a 500.
+>
+> Run once before creating credential-less hubs:
+> `node scripts/make-hub-username-sparse.js` — the unique index on
+> `hubs.username` was not sparse, so the *second* hub without a username would
+> otherwise fail with a duplicate-key error.
+
 ### 1.2 Hub Management (admin token — Hub Management module)
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| POST | `/admin/hub` | 🛡️ write | Create hub |
+| POST | `/admin/hub` | 🛡️ write | Create hub — `username` / `password` are **optional** |
 | GET | `/admin/hub` | 🛡️ read | List all hubs |
 | GET | `/admin/hub/:id` | 🛡️ read | Get hub by id |
 | PUT | `/admin/hub/:id` | 🛡️ update | Update hub |
@@ -36,7 +47,8 @@ Returns a JWT token used for all `/hub/*` endpoints below.
 | `/hub/staff` | Hub Staff | Hub staff (login/list) |
 | `/hub/manage/staff` | Hub Manage Staff | CRUD staff for the logged-in hub |
 | `/hub/role` | Hub Role | Role management for the logged-in hub |
-| `/hub/dashboard` | Hub Dashboard | Dashboard for the logged-in hub |
+| `/hub/dashboard` | Hub Dashboard | Parcel dashboard for the logged-in hub (courier one moved to `/hub/dashboard/shipments`) |
+| `/hub/parcel-order` | Parcel Flow | Parcels routed to this hub |
 
 ---
 

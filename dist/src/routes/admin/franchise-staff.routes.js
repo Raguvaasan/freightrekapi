@@ -3,11 +3,19 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const franchise_staff_controller_1 = require("../../controllers/admin/franchise-staff.controller");
 const auth_middleware_1 = require("../../middleware/auth.middleware");
+const parcelActor_middleware_1 = require("../../middleware/parcelActor.middleware");
+const agencyModule_1 = require("../../config/agencyModule");
 const validate_middleware_1 = require("../../middleware/validate.middleware");
 const staff_validator_1 = require("../../validators/admin/staff.validator");
 const router = (0, express_1.Router)();
 // All routes require authentication (franchise JWT token)
 router.use(auth_middleware_1.authMiddleware);
+router.use((0, parcelActor_middleware_1.requireParcelRole)('agency'));
+/**
+ * A direct agency login manages its own staff; agency staff need the matching
+ * "Staff Management" permission on their FranchiseRole.
+ */
+const staff = (action) => (0, parcelActor_middleware_1.requireModulePermission)({ agency: (0, agencyModule_1.agencyPermission)(agencyModule_1.agencyModule.staff_management) }, action);
 /**
  * @swagger
  * /admin/franchise/staff:
@@ -88,8 +96,8 @@ router.use(auth_middleware_1.authMiddleware);
  *       401:
  *         description: Unauthorized - franchise login required
  */
-router.get('/', franchise_staff_controller_1.getFranchiseStaff);
-router.post('/', (0, validate_middleware_1.validate)(staff_validator_1.createStaffSchema), franchise_staff_controller_1.createFranchiseStaff);
+router.get('/', staff('read'), franchise_staff_controller_1.getFranchiseStaff);
+router.post('/', staff('write'), (0, validate_middleware_1.validate)(staff_validator_1.createStaffSchema), franchise_staff_controller_1.createFranchiseStaff);
 /**
  * @swagger
  * /admin/franchise/staff/{id}:
@@ -167,9 +175,9 @@ router.post('/', (0, validate_middleware_1.validate)(staff_validator_1.createSta
  *       404:
  *         description: Staff not found
  */
-router.get('/:id', (0, validate_middleware_1.validate)(staff_validator_1.getStaffByIdSchema), franchise_staff_controller_1.getFranchiseStaffById);
-router.put('/:id', (0, validate_middleware_1.validate)(staff_validator_1.updateStaffSchema), franchise_staff_controller_1.updateFranchiseStaff);
-router.delete('/:id', (0, validate_middleware_1.validate)(staff_validator_1.deleteStaffSchema), franchise_staff_controller_1.deleteFranchiseStaff);
+router.get('/:id', staff('read'), (0, validate_middleware_1.validate)(staff_validator_1.getStaffByIdSchema), franchise_staff_controller_1.getFranchiseStaffById);
+router.put('/:id', staff('update'), (0, validate_middleware_1.validate)(staff_validator_1.updateStaffSchema), franchise_staff_controller_1.updateFranchiseStaff);
+router.delete('/:id', staff('delete'), (0, validate_middleware_1.validate)(staff_validator_1.deleteStaffSchema), franchise_staff_controller_1.deleteFranchiseStaff);
 /**
  * @swagger
  * /admin/franchise/staff/{id}/status:
@@ -204,5 +212,5 @@ router.delete('/:id', (0, validate_middleware_1.validate)(staff_validator_1.dele
  *       404:
  *         description: Staff not found
  */
-router.patch('/:id/status', (0, validate_middleware_1.validate)(staff_validator_1.updateStaffStatusSchema), franchise_staff_controller_1.updateFranchiseStaffStatus);
+router.patch('/:id/status', staff('update'), (0, validate_middleware_1.validate)(staff_validator_1.updateStaffStatusSchema), franchise_staff_controller_1.updateFranchiseStaffStatus);
 exports.default = router;

@@ -42,10 +42,11 @@ export const createAgencySchema = yup.object({
       .string()
       .oneOf(['Active', 'Inactive'], 'Status must be either Active or Inactive')
       .optional(),
+    // Ownership as a boolean for the form: true = Own, false = Third Party.
+    // Interchangeable with `type`; sending both is only allowed if they agree.
     agencyType: yup
-      .string()
-      .max(50, 'Agency type must not exceed 50 characters')
-      .trim()
+      .boolean()
+      .typeError('agencyType must be true or false')
       .optional(),
     email: yup
       .string()
@@ -95,7 +96,28 @@ export const createAgencySchema = yup.object({
       .min(6, 'Password must be at least 6 characters')
       .max(100, 'Password must not exceed 100 characters')
       .optional(),
-  }),
+    profitPercentage: yup
+      .number()
+      .typeError('Profit percentage must be a number')
+      .min(0, 'Profit percentage cannot be negative')
+      .max(100, 'Profit percentage cannot exceed 100')
+      .optional(),
+    type: yup
+      .string()
+      .oneOf(['Third Party', 'Own'], 'Type must be either Third Party or Own')
+      .optional(),
+    // loadingChargePercentage / miscChargePercentage are deliberately absent:
+    // a new agency starts on the defaults and both are set from the wallet
+    // screen (PATCH /admin/agency/{id}/profit-percentage). Sending them here is
+    // stripped rather than rejected, so an older frontend keeps working.
+  }).test(
+    'ownership-agrees',
+    'type and agencyType disagree — send one, or matching values (agencyType true = Own)',
+    (body: any) =>
+      body?.agencyType === undefined ||
+      body?.type === undefined ||
+      body.agencyType === (body.type === 'Own')
+  ),
 });
 
 // Update agency validation schema
@@ -125,10 +147,11 @@ export const updateAgencySchema = yup.object({
       .string()
       .oneOf(['Active', 'Inactive'], 'Status must be either Active or Inactive')
       .optional(),
+    // Ownership as a boolean for the form: true = Own, false = Third Party.
+    // Interchangeable with `type`; sending both is only allowed if they agree.
     agencyType: yup
-      .string()
-      .max(50, 'Agency type must not exceed 50 characters')
-      .trim()
+      .boolean()
+      .typeError('agencyType must be true or false')
       .optional(),
     email: yup
       .string()
@@ -178,6 +201,47 @@ export const updateAgencySchema = yup.object({
       .min(6, 'Password must be at least 6 characters')
       .max(100, 'Password must not exceed 100 characters')
       .optional(),
+    profitPercentage: yup
+      .number()
+      .typeError('Profit percentage must be a number')
+      .min(0, 'Profit percentage cannot be negative')
+      .max(100, 'Profit percentage cannot exceed 100')
+      .optional(),
+    type: yup
+      .string()
+      .oneOf(['Third Party', 'Own'], 'Type must be either Third Party or Own')
+      .optional(),
+    // loadingChargePercentage / miscChargePercentage are deliberately absent:
+    // a new agency starts on the defaults and both are set from the wallet
+    // screen (PATCH /admin/agency/{id}/profit-percentage). Sending them here is
+    // stripped rather than rejected, so an older frontend keeps working.
+  }).test(
+    'ownership-agrees',
+    'type and agencyType disagree — send one, or matching values (agencyType true = Own)',
+    (body: any) =>
+      body?.agencyType === undefined ||
+      body?.type === undefined ||
+      body.agencyType === (body.type === 'Own')
+  ),
+  params: yup.object({
+    id: yup
+      .string()
+      .required('Agency ID is required')
+      .matches(/^[0-9a-fA-F]{24}$/, 'Invalid agency ID'),
+  }),
+});
+
+// Set the branch profit percentage (share of each booking the branch keeps)
+export const updateAgencyProfitPercentageSchema = yup.object({
+  body: yup.object({
+    profitPercentage: yup
+      .number()
+      .typeError('Profit percentage must be a number')
+      .required('Profit percentage is required')
+      .min(0, 'Profit percentage cannot be negative')
+      .max(100, 'Profit percentage cannot exceed 100'),
+    // Loading / miscellaneous are not accepted here — they belong to the wallet
+    // module (PATCH /admin/agency-wallet/{agencyId}/percentage).
   }),
   params: yup.object({
     id: yup

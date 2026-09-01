@@ -9,8 +9,12 @@ export interface IHub {
   state: string;
   pincode: number;
   status: boolean;
-  username: string;
-  password: string;
+  /**
+   * Optional. A hub signs in by phone OTP, so a hub created today has no
+   * credentials; these back the older POST /admin/hub/login only.
+   */
+  username?: string;
+  password?: string;
 }
 
 const hubSchema = new Schema<IHub>(
@@ -55,14 +59,15 @@ const hubSchema = new Schema<IHub>(
       default: true,
     },
     username: {
+      // `sparse` matters: without it every credential-less hub would store
+      // username: null and the second one would collide on the unique index
       type: String,
-      required: true,
       trim: true,
       unique: true,
+      sparse: true,
     },
     password: {
       type: String,
-      required: true,
       select: false,
     },
   },

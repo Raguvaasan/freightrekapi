@@ -1,12 +1,14 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getDeliveryPerformanceReport = exports.getTotalRevenueReport = exports.getFranchiseReport = exports.getOrdersStatistics = exports.getWalletStatistics = exports.getTopFranchises = exports.getAdminDashboard = void 0;
+exports.getDeliveryPerformanceReport = exports.getTotalRevenueReport = exports.getFranchiseReport = exports.getOrdersStatistics = exports.getWalletStatistics = exports.getTopFranchises = exports.getShipmentDashboard = exports.getTopAgencies = exports.getAdminDashboard = void 0;
 const dashboard_service_1 = require("../../services/admin/dashboard.service");
 const dashboardService = new dashboard_service_1.AdminDashboardService();
+const DASHBOARD_PERIODS = ['today', 'week', 'month', 'year', 'all'];
+/** Anything unrecognised falls back to all time rather than 400-ing a dashboard */
+const dashboardPeriod = (value) => DASHBOARD_PERIODS.includes(value) ? value : 'all';
 const getAdminDashboard = async (req, res) => {
     try {
-        const period = req.query.period || 'week';
-        const result = await dashboardService.getAdminDashboard(period);
+        const result = await dashboardService.getAdminDashboard(dashboardPeriod(req.query.period));
         if (!result.success) {
             return res.status(400).json({
                 success: false,
@@ -26,6 +28,53 @@ const getAdminDashboard = async (req, res) => {
     }
 };
 exports.getAdminDashboard = getAdminDashboard;
+const getTopAgencies = async (req, res) => {
+    try {
+        const limit = parseInt(req.query.limit) || 5;
+        const result = await dashboardService.getTopAgencies(limit, dashboardPeriod(req.query.period));
+        if (!result.success) {
+            return res.status(400).json({
+                success: false,
+                message: result.message,
+            });
+        }
+        return res.status(200).json({
+            success: true,
+            data: result.data,
+        });
+    }
+    catch (err) {
+        return res.status(500).json({
+            success: false,
+            message: err.message || 'Error fetching top agencies',
+        });
+    }
+};
+exports.getTopAgencies = getTopAgencies;
+/** The pre-parcel courier dashboard, kept on its own path */
+const getShipmentDashboard = async (req, res) => {
+    try {
+        const period = req.query.period || 'week';
+        const result = await dashboardService.getShipmentDashboard(period);
+        if (!result.success) {
+            return res.status(400).json({
+                success: false,
+                message: result.message,
+            });
+        }
+        return res.status(200).json({
+            success: true,
+            data: result.data,
+        });
+    }
+    catch (err) {
+        return res.status(500).json({
+            success: false,
+            message: err.message || 'Error fetching shipment dashboard',
+        });
+    }
+};
+exports.getShipmentDashboard = getShipmentDashboard;
 const getTopFranchises = async (req, res) => {
     try {
         const limit = parseInt(req.query.limit) || 5;

@@ -7,8 +7,10 @@ exports.staffService = exports.StaffService = void 0;
 const staff_model_1 = require("../../models/admin/staff.model");
 const role_model_1 = require("../../models/admin/role.model");
 const franchiseRole_model_1 = require("../../models/admin/franchiseRole.model");
+const collectionAgencyRole_model_1 = require("../../models/admin/collectionAgencyRole.model");
 const hubRole_model_1 = require("../../models/hub/hubRole.model");
 const agency_model_1 = require("../../models/admin/agency.model");
+const collectionAgency_model_1 = require("../../models/admin/collectionAgency.model");
 const hub_model_1 = require("../../models/hub/hub.model");
 const wallet_model_1 = require("../../models/wallet/wallet.model");
 const mongoose_1 = require("mongoose");
@@ -27,6 +29,9 @@ async function resolveRole(roleId) {
     roleData = await franchiseRole_model_1.FranchiseRole.findById(roleId).select('roleName franchiseId permissions').lean();
     if (roleData)
         return { ...roleData, _type: 'FranchiseRole' };
+    roleData = await collectionAgencyRole_model_1.CollectionAgencyRole.findById(roleId).select('roleName collectionAgencyId permissions').lean();
+    if (roleData)
+        return { ...roleData, _type: 'CollectionAgencyRole' };
     roleData = await hubRole_model_1.HubRole.findById(roleId).select('roleName hubId permissions').lean();
     if (roleData)
         return { ...roleData, _type: 'HubRole' };
@@ -39,7 +44,7 @@ class StaffService {
             // Find staff by username
             const staff = await staff_model_1.Staff.findOne({ username })
                 .select('+password')
-                .populate('franchiseId', 'agencyName');
+                .populate('franchiseId');
             if (!staff) {
                 return {
                     success: false,
@@ -71,11 +76,22 @@ class StaffService {
             // Remove password from response
             const staffData = staff.toObject();
             delete staffData.password;
+            // Fetch franchise wallet if franchise staff
+            let walletData = undefined;
+            if (staff.type === 'franchise' && staff.franchiseId) {
+                const franchiseIdStr = staff.franchiseId._id
+                    ? staff.franchiseId._id.toString()
+                    : staff.franchiseId.toString();
+                const wallet = await wallet_model_1.Wallet.findOne({ userId: franchiseIdStr });
+                walletData = wallet
+                    ? { balance: wallet.balance, currency: wallet.currency }
+                    : { balance: 0, currency: 'INR' };
+            }
             const token = (0, jwt_1.generateToken)(staff._id.toString());
             return {
                 success: true,
                 message: 'Login successful',
-                data: { ...staffData, token },
+                data: { ...staffData, token, ...(walletData ? { wallet: walletData } : {}) },
             };
         }
         catch (error) {
@@ -276,13 +292,17 @@ class StaffService {
             if (phoneError) {
                 return { success: false, message: phoneError };
             }
-            // Check if email already exists
-            const existingEmail = await staff_model_1.Staff.findOne({ email: data.email });
-            if (existingEmail) {
-                return {
-                    success: false,
-                    message: 'Email already exists',
-                };
+            // Email is optional (users can be created phone-first), so only check it
+            // when one was supplied — `findOne({ email: undefined })` would match the
+            // users that have no email at all and wrongly report a duplicate.
+            if (data.email) {
+                const existingEmail = await staff_model_1.Staff.findOne({ email: data.email });
+                if (existingEmail) {
+                    return {
+                        success: false,
+                        message: 'Email already exists',
+                    };
+                }
             }
             // Check if username already exists (only if username provided)
             if (data.username) {
@@ -357,6 +377,22 @@ class StaffService {
                     }
                 }
             }
+            else if (data.type === 'collection_agency') {
+                // Collection agency staff must have collectionAgencyId
+                if (!data.collectionAgencyId) {
+                    return { success: false, message: 'Collection agency is required for collection agency staff' };
+                }
+                const collectionAgencyExists = await collectionAgency_model_1.CollectionAgency.findById(data.collectionAgencyId);
+                if (!collectionAgencyExists) {
+                    return { success: false, message: 'Collection agency not found' };
+                }
+                if (data.roleId) {
+                    const roleExists = await role_model_1.Role.findById(data.roleId) || await collectionAgencyRole_model_1.CollectionAgencyRole.findById(data.roleId);
+                    if (!roleExists) {
+                        return { success: false, message: 'Role not found' };
+                    }
+                }
+            }
             // Hash password if provided
             const staffData = { ...data };
             if (data.password) {
@@ -368,7 +404,8 @@ class StaffService {
             // Fetch created staff and manually populate roleId from correct collection
             const populatedStaff = await staff_model_1.Staff.findById(staff._id)
                 .populate('franchiseId', 'agencyName agencyOwner')
-                .populate('hubId', 'hubName city');
+                .populate('hubId', 'hubName city')
+                .populate('collectionAgencyId', 'collectionAgencyName ownerName');
             // Manually populate roleId - check both AdminRole and FranchiseRole
             if (populatedStaff && populatedStaff.roleId) {
                 let roleData = await role_model_1.Role.findById(populatedStaff.roleId).select('name permissions').lean();
@@ -376,6 +413,12 @@ class StaffService {
                     roleData = await franchiseRole_model_1.FranchiseRole.findById(populatedStaff.roleId).select('roleName permissions').lean();
                     if (roleData) {
                         // Map roleName to name for consistency
+                        roleData = { ...roleData, name: roleData.roleName };
+                    }
+                }
+                if (!roleData) {
+                    roleData = await collectionAgencyRole_model_1.CollectionAgencyRole.findById(populatedStaff.roleId).select('roleName permissions').lean();
+                    if (roleData) {
                         roleData = { ...roleData, name: roleData.roleName };
                     }
                 }
@@ -397,7 +440,7 @@ class StaffService {
         }
     }
     // Get all staff with pagination and search
-    async getAllStaff(page = 1, limit = 10, search, status, franchiseId, roleId, type) {
+    async getAllStaff(page = 1, limit = 10, search, status, franchiseId, roleId, type, collectionAgencyId) {
         try {
             const skip = (page - 1) * limit;
             const query = {};
@@ -422,6 +465,10 @@ class StaffService {
             if (franchiseId && mongoose_1.Types.ObjectId.isValid(franchiseId)) {
                 query.franchiseId = franchiseId;
             }
+            // Collection agency filter
+            if (collectionAgencyId && mongoose_1.Types.ObjectId.isValid(collectionAgencyId)) {
+                query.collectionAgencyId = collectionAgencyId;
+            }
             // Role filter
             if (roleId && mongoose_1.Types.ObjectId.isValid(roleId)) {
                 query.roleId = roleId;
@@ -431,7 +478,8 @@ class StaffService {
                 .limit(limit)
                 .sort({ createdAt: -1 })
                 .populate('franchiseId', 'agencyName agencyOwner')
-                .populate('hubId', 'hubName city');
+                .populate('hubId', 'hubName city')
+                .populate('collectionAgencyId', 'collectionAgencyName ownerName');
             // Manually populate roleId for each staff - check both AdminRole and FranchiseRole
             for (const s of staff) {
                 if (s.roleId) {
@@ -440,6 +488,12 @@ class StaffService {
                         roleData = await franchiseRole_model_1.FranchiseRole.findById(s.roleId).select('roleName permissions').lean();
                         if (roleData) {
                             // Map roleName to name for consistency
+                            roleData = { ...roleData, name: roleData.roleName };
+                        }
+                    }
+                    if (!roleData) {
+                        roleData = await collectionAgencyRole_model_1.CollectionAgencyRole.findById(s.roleId).select('roleName permissions').lean();
+                        if (roleData) {
                             roleData = { ...roleData, name: roleData.roleName };
                         }
                     }
@@ -480,7 +534,8 @@ class StaffService {
             }
             const staff = await staff_model_1.Staff.findById(id)
                 .populate('franchiseId', 'agencyName agencyOwner')
-                .populate('hubId', 'hubName city');
+                .populate('hubId', 'hubName city')
+                .populate('collectionAgencyId', 'collectionAgencyName ownerName');
             if (!staff) {
                 return {
                     success: false,
@@ -494,6 +549,12 @@ class StaffService {
                     roleData = await franchiseRole_model_1.FranchiseRole.findById(staff.roleId).select('roleName permissions').lean();
                     if (roleData) {
                         // Map roleName to name for consistency
+                        roleData = { ...roleData, name: roleData.roleName };
+                    }
+                }
+                if (!roleData) {
+                    roleData = await collectionAgencyRole_model_1.CollectionAgencyRole.findById(staff.roleId).select('roleName permissions').lean();
+                    if (roleData) {
                         roleData = { ...roleData, name: roleData.roleName };
                     }
                 }
@@ -636,7 +697,8 @@ class StaffService {
             // Fetch updated staff and manually populate roleId from correct collection
             const updatedStaff = await staff_model_1.Staff.findById(id)
                 .populate('franchiseId', 'agencyName agencyOwner')
-                .populate('hubId', 'hubName city');
+                .populate('hubId', 'hubName city')
+                .populate('collectionAgencyId', 'collectionAgencyName ownerName');
             // Manually populate roleId - check both AdminRole and FranchiseRole
             if (updatedStaff && updatedStaff.roleId) {
                 let roleData = await role_model_1.Role.findById(updatedStaff.roleId).select('name permissions').lean();
@@ -644,6 +706,12 @@ class StaffService {
                     roleData = await franchiseRole_model_1.FranchiseRole.findById(updatedStaff.roleId).select('roleName permissions').lean();
                     if (roleData) {
                         // Map roleName to name for consistency
+                        roleData = { ...roleData, name: roleData.roleName };
+                    }
+                }
+                if (!roleData) {
+                    roleData = await collectionAgencyRole_model_1.CollectionAgencyRole.findById(updatedStaff.roleId).select('roleName permissions').lean();
+                    if (roleData) {
                         roleData = { ...roleData, name: roleData.roleName };
                     }
                 }
@@ -714,7 +782,8 @@ class StaffService {
             const updatedStaff = await staff_model_1.Staff.findById(id)
                 .populate('roleId', 'name permissions')
                 .populate('franchiseId', 'agencyName agencyOwner')
-                .populate('hubId', 'hubName city');
+                .populate('hubId', 'hubName city')
+                .populate('collectionAgencyId', 'collectionAgencyName ownerName');
             return {
                 success: true,
                 message: 'Staff status updated successfully',
@@ -774,6 +843,140 @@ class StaffService {
             return { success: false, message: error.message || 'Error during login' };
         }
     }
+    // B2B Staff Login - Only Relationship Manager role allowed
+    async loginB2bStaff(username, password) {
+        try {
+            const staff = await staff_model_1.Staff.findOne({ username })
+                .select('+password');
+            if (!staff) {
+                return { success: false, message: 'Invalid credentials' };
+            }
+            // Check if staff type is b2b
+            if (staff.type !== 'b2b') {
+                return { success: false, message: 'Invalid credentials. This is not a B2B staff account.' };
+            }
+            // Verify password
+            const isPasswordValid = await bcryptjs_1.default.compare(password, staff.password);
+            if (!isPasswordValid) {
+                return { success: false, message: 'Invalid credentials' };
+            }
+            // Check if staff is active
+            if (staff.status !== 'Active') {
+                return { success: false, message: 'Staff account is inactive' };
+            }
+            // Check if staff has a role assigned
+            if (!staff.roleId) {
+                return { success: false, message: 'No role assigned. Contact administrator.' };
+            }
+            // Resolve role
+            const roleData = await resolveRole(staff.roleId);
+            if (!roleData) {
+                return { success: false, message: 'Role not found. Contact administrator.' };
+            }
+            // Verify role is "Relationship Manager"
+            if (roleData.roleName !== 'Relationship Manager') {
+                return { success: false, message: 'Access denied. Only Relationship Manager can login here.' };
+            }
+            const staffData = staff.toObject();
+            delete staffData.password;
+            staffData.roleId = roleData;
+            const token = (0, jwt_1.generateToken)(staff._id.toString());
+            return {
+                success: true,
+                message: 'B2B staff login successful',
+                data: { ...staffData, token },
+            };
+        }
+        catch (error) {
+            return { success: false, message: error.message || 'Error during login' };
+        }
+    }
+    // B2B Staff Login - Send OTP (only for type b2b)
+    async sendB2bOtp(phone, countryCode) {
+        try {
+            const staff = await staff_model_1.Staff.findOne({ phone, type: 'b2b', status: 'Active' }).lean();
+            if (!staff) {
+                return { success: false, message: 'No active B2B staff account found with this phone number' };
+            }
+            // Verify role is Relationship Manager
+            if (!staff.roleId) {
+                return { success: false, message: 'No role assigned. Contact administrator.' };
+            }
+            const roleData = await resolveRole(staff.roleId);
+            if (!roleData || roleData.roleName !== 'Relationship Manager') {
+                return { success: false, message: 'Access denied. Only Relationship Manager can login here.' };
+            }
+            const otp = Math.floor(100000 + Math.random() * 900000).toString();
+            const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+            await otp_model_1.Otp.deleteMany({ phone, userType: 'staff' });
+            await otp_model_1.Otp.create({ phone, countryCode, otp, expiresAt, userType: 'staff' });
+            const apiKey = process.env.PING4SMS_API_KEY;
+            const sender = process.env.PING4SMS_SENDER;
+            const templateId = process.env.PING4SMS_TEMPLATE_ID;
+            const route = process.env.PING4SMS_ROUTE || '2';
+            const fullPhone = `${countryCode.replace('+', '')}${phone}`;
+            const message = `Your OTP for login is ${otp}. Do not share it with anyone. - FREIGHTREK`;
+            const url = `https://site.ping4sms.com/api/smsapi?key=${apiKey}&route=${route}&sender=${sender}&number=${fullPhone}&sms=${encodeURIComponent(message)}&templateid=${templateId}`;
+            console.log('[Ping4SMS] B2B OTP URL:', url);
+            const smsResponse = await axios_1.default.get(url, { timeout: 10000 });
+            console.log('[Ping4SMS] B2B OTP Response:', JSON.stringify(smsResponse.data));
+            const responseStr = typeof smsResponse.data === 'string' ? smsResponse.data : JSON.stringify(smsResponse.data);
+            if (responseStr.includes('-1') || responseStr.includes('-2') || responseStr.toLowerCase().includes('error') || responseStr.includes('INVALID')) {
+                return { success: false, message: `SMS sending failed: ${responseStr}` };
+            }
+            return { success: true, message: 'OTP sent successfully' };
+        }
+        catch (error) {
+            return { success: false, message: error.message || 'Error sending OTP' };
+        }
+    }
+    // B2B Staff Login - Verify OTP (only for type b2b + Relationship Manager)
+    async verifyB2bOtp(phone, countryCode, otp) {
+        try {
+            const record = await otp_model_1.Otp.findOne({ phone, used: false, userType: 'staff' }).lean();
+            if (!record) {
+                return { success: false, message: 'OTP not found. Please request a new one' };
+            }
+            if (new Date() > record.expiresAt) {
+                await otp_model_1.Otp.deleteOne({ _id: record._id });
+                return { success: false, message: 'OTP has expired. Please request a new one' };
+            }
+            if (record.otp !== otp) {
+                return { success: false, message: 'Invalid OTP' };
+            }
+            await otp_model_1.Otp.updateOne({ _id: record._id }, { used: true });
+            const staff = await staff_model_1.Staff.findOne({ phone, type: 'b2b', status: 'Active' }).lean();
+            if (!staff) {
+                return { success: false, message: 'No active B2B staff account found with this phone number' };
+            }
+            // Resolve role and verify Relationship Manager
+            let roleData = null;
+            if (staff.roleId) {
+                roleData = await resolveRole(staff.roleId);
+            }
+            if (!roleData || roleData.roleName !== 'Relationship Manager') {
+                return { success: false, message: 'Access denied. Only Relationship Manager can login here.' };
+            }
+            const token = (0, jwt_1.generateToken)(staff._id.toString());
+            return {
+                success: true,
+                message: 'B2B login successful',
+                data: {
+                    id: staff._id,
+                    name: staff.name,
+                    email: staff.email,
+                    phone: staff.phone,
+                    type: staff.type,
+                    status: staff.status,
+                    roleId: roleData,
+                    token,
+                },
+            };
+        }
+        catch (error) {
+            return { success: false, message: error.message || 'Error verifying OTP' };
+        }
+    }
     // OTP Login - Send OTP
     async sendLoginOtp(phone, countryCode, type) {
         try {
@@ -796,7 +999,7 @@ class StaffService {
             const message = `Your OTP for login is ${otp}. Do not share it with anyone. - FREIGHTREK`;
             const url = `https://site.ping4sms.com/api/smsapi?key=${apiKey}&route=${route}&sender=${sender}&number=${fullPhone}&sms=${encodeURIComponent(message)}&templateid=${templateId}`;
             console.log('[Ping4SMS] Staff OTP URL:', url);
-            const smsResponse = await axios_1.default.get(url);
+            const smsResponse = await axios_1.default.get(url, { timeout: 10000 });
             console.log('[Ping4SMS] Staff OTP Response:', JSON.stringify(smsResponse.data));
             const responseStr = typeof smsResponse.data === 'string' ? smsResponse.data : JSON.stringify(smsResponse.data);
             if (responseStr.includes('-1') || responseStr.includes('-2') || responseStr.toLowerCase().includes('error') || responseStr.includes('INVALID')) {
@@ -827,7 +1030,7 @@ class StaffService {
             if (type)
                 query.type = type;
             const staff = await staff_model_1.Staff.findOne(query)
-                .populate('franchiseId', 'agencyName')
+                .populate('franchiseId')
                 .populate('hubId', 'hubName city pincode')
                 .lean();
             if (!staff) {
@@ -837,6 +1040,22 @@ class StaffService {
             let roleData = null;
             if (staff.roleId) {
                 roleData = await resolveRole(staff.roleId);
+            }
+            // Fetch franchise wallet if franchise staff
+            let walletData = undefined;
+            if (staff.type === 'franchise' && staff.franchiseId) {
+                const franchiseIdStr = staff.franchiseId._id
+                    ? staff.franchiseId._id.toString()
+                    : staff.franchiseId.toString();
+                const wallet = await wallet_model_1.Wallet.findOne({ userId: franchiseIdStr });
+                walletData = wallet
+                    ? { balance: wallet.balance, currency: wallet.currency }
+                    : { balance: 0, currency: 'INR' };
+            }
+            // Remove password from franchise data if populated
+            const franchiseData = staff.franchiseId ? { ...staff.franchiseId } : undefined;
+            if (franchiseData && franchiseData.password) {
+                delete franchiseData.password;
             }
             const token = (0, jwt_1.generateToken)(staff._id.toString());
             return {
@@ -849,10 +1068,11 @@ class StaffService {
                     phone: staff.phone,
                     type: staff.type,
                     status: staff.status,
-                    franchiseId: staff.franchiseId,
+                    franchiseId: franchiseData,
                     hubId: staff.hubId,
                     roleId: roleData || staff.roleId,
                     token,
+                    ...(walletData ? { wallet: walletData } : {}),
                 },
             };
         }

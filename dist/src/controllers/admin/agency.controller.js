@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifyFranchiseOtp = exports.sendFranchiseOtp = exports.updateAgencyStatus = exports.getAgenciesByHub = exports.deleteAgency = exports.updateAgency = exports.getAgencyById = exports.getAllAgencies = exports.createAgency = exports.loginFranchise = void 0;
+exports.verifyFranchiseOtp = exports.sendFranchiseOtp = exports.updateAgencyProfitPercentage = exports.updateAgencyStatus = exports.getAgenciesByHub = exports.deleteAgency = exports.updateAgency = exports.getAgencyById = exports.getAllAgencies = exports.createAgency = exports.loginFranchise = void 0;
 const agency_service_1 = require("../../services/admin/agency.service");
 const loginFranchise = async (req, res) => {
     try {
@@ -56,7 +56,8 @@ const getAllAgencies = async (req, res) => {
         const limit = parseInt(req.query.limit) || 10;
         const search = req.query.search;
         const status = req.query.status;
-        const result = await agency_service_1.agencyService.getAllAgencies(page, limit, search, status);
+        const type = req.query.type;
+        const result = await agency_service_1.agencyService.getAllAgencies(page, limit, search, status, type);
         if (!result.success) {
             return res.status(400).json({
                 success: false,
@@ -126,9 +127,13 @@ exports.updateAgency = updateAgency;
 const deleteAgency = async (req, res) => {
     try {
         const { id } = req.params;
-        const result = await agency_service_1.agencyService.deleteAgency(id);
+        // Optional - which agency the staff should move to. Left out, the service
+        // picks the nearest active agency itself.
+        const reassignAgencyId = (req.body?.reassignAgencyId || req.query.reassignAgencyId);
+        const result = await agency_service_1.agencyService.deleteAgency(id, reassignAgencyId);
         if (!result.success) {
-            return res.status(404).json({
+            const status = result.message === 'Agency not found' ? 404 : 400;
+            return res.status(status).json({
                 success: false,
                 message: result.message,
             });
@@ -136,6 +141,7 @@ const deleteAgency = async (req, res) => {
         return res.status(200).json({
             success: true,
             message: result.message,
+            data: result.data,
         });
     }
     catch (err) {
@@ -187,6 +193,31 @@ const updateAgencyStatus = async (req, res) => {
     }
 };
 exports.updateAgencyStatus = updateAgencyStatus;
+const updateAgencyProfitPercentage = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { profitPercentage } = req.body;
+        const result = await agency_service_1.agencyService.updateProfitPercentage(id, profitPercentage);
+        if (!result.success) {
+            return res.status(400).json({
+                success: false,
+                message: result.message,
+            });
+        }
+        return res.status(200).json({
+            success: true,
+            message: result.message,
+            data: result.data,
+        });
+    }
+    catch (err) {
+        return res.status(500).json({
+            success: false,
+            message: err.message || 'Internal server error',
+        });
+    }
+};
+exports.updateAgencyProfitPercentage = updateAgencyProfitPercentage;
 const sendFranchiseOtp = async (req, res) => {
     try {
         const { phone, countryCode } = req.body;

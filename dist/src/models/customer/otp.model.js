@@ -8,7 +8,7 @@ const otpSchema = new mongoose_1.Schema({
     otp: { type: String, required: true },
     expiresAt: { type: Date, required: true },
     used: { type: Boolean, default: false },
-    userType: { type: String, enum: ['customer', 'franchise', 'staff'], default: 'customer' },
+    userType: { type: String, enum: ['customer', 'franchise', 'staff', 'collection_agency', 'unified'], default: 'customer' },
 });
 // Fast lookup for OTP verification (every login/register hits this)
 otpSchema.index({ phone: 1, countryCode: 1, used: 1, userType: 1 });

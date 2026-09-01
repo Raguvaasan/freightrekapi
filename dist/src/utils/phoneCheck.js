@@ -4,6 +4,7 @@ exports.checkPhoneGloballyUnique = checkPhoneGloballyUnique;
 const adminUser_model_1 = require("../models/admin/adminUser.model");
 const staff_model_1 = require("../models/admin/staff.model");
 const agency_model_1 = require("../models/admin/agency.model");
+const collectionAgency_model_1 = require("../models/admin/collectionAgency.model");
 const hub_model_1 = require("../models/hub/hub.model");
 /**
  * Check if a phone number is already registered across all user types.
@@ -13,7 +14,7 @@ const hub_model_1 = require("../models/hub/hub.model");
  */
 async function checkPhoneGloballyUnique(phone, exclude) {
     const phoneStr = phone.toString().trim();
-    const [admin, staff, agency, hub] = await Promise.all([
+    const [admin, staff, agency, collectionAgency, hub] = await Promise.all([
         exclude?.model === 'AdminUser'
             ? adminUser_model_1.AdminUser.findOne({ phoneNo: phoneStr, _id: { $ne: exclude.id } }).lean()
             : adminUser_model_1.AdminUser.findOne({ phoneNo: phoneStr }).lean(),
@@ -23,11 +24,14 @@ async function checkPhoneGloballyUnique(phone, exclude) {
         exclude?.model === 'Agency'
             ? agency_model_1.Agency.findOne({ phone: phoneStr, _id: { $ne: exclude.id } }).lean()
             : agency_model_1.Agency.findOne({ phone: phoneStr }).lean(),
+        exclude?.model === 'CollectionAgency'
+            ? collectionAgency_model_1.CollectionAgency.findOne({ phone: phoneStr, _id: { $ne: exclude.id } }).lean()
+            : collectionAgency_model_1.CollectionAgency.findOne({ phone: phoneStr }).lean(),
         exclude?.model === 'Hub'
             ? hub_model_1.HubModel.findOne({ phoneNo: Number(phoneStr), _id: { $ne: exclude.id } }).lean()
             : hub_model_1.HubModel.findOne({ phoneNo: Number(phoneStr) }).lean(),
     ]);
-    if (admin || staff || agency || hub) {
+    if (admin || staff || agency || collectionAgency || hub) {
         return 'This phone number is already registered in the system and cannot be used again.';
     }
     return null;

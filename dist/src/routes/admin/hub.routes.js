@@ -41,7 +41,11 @@ const auth_middleware_1 = require("../../middleware/auth.middleware");
 const checkPermission_middleware_1 = require("../../middleware/checkPermission.middleware");
 const adminModule_1 = require("../../config/adminModule");
 const staff_validator_1 = require("../../validators/admin/staff.validator");
+const objectIdParam_middleware_1 = require("../../middleware/objectIdParam.middleware");
 const router = (0, express_1.Router)();
+// `/:id` below would otherwise swallow every unmatched sub-path and answer
+// "Access denied" from the permission check instead of a plain 404
+router.param("id", (0, objectIdParam_middleware_1.objectIdParam)("/admin/hub"));
 /**
  * @swagger
  * /admin/hub/login:
@@ -202,7 +206,13 @@ router.get("/", auth_middleware_1.authMiddleware, (0, checkPermission_middleware
  *       404:
  *         description: Hub not found
  *   delete:
- *     summary: Delete hub
+ *     summary: Delete hub (staff are auto-reassigned to another hub)
+ *     description: >
+ *       Any hub staff assigned to this hub are moved to another active hub before the
+ *       hub is removed. The target hub is picked automatically (same city, then same
+ *       state, then any active hub) unless reassignHubId is supplied. Hub-scoped roles
+ *       are remapped to the same role name in the target hub, or cleared if it has none.
+ *       The delete is rejected when staff exist and no other active hub is available.
  *     tags: [Hub Management]
  *     security:
  *       - bearerAuth: []
@@ -212,9 +222,34 @@ router.get("/", auth_middleware_1.authMiddleware, (0, checkPermission_middleware
  *         required: true
  *         schema:
  *           type: string
+ *       - in: query
+ *         name: reassignHubId
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: Hub to move this hub's staff to. Auto-selected when omitted.
  *     responses:
  *       200:
  *         description: Hub deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     reassignedStaffCount:
+ *                       type: number
+ *                     reassignedToHub:
+ *                       type: object
+ *                       nullable: true
+ *       400:
+ *         description: No active hub available for the staff, or invalid reassignHubId
  *       404:
  *         description: Hub not found
  */

@@ -182,5 +182,5 @@ router.get("/", auth_middleware_1.authMiddleware, (0, checkPermission_middleware
  */
 router.get("/:id", auth_middleware_1.authMiddleware, (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.access_management, 'read'), roleController.getRolesById);
 router.put("/:id", auth_middleware_1.authMiddleware, (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.access_management, 'update'), (0, validate_middleware_1.validate)(role_validator_1.updateRoleSchema), roleController.updateRole);
-router.delete("/:id", (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.access_management, 'delete'), auth_middleware_1.authMiddleware, roleController.deleteRole);
+router.delete("/:id", auth_middleware_1.authMiddleware, (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.access_management, 'delete'), roleController.deleteRole);
 exports.default = router;

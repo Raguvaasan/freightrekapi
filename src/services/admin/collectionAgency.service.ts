@@ -67,7 +67,7 @@ export class CollectionAgencyService {
       const url = `https://site.ping4sms.com/api/smsapi?key=${apiKey}&route=${route}&sender=${sender}&number=${fullPhone}&sms=${encodeURIComponent(message)}&templateid=${templateId}`;
 
       console.log('[Ping4SMS] Collection Agency OTP URL:', url);
-      const smsResponse = await axios.get(url);
+      const smsResponse = await axios.get(url, { timeout: 10000 });
       console.log('[Ping4SMS] Collection Agency OTP Response:', JSON.stringify(smsResponse.data));
 
       const responseStr = typeof smsResponse.data === 'string' ? smsResponse.data : JSON.stringify(smsResponse.data);

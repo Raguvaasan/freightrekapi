@@ -1,9 +1,20 @@
 import { Request, Response } from 'express';
 import * as hubRoleService from '../../services/hub/hubRole.service';
+import { resolveHubId } from '../../utils/parcelActor';
+import { ParcelActorRequest } from '../../middleware/parcelActor.middleware';
 
-export const createHubRole = async (req: Request, res: Response) => {
+/**
+ * The hub these roles belong to. A direct hub login is the hub; a hub staff
+ * member has an id of their own, so the hub is read off their record.
+ */
+const hubOf = (req: ParcelActorRequest): Promise<string | null> =>
+  req.parcelActor?.hubId
+    ? Promise.resolve(req.parcelActor.hubId)
+    : resolveHubId(req.user?.id);
+
+export const createHubRole = async (req: ParcelActorRequest, res: Response) => {
   try {
-    const hubId = req.user?.id;
+    const hubId = await hubOf(req);
 
     if (!hubId) {
       return res.status(401).json({
@@ -24,9 +35,9 @@ export const createHubRole = async (req: Request, res: Response) => {
   }
 };
 
-export const getHubRoles = async (req: Request, res: Response) => {
+export const getHubRoles = async (req: ParcelActorRequest, res: Response) => {
   try {
-    const hubId = req.user?.id;
+    const hubId = await hubOf(req);
 
     if (!hubId) {
       return res.status(401).json({
@@ -47,9 +58,9 @@ export const getHubRoles = async (req: Request, res: Response) => {
   }
 };
 
-export const getHubRoleById = async (req: Request, res: Response) => {
+export const getHubRoleById = async (req: ParcelActorRequest, res: Response) => {
   try {
-    const hubId = req.user?.id;
+    const hubId = await hubOf(req);
     const roleId = req.params.id;
 
     if (!hubId) {
@@ -72,9 +83,9 @@ export const getHubRoleById = async (req: Request, res: Response) => {
   }
 };
 
-export const updateHubRole = async (req: Request, res: Response) => {
+export const updateHubRole = async (req: ParcelActorRequest, res: Response) => {
   try {
-    const hubId = req.user?.id;
+    const hubId = await hubOf(req);
     const roleId = req.params.id;
 
     if (!hubId) {
@@ -97,9 +108,9 @@ export const updateHubRole = async (req: Request, res: Response) => {
   }
 };
 
-export const deleteHubRole = async (req: Request, res: Response) => {
+export const deleteHubRole = async (req: ParcelActorRequest, res: Response) => {
   try {
-    const hubId = req.user?.id;
+    const hubId = await hubOf(req);
     const roleId = req.params.id;
 
     if (!hubId) {

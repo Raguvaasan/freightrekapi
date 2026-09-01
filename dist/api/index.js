@@ -32,6 +32,17 @@ async function handler(req, res) {
     }
     catch (error) {
         console.error('API handler error', error);
+        // This response bypasses the express CORS middleware, so set the headers
+        // here too — otherwise the browser reports a CORS failure instead of a 500
+        const origin = req.headers.origin;
+        if (typeof origin === 'string' && origin) {
+            res.setHeader('Access-Control-Allow-Origin', origin);
+            res.setHeader('Access-Control-Allow-Credentials', 'true');
+            res.setHeader('Vary', 'Origin');
+        }
+        else {
+            res.setHeader('Access-Control-Allow-Origin', '*');
+        }
         res.status(500).json({ success: false, message: error?.message || 'Internal Server Error' });
     }
 }

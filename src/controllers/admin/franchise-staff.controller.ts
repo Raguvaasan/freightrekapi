@@ -1,10 +1,22 @@
 import { Request, Response } from 'express';
 import { staffService } from '../../services/admin/staff.service';
+import { resolveAgencyId } from '../../utils/parcelActor';
+import { ParcelActorRequest } from '../../middleware/parcelActor.middleware';
+
+/**
+ * The agency whose staff these are. A direct agency login is the agency; an
+ * agency staff member has an id of their own, so the agency is read off their
+ * record.
+ */
+const agencyOf = (req: ParcelActorRequest): Promise<string | null> =>
+  req.parcelActor?.agencyId
+    ? Promise.resolve(req.parcelActor.agencyId)
+    : resolveAgencyId(req.user?.id);
 
 // Get all staff for the logged-in franchise
-export const getFranchiseStaff = async (req: Request, res: Response) => {
+export const getFranchiseStaff = async (req: ParcelActorRequest, res: Response) => {
   try {
-    const franchiseId = req.user?.id; // Franchise user's ID from JWT token
+    const franchiseId = await agencyOf(req);
     
     if (!franchiseId) {
       return res.status(401).json({
@@ -49,9 +61,9 @@ export const getFranchiseStaff = async (req: Request, res: Response) => {
 };
 
 // Get staff by ID (only if belongs to franchise)
-export const getFranchiseStaffById = async (req: Request, res: Response) => {
+export const getFranchiseStaffById = async (req: ParcelActorRequest, res: Response) => {
   try {
-    const franchiseId = req.user?.id;
+    const franchiseId = await agencyOf(req);
     const { id } = req.params;
 
     if (!franchiseId) {
@@ -91,9 +103,9 @@ export const getFranchiseStaffById = async (req: Request, res: Response) => {
 };
 
 // Create staff for the logged-in franchise
-export const createFranchiseStaff = async (req: Request, res: Response) => {
+export const createFranchiseStaff = async (req: ParcelActorRequest, res: Response) => {
   try {
-    const franchiseId = req.user?.id;
+    const franchiseId = await agencyOf(req);
 
     if (!franchiseId) {
       return res.status(401).json({
@@ -131,9 +143,9 @@ export const createFranchiseStaff = async (req: Request, res: Response) => {
 };
 
 // Update staff (only if belongs to franchise)
-export const updateFranchiseStaff = async (req: Request, res: Response) => {
+export const updateFranchiseStaff = async (req: ParcelActorRequest, res: Response) => {
   try {
-    const franchiseId = req.user?.id;
+    const franchiseId = await agencyOf(req);
     const { id } = req.params;
 
     if (!franchiseId) {
@@ -186,9 +198,9 @@ export const updateFranchiseStaff = async (req: Request, res: Response) => {
 };
 
 // Update staff status (only if belongs to franchise)
-export const updateFranchiseStaffStatus = async (req: Request, res: Response) => {
+export const updateFranchiseStaffStatus = async (req: ParcelActorRequest, res: Response) => {
   try {
-    const franchiseId = req.user?.id;
+    const franchiseId = await agencyOf(req);
     const { id } = req.params;
     const { status } = req.body;
 
@@ -238,9 +250,9 @@ export const updateFranchiseStaffStatus = async (req: Request, res: Response) =>
 };
 
 // Delete staff (only if belongs to franchise)
-export const deleteFranchiseStaff = async (req: Request, res: Response) => {
+export const deleteFranchiseStaff = async (req: ParcelActorRequest, res: Response) => {
   try {
-    const franchiseId = req.user?.id;
+    const franchiseId = await agencyOf(req);
     const { id } = req.params;
 
     if (!franchiseId) {

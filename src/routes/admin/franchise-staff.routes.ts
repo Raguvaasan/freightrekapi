@@ -8,6 +8,11 @@ import {
   deleteFranchiseStaff,
 } from '../../controllers/admin/franchise-staff.controller';
 import { authMiddleware } from '../../middleware/auth.middleware';
+import {
+  requireParcelRole,
+  requireModulePermission,
+} from '../../middleware/parcelActor.middleware';
+import { agencyModule, agencyPermission } from '../../config/agencyModule';
 import { validate } from '../../middleware/validate.middleware';
 import {
   createStaffSchema,
@@ -21,6 +26,14 @@ const router = Router();
 
 // All routes require authentication (franchise JWT token)
 router.use(authMiddleware);
+router.use(requireParcelRole('agency'));
+
+/**
+ * A direct agency login manages its own staff; agency staff need the matching
+ * "Staff Management" permission on their FranchiseRole.
+ */
+const staff = (action: 'read' | 'write' | 'update' | 'delete') =>
+  requireModulePermission({ agency: agencyPermission(agencyModule.staff_management) }, action);
 
 /**
  * @swagger
@@ -102,8 +115,8 @@ router.use(authMiddleware);
  *       401:
  *         description: Unauthorized - franchise login required
  */
-router.get('/', getFranchiseStaff);
-router.post('/', validate(createStaffSchema), createFranchiseStaff);
+router.get('/', staff('read'), getFranchiseStaff);
+router.post('/', staff('write'), validate(createStaffSchema), createFranchiseStaff);
 
 /**
  * @swagger
@@ -182,9 +195,9 @@ router.post('/', validate(createStaffSchema), createFranchiseStaff);
  *       404:
  *         description: Staff not found
  */
-router.get('/:id', validate(getStaffByIdSchema), getFranchiseStaffById);
-router.put('/:id', validate(updateStaffSchema), updateFranchiseStaff);
-router.delete('/:id', validate(deleteStaffSchema), deleteFranchiseStaff);
+router.get('/:id', staff('read'), validate(getStaffByIdSchema), getFranchiseStaffById);
+router.put('/:id', staff('update'), validate(updateStaffSchema), updateFranchiseStaff);
+router.delete('/:id', staff('delete'), validate(deleteStaffSchema), deleteFranchiseStaff);
 
 /**
  * @swagger
@@ -220,6 +233,6 @@ router.delete('/:id', validate(deleteStaffSchema), deleteFranchiseStaff);
  *       404:
  *         description: Staff not found
  */
-router.patch('/:id/status', validate(updateStaffStatusSchema), updateFranchiseStaffStatus);
+router.patch('/:id/status', staff('update'), validate(updateStaffStatusSchema), updateFranchiseStaffStatus);
 
 export default router;

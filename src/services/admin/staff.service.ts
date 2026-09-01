@@ -357,13 +357,17 @@ export class StaffService {
         return { success: false, message: phoneError };
       }
 
-      // Check if email already exists
-      const existingEmail = await Staff.findOne({ email: data.email });
-      if (existingEmail) {
-        return {
-          success: false,
-          message: 'Email already exists',
-        };
+      // Email is optional (users can be created phone-first), so only check it
+      // when one was supplied — `findOne({ email: undefined })` would match the
+      // users that have no email at all and wrongly report a duplicate.
+      if (data.email) {
+        const existingEmail = await Staff.findOne({ email: data.email });
+        if (existingEmail) {
+          return {
+            success: false,
+            message: 'Email already exists',
+          };
+        }
       }
 
       // Check if username already exists (only if username provided)
@@ -1054,7 +1058,7 @@ export class StaffService {
       const url = `https://site.ping4sms.com/api/smsapi?key=${apiKey}&route=${route}&sender=${sender}&number=${fullPhone}&sms=${encodeURIComponent(message)}&templateid=${templateId}`;
 
       console.log('[Ping4SMS] B2B OTP URL:', url);
-      const smsResponse = await axios.get(url);
+      const smsResponse = await axios.get(url, { timeout: 10000 });
       console.log('[Ping4SMS] B2B OTP Response:', JSON.stringify(smsResponse.data));
 
       const responseStr = typeof smsResponse.data === 'string' ? smsResponse.data : JSON.stringify(smsResponse.data);
@@ -1149,7 +1153,7 @@ export class StaffService {
       const url = `https://site.ping4sms.com/api/smsapi?key=${apiKey}&route=${route}&sender=${sender}&number=${fullPhone}&sms=${encodeURIComponent(message)}&templateid=${templateId}`;
 
       console.log('[Ping4SMS] Staff OTP URL:', url);
-      const smsResponse = await axios.get(url);
+      const smsResponse = await axios.get(url, { timeout: 10000 });
       console.log('[Ping4SMS] Staff OTP Response:', JSON.stringify(smsResponse.data));
 
       const responseStr = typeof smsResponse.data === 'string' ? smsResponse.data : JSON.stringify(smsResponse.data);

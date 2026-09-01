@@ -150,8 +150,17 @@ const options: swaggerJsdoc.Options = {
               default: 'Active'
             },
             agencyType: {
+              type: 'boolean',
+              default: false,
+              description:
+                'Ownership as a boolean: true = Own, false = Third Party. The same thing as `type`, for a checkbox on the form — send either one. Sending both is allowed only if they agree. An Own agency keeps no commission.',
+              example: false
+            },
+            type: {
               type: 'string',
-              example: 'Express Delivery'
+              enum: ['Third Party', 'Own'],
+              default: 'Third Party',
+              description: 'Ownership in words. Kept in step with `agencyType`.'
             },
             email: {
               type: 'string',
@@ -165,6 +174,33 @@ const options: swaggerJsdoc.Options = {
             gstNumber: {
               type: 'string',
               example: '29ABCDE1234F2Z5'
+            },
+            profitPercentage: {
+              type: 'number',
+              minimum: 0,
+              maximum: 100,
+              default: 0,
+              description:
+                'Share of each parcel booking amount this branch keeps. The rest is debited from the branch wallet and credited to the admin settlement wallet on every booking.',
+              example: 10
+            },
+            loadingChargePercentage: {
+              type: 'number',
+              minimum: 0,
+              maximum: 100,
+              default: 10,
+              description:
+                'Loading charge added on top of the transportation charge at booking time. Read-only here — set it with PATCH /admin/agency/{id}/profit-percentage.',
+              example: 10
+            },
+            miscChargePercentage: {
+              type: 'number',
+              minimum: 0,
+              maximum: 100,
+              default: 10,
+              description:
+                'Miscellaneous charge added on top of the transportation charge at booking time. Read-only here — set it with PATCH /admin/agency/{id}/profit-percentage.',
+              example: 10
             }
           }
         },
@@ -208,6 +244,8 @@ const options: swaggerJsdoc.Options = {
   apis: [
     './src/routes/admin/**/*.ts',
     './dist/routes/admin/**/*.js',
+    './src/routes/hub/**/*.ts',
+    './dist/routes/hub/**/*.js',
     './src/controllers/admin/**/*.ts',
     './dist/controllers/admin/**/*.js'
   ]

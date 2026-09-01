@@ -35,12 +35,21 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteFranchiseRole = exports.updateFranchiseRole = exports.getFranchiseRoleById = exports.getFranchiseRoles = exports.createFranchiseRole = void 0;
 const franchiseRoleService = __importStar(require("../../services/admin/franchiseRole.service"));
+const parcelActor_1 = require("../../utils/parcelActor");
+/**
+ * The agency these roles belong to. A direct agency login is the agency; an
+ * agency staff member has an id of their own, so the agency is read off their
+ * record.
+ */
+const agencyOf = (req) => req.parcelActor?.agencyId
+    ? Promise.resolve(req.parcelActor.agencyId)
+    : (0, parcelActor_1.resolveAgencyId)(req.user?.id);
 /**
  * Create franchise role
  */
 const createFranchiseRole = async (req, res) => {
     try {
-        const franchiseId = req.user?.id;
+        const franchiseId = await agencyOf(req);
         if (!franchiseId) {
             return res.status(401).json({
                 success: false,
@@ -63,7 +72,7 @@ exports.createFranchiseRole = createFranchiseRole;
  */
 const getFranchiseRoles = async (req, res) => {
     try {
-        const franchiseId = req.user?.id;
+        const franchiseId = await agencyOf(req);
         if (!franchiseId) {
             return res.status(401).json({
                 success: false,
@@ -86,7 +95,7 @@ exports.getFranchiseRoles = getFranchiseRoles;
  */
 const getFranchiseRoleById = async (req, res) => {
     try {
-        const franchiseId = req.user?.id;
+        const franchiseId = await agencyOf(req);
         const roleId = req.params.id;
         if (!franchiseId) {
             return res.status(401).json({
@@ -111,7 +120,7 @@ exports.getFranchiseRoleById = getFranchiseRoleById;
  */
 const updateFranchiseRole = async (req, res) => {
     try {
-        const franchiseId = req.user?.id;
+        const franchiseId = await agencyOf(req);
         const roleId = req.params.id;
         if (!franchiseId) {
             return res.status(401).json({
@@ -136,7 +145,7 @@ exports.updateFranchiseRole = updateFranchiseRole;
  */
 const deleteFranchiseRole = async (req, res) => {
     try {
-        const franchiseId = req.user?.id;
+        const franchiseId = await agencyOf(req);
         const roleId = req.params.id;
         if (!franchiseId) {
             return res.status(401).json({

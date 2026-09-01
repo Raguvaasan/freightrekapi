@@ -8,6 +8,7 @@ const crypto_1 = __importDefault(require("crypto"));
 const wallet_service_1 = require("../services/wallet.service");
 const adminUser_model_1 = require("../models/admin/adminUser.model");
 const agency_model_1 = require("../models/admin/agency.model");
+const staff_model_1 = require("../models/admin/staff.model");
 const getBalance = async (req, res) => {
     try {
         const userId = req.user?.id;
@@ -30,7 +31,13 @@ const getBalance = async (req, res) => {
                 return res.status(200).json(result);
             }
         }
-        const result = await wallet_service_1.walletService.getBalance(userId);
+        // Check if user is a franchise staff - use franchise's wallet
+        let walletUserId = userId;
+        const staff = await staff_model_1.Staff.findById(userId);
+        if (staff && staff.type === 'franchise' && staff.franchiseId) {
+            walletUserId = staff.franchiseId.toString();
+        }
+        const result = await wallet_service_1.walletService.getBalance(walletUserId);
         if (!result.success) {
             return res.status(400).json(result);
         }
@@ -132,8 +139,16 @@ const getTransactions = async (req, res) => {
                 franchiseUserIds = agencies.map(agency => agency._id.toString());
             }
         }
+        // If franchise staff, use franchise's ID for transactions
+        let walletUserId = userId;
+        if (!isAdmin) {
+            const staff = await staff_model_1.Staff.findById(userId);
+            if (staff && staff.type === 'franchise' && staff.franchiseId) {
+                walletUserId = staff.franchiseId.toString();
+            }
+        }
         const result = await wallet_service_1.walletService.getTransactions({
-            userId,
+            userId: walletUserId,
             page,
             limit,
             type,

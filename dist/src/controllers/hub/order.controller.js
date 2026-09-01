@@ -45,7 +45,9 @@ const createHubOrder = async (req, res) => {
                 return res.status(400).json({ success: false, message: 'Assigned staff must belong to the same hub' });
             }
         }
-        const result = await shipment_service_1.shipmentService.createShipment({ userId: hubId, ...req.body, orderType, skipWalletCheck: true });
+        // The creating hub owns this order so it appears in the hub's order list
+        // (which filters by assignedHubId).
+        const result = await shipment_service_1.shipmentService.createShipment({ userId: hubId, ...req.body, orderType, assignedHubId: hubId, skipWalletCheck: true });
         if (!result.success) {
             return res.status(400).json({ success: false, message: result.message });
         }

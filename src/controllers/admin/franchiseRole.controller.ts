@@ -1,12 +1,24 @@
 import { Request, Response } from 'express';
 import * as franchiseRoleService from '../../services/admin/franchiseRole.service';
+import { resolveAgencyId } from '../../utils/parcelActor';
+import { ParcelActorRequest } from '../../middleware/parcelActor.middleware';
+
+/**
+ * The agency these roles belong to. A direct agency login is the agency; an
+ * agency staff member has an id of their own, so the agency is read off their
+ * record.
+ */
+const agencyOf = (req: ParcelActorRequest): Promise<string | null> =>
+  req.parcelActor?.agencyId
+    ? Promise.resolve(req.parcelActor.agencyId)
+    : resolveAgencyId(req.user?.id);
 
 /**
  * Create franchise role
  */
-export const createFranchiseRole = async (req: Request, res: Response) => {
+export const createFranchiseRole = async (req: ParcelActorRequest, res: Response) => {
   try {
-    const franchiseId = req.user?.id;
+    const franchiseId = await agencyOf(req);
 
     if (!franchiseId) {
       return res.status(401).json({
@@ -30,9 +42,9 @@ export const createFranchiseRole = async (req: Request, res: Response) => {
 /**
  * Get all franchise roles
  */
-export const getFranchiseRoles = async (req: Request, res: Response) => {
+export const getFranchiseRoles = async (req: ParcelActorRequest, res: Response) => {
   try {
-    const franchiseId = req.user?.id;
+    const franchiseId = await agencyOf(req);
 
     if (!franchiseId) {
       return res.status(401).json({
@@ -56,9 +68,9 @@ export const getFranchiseRoles = async (req: Request, res: Response) => {
 /**
  * Get franchise role by ID
  */
-export const getFranchiseRoleById = async (req: Request, res: Response) => {
+export const getFranchiseRoleById = async (req: ParcelActorRequest, res: Response) => {
   try {
-    const franchiseId = req.user?.id;
+    const franchiseId = await agencyOf(req);
     const roleId = req.params.id;
 
     if (!franchiseId) {
@@ -84,9 +96,9 @@ export const getFranchiseRoleById = async (req: Request, res: Response) => {
 /**
  * Update franchise role
  */
-export const updateFranchiseRole = async (req: Request, res: Response) => {
+export const updateFranchiseRole = async (req: ParcelActorRequest, res: Response) => {
   try {
-    const franchiseId = req.user?.id;
+    const franchiseId = await agencyOf(req);
     const roleId = req.params.id;
 
     if (!franchiseId) {
@@ -112,9 +124,9 @@ export const updateFranchiseRole = async (req: Request, res: Response) => {
 /**
  * Delete franchise role
  */
-export const deleteFranchiseRole = async (req: Request, res: Response) => {
+export const deleteFranchiseRole = async (req: ParcelActorRequest, res: Response) => {
   try {
-    const franchiseId = req.user?.id;
+    const franchiseId = await agencyOf(req);
     const roleId = req.params.id;
 
     if (!franchiseId) {

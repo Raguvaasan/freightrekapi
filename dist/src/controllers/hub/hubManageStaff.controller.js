@@ -35,9 +35,17 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.updateHubStaffStatus = exports.deleteHubStaff = exports.updateHubStaff = exports.createHubStaff = exports.getHubStaffById = exports.getHubStaff = void 0;
 const hubManageStaffService = __importStar(require("../../services/hub/hubManageStaff.service"));
+const parcelActor_1 = require("../../utils/parcelActor");
+/**
+ * The hub whose staff these are. A direct hub login is the hub; a hub staff
+ * member has an id of their own, so the hub is read off their record.
+ */
+const hubOf = (req) => req.parcelActor?.hubId
+    ? Promise.resolve(req.parcelActor.hubId)
+    : (0, parcelActor_1.resolveHubId)(req.user?.id);
 const getHubStaff = async (req, res) => {
     try {
-        const hubId = req.user?.id;
+        const hubId = await hubOf(req);
         if (!hubId)
             return res.status(401).json({ success: false, message: 'Unauthorized' });
         const page = parseInt(req.query.page) || 1;
@@ -55,7 +63,7 @@ const getHubStaff = async (req, res) => {
 exports.getHubStaff = getHubStaff;
 const getHubStaffById = async (req, res) => {
     try {
-        const hubId = req.user?.id;
+        const hubId = await hubOf(req);
         if (!hubId)
             return res.status(401).json({ success: false, message: 'Unauthorized' });
         const result = await hubManageStaffService.getHubStaffById(hubId, req.params.id);
@@ -72,7 +80,7 @@ const getHubStaffById = async (req, res) => {
 exports.getHubStaffById = getHubStaffById;
 const createHubStaff = async (req, res) => {
     try {
-        const hubId = req.user?.id;
+        const hubId = await hubOf(req);
         if (!hubId)
             return res.status(401).json({ success: false, message: 'Unauthorized' });
         const result = await hubManageStaffService.createHubStaff(hubId, req.body);
@@ -87,7 +95,7 @@ const createHubStaff = async (req, res) => {
 exports.createHubStaff = createHubStaff;
 const updateHubStaff = async (req, res) => {
     try {
-        const hubId = req.user?.id;
+        const hubId = await hubOf(req);
         if (!hubId)
             return res.status(401).json({ success: false, message: 'Unauthorized' });
         const result = await hubManageStaffService.updateHubStaff(hubId, req.params.id, req.body);
@@ -104,7 +112,7 @@ const updateHubStaff = async (req, res) => {
 exports.updateHubStaff = updateHubStaff;
 const deleteHubStaff = async (req, res) => {
     try {
-        const hubId = req.user?.id;
+        const hubId = await hubOf(req);
         if (!hubId)
             return res.status(401).json({ success: false, message: 'Unauthorized' });
         const result = await hubManageStaffService.deleteHubStaff(hubId, req.params.id);
@@ -121,7 +129,7 @@ const deleteHubStaff = async (req, res) => {
 exports.deleteHubStaff = deleteHubStaff;
 const updateHubStaffStatus = async (req, res) => {
     try {
-        const hubId = req.user?.id;
+        const hubId = await hubOf(req);
         if (!hubId)
             return res.status(401).json({ success: false, message: 'Unauthorized' });
         const { status } = req.body;

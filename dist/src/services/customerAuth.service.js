@@ -51,7 +51,7 @@ exports.customerAuthService = {
         const message = `Your OTP for login is ${otp}. Do not share it with anyone. - FREIGHTREK`;
         const url = `https://site.ping4sms.com/api/smsapi?key=${apiKey}&route=${route}&sender=${sender}&number=${fullPhone}&sms=${encodeURIComponent(message)}&templateid=${templateId}`;
         console.log('[Ping4SMS] URL:', url);
-        const smsResponse = await axios_1.default.get(url);
+        const smsResponse = await axios_1.default.get(url, { timeout: 10000 });
         console.log('[Ping4SMS] Response:', JSON.stringify(smsResponse.data));
         const responseData = smsResponse.data;
         const responseStr = typeof responseData === 'string' ? responseData : JSON.stringify(responseData);
@@ -89,7 +89,7 @@ exports.customerAuthService = {
         const message = `Your OTP for login is ${otp}. Do not share it with anyone. - FREIGHTREK`;
         const url = `https://site.ping4sms.com/api/smsapi?key=${apiKey}&route=${route}&sender=${sender}&number=${fullPhone}&sms=${encodeURIComponent(message)}&templateid=${templateId}`;
         console.log('[Ping4SMS] URL:', url);
-        const smsResponse = await axios_1.default.get(url);
+        const smsResponse = await axios_1.default.get(url, { timeout: 10000 });
         console.log('[Ping4SMS] Response:', JSON.stringify(smsResponse.data));
         // Ping4SMS returns error codes in the body (still HTTP 200)
         const responseData = smsResponse.data;

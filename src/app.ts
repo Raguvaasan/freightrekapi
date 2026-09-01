@@ -18,10 +18,12 @@ import customerAuthRoutes from "./routes/customer/auth.routes";
 import customerEmailAuthRoutes from "./routes/customer/emailAuth.routes";
 import ltlShipmentRoutes from "./routes/ltlShipment.routes";
 import hubOrderRoutes from "./routes/hub/order.routes";
+import hubParcelOrderRoutes from "./routes/hub/parcelOrder.routes";
 import hubStaffRoutes from "./routes/hub/hubStaff.routes";
 import hubDashboardRoutes from "./routes/hub/dashboard.routes";
 import hubRoleRoutes from "./routes/hub/hubRole.routes";
 import hubManageStaffRoutes from "./routes/hub/hubManageStaff.routes";
+import hubInvoiceRoutes from "./routes/hub/invoice.routes";
 import b2bAuthRoutes from "./routes/b2b/auth.routes";
 import b2bMarkupRoutes from "./routes/b2b/b2bMarkup.routes";
 import { cashfreeWebhook } from "./controllers/wallet.controller";
@@ -32,10 +34,10 @@ import { responseTimeMiddleware } from "./middleware/responseTime.middleware";
 
 const app = express();
 
-app.use(responseTimeMiddleware);
-app.use(express.json());
-
 // CORS configuration for frontend API access
+// Registered before any body parser so the headers are present even when a
+// request fails early (malformed JSON, payload too large, etc.) — otherwise the
+// browser reports a CORS error instead of the real status.
 const configuredOrigins = (process.env.CORS_ORIGIN || '*')
   .split(',')
   .map((origin) => origin.trim())
@@ -45,15 +47,26 @@ app.use((req, res, next) => {
   const requestOrigin = req.headers.origin;
   const allowAllOrigins = configuredOrigins.includes('*');
 
-  if (allowAllOrigins) {
-    res.header('Access-Control-Allow-Origin', '*');
-  } else if (requestOrigin && configuredOrigins.includes(requestOrigin)) {
+  if (requestOrigin && (allowAllOrigins || configuredOrigins.includes(requestOrigin))) {
+    // Echo the origin (never '*') so credentialed requests are also accepted
     res.header('Access-Control-Allow-Origin', requestOrigin);
+    res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Vary', 'Origin');
+  } else if (allowAllOrigins) {
+    res.header('Access-Control-Allow-Origin', '*');
   }
 
   res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  // Reflect whatever the preflight asked for so custom headers don't fail
+  const requestedHeaders = req.headers['access-control-request-headers'];
+  res.header(
+    'Access-Control-Allow-Headers',
+    typeof requestedHeaders === 'string' && requestedHeaders
+      ? requestedHeaders
+      : 'Content-Type, Authorization'
+  );
+  res.header('Access-Control-Expose-Headers', 'X-Response-Time');
+  res.header('Access-Control-Max-Age', '86400');
 
   if (req.method === 'OPTIONS') {
     return res.sendStatus(204);
@@ -61,6 +74,9 @@ app.use((req, res, next) => {
 
   return next();
 });
+
+app.use(responseTimeMiddleware);
+app.use(express.json());
 
 // Serve static files (for HTML page)
 app.use(express.static(path.join(__dirname, '../public')));
@@ -162,10 +178,13 @@ app.use("/api/customers", customerRoutes);
 app.use("/api/customer/auth", customerAuthRoutes);
 app.use("/api/customer/email-auth", customerEmailAuthRoutes);
 app.use("/hub/orders", hubOrderRoutes);
+app.use("/hub/parcel-order", hubParcelOrderRoutes);
 app.use("/hub/staff", hubStaffRoutes);
 app.use("/hub/role", hubRoleRoutes);
 app.use("/hub/manage/staff", hubManageStaffRoutes);
 app.use("/hub/dashboard", hubDashboardRoutes);
+// Read-only: the invoices for the parcels routed through this hub
+app.use("/hub/invoice", hubInvoiceRoutes);
 app.use("/b2b/auth", b2bAuthRoutes);
 app.use("/b2b/markup", b2bMarkupRoutes);
 
