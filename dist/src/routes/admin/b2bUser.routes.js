@@ -2,9 +2,10 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const auth_middleware_1 = require("../../middleware/auth.middleware");
-const order_controller_1 = require("../../controllers/b2b/order.controller");
+const register_controller_1 = require("../../controllers/b2b/register.controller");
 const router = (0, express_1.Router)();
 router.use(auth_middleware_1.authMiddleware);
-router.get('/', order_controller_1.listAdminB2bOrders);
-router.get('/:id', order_controller_1.getAdminB2bOrder);
+router.get('/', register_controller_1.listB2bUsers);
+router.get('/:id', register_controller_1.getB2bUser);
+router.put('/:id', register_controller_1.updateB2bUser);
 exports.default = router;

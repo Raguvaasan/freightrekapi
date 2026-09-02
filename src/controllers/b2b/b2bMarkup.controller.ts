@@ -136,7 +136,7 @@ export const createOrUpdateB2bRateCardMarkup = async (req: Request, res: Respons
  */
 export const deleteB2bMarkup = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const currentUserId = (req as any).user.id;
 
     const result = await b2bMarkupService.deleteMarkup(id, currentUserId);

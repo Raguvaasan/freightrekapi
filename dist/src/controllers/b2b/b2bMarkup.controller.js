@@ -123,7 +123,7 @@ exports.createOrUpdateB2bRateCardMarkup = createOrUpdateB2bRateCardMarkup;
  */
 const deleteB2bMarkup = async (req, res) => {
     try {
-        const { id } = req.params;
+        const id = req.params.id;
         const currentUserId = req.user.id;
         const result = await b2bMarkup_service_1.b2bMarkupService.deleteMarkup(id, currentUserId);
         if (!result.success) {

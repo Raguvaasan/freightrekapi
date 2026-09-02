@@ -19,7 +19,7 @@ export const getAllCustomerUsers = async (req: Request, res: Response) => {
 
 export const updateCustomerUser = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+   const id = req.params.id as string;
     const result = await customerUserService.updateCustomerUser(id, req.body);
     if (!result.success) {
       return res.status(400).json({ success: false, message: result.message });
@@ -32,7 +32,7 @@ export const updateCustomerUser = async (req: Request, res: Response) => {
 
 export const deleteCustomerUser = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const result = await customerUserService.deleteCustomerUser(id);
     if (!result.success) {
       return res.status(400).json({ success: false, message: result.message });

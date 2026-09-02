@@ -8,6 +8,6 @@ router.use(auth_middleware_1.authMiddleware);
 router.post('/draft', order_controller_1.createB2bOrderDraft);
 router.get('/draft/:id/step2', order_controller_1.getB2bDraftStep2Details);
 router.post('/draft/:id/confirm', order_controller_1.confirmB2bOrder);
-router.get('/:id', order_controller_1.getB2bOrder);
 router.get('/', order_controller_1.listB2bOrders);
+router.get('/:id', order_controller_1.getB2bOrder);
 exports.default = router;

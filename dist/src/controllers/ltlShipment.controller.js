@@ -68,7 +68,7 @@ exports.createLtlShipment = createLtlShipment;
 const getLtlShipment = async (req, res) => {
     try {
         const userId = req.user?.id;
-        const { orderId } = req.params;
+        const orderId = req.params.id;
         if (!userId) {
             return res.status(401).json({ success: false, message: 'User not authenticated' });
         }
@@ -117,7 +117,7 @@ exports.getLtlShipments = getLtlShipments;
 const updateLtlShipment = async (req, res) => {
     try {
         const userId = req.user?.id;
-        const { orderId } = req.params;
+        const orderId = req.params.id;
         if (!userId) {
             return res.status(401).json({ success: false, message: 'User not authenticated' });
         }
@@ -146,7 +146,7 @@ exports.updateLtlShipment = updateLtlShipment;
 const deleteLtlShipment = async (req, res) => {
     try {
         const userId = req.user?.id;
-        const { orderId } = req.params;
+        const orderId = req.params.id;
         if (!userId) {
             return res.status(401).json({ success: false, message: 'User not authenticated' });
         }

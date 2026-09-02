@@ -52,7 +52,7 @@ const getAllCustomerUsers = async (req, res) => {
 exports.getAllCustomerUsers = getAllCustomerUsers;
 const updateCustomerUser = async (req, res) => {
     try {
-        const { id } = req.params;
+        const id = req.params.id;
         const result = await customerUserService.updateCustomerUser(id, req.body);
         if (!result.success) {
             return res.status(400).json({ success: false, message: result.message });
@@ -66,7 +66,7 @@ const updateCustomerUser = async (req, res) => {
 exports.updateCustomerUser = updateCustomerUser;
 const deleteCustomerUser = async (req, res) => {
     try {
-        const { id } = req.params;
+        const id = req.params.id;
         const result = await customerUserService.deleteCustomerUser(id);
         if (!result.success) {
             return res.status(400).json({ success: false, message: result.message });

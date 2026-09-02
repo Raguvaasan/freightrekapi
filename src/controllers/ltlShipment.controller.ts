@@ -73,7 +73,7 @@ export const createLtlShipment = async (req: Request, res: Response) => {
 export const getLtlShipment = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
-    const { orderId } = req.params;
+    const orderId = req.params.id as string;
 
     if (!userId) {
       return res.status(401).json({ success: false, message: 'User not authenticated' });
@@ -130,7 +130,7 @@ export const getLtlShipments = async (req: Request, res: Response) => {
 export const updateLtlShipment = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
-    const { orderId } = req.params;
+    const orderId = req.params.id as string;
 
     if (!userId) {
       return res.status(401).json({ success: false, message: 'User not authenticated' });
@@ -163,7 +163,7 @@ export const updateLtlShipment = async (req: Request, res: Response) => {
 export const deleteLtlShipment = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
-    const { orderId } = req.params;
+    const orderId = req.params.id as string;
 
     if (!userId) {
       return res.status(401).json({ success: false, message: 'User not authenticated' });
