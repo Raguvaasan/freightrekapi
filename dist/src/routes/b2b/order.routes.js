@@ -1,0 +1,13 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const auth_middleware_1 = require("../../middleware/auth.middleware");
+const order_controller_1 = require("../../controllers/b2b/order.controller");
+const router = (0, express_1.Router)();
+router.use(auth_middleware_1.authMiddleware);
+router.post('/draft', order_controller_1.createB2bOrderDraft);
+router.get('/draft/:id/step2', order_controller_1.getB2bDraftStep2Details);
+router.post('/draft/:id/confirm', order_controller_1.confirmB2bOrder);
+router.get('/:id', order_controller_1.getB2bOrder);
+router.get('/', order_controller_1.listB2bOrders);
+exports.default = router;

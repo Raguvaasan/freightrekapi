@@ -1,0 +1,14 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const auth_middleware_1 = require("../../middleware/auth.middleware");
+const vehicle_controller_1 = require("../../controllers/b2b/vehicle.controller");
+const router = (0, express_1.Router)();
+router.use(auth_middleware_1.authMiddleware);
+router.post('/', vehicle_controller_1.createB2bVehicle);
+router.get('/', vehicle_controller_1.listB2bVehicles);
+router.get('/:id', vehicle_controller_1.getB2bVehicle);
+router.put('/:id', vehicle_controller_1.updateB2bVehicle);
+router.patch('/:id/deactivate', vehicle_controller_1.deactivateB2bVehicle);
+router.delete('/:id', vehicle_controller_1.deleteB2bVehicle);
+exports.default = router;

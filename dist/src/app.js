@@ -30,6 +30,9 @@ const hubRole_routes_1 = __importDefault(require("./routes/hub/hubRole.routes"))
 const hubManageStaff_routes_1 = __importDefault(require("./routes/hub/hubManageStaff.routes"));
 const invoice_routes_1 = __importDefault(require("./routes/hub/invoice.routes"));
 const auth_routes_2 = __importDefault(require("./routes/b2b/auth.routes"));
+const vehicle_routes_1 = __importDefault(require("./routes/b2b/vehicle.routes"));
+const order_routes_2 = __importDefault(require("./routes/b2b/order.routes"));
+const b2bOrder_routes_1 = __importDefault(require("./routes/admin/b2bOrder.routes"));
 const b2bMarkup_routes_1 = __importDefault(require("./routes/b2b/b2bMarkup.routes"));
 const wallet_controller_1 = require("./controllers/wallet.controller");
 const delhivery_webhook_controller_1 = require("./controllers/delhivery.webhook.controller");
@@ -174,6 +177,9 @@ app.use("/hub/dashboard", dashboard_routes_3.default);
 // Read-only: the invoices for the parcels routed through this hub
 app.use("/hub/invoice", invoice_routes_1.default);
 app.use("/b2b/auth", auth_routes_2.default);
+app.use("/b2b/vehicles", vehicle_routes_1.default);
+app.use("/b2b/orders", order_routes_2.default);
+app.use("/admin/b2b/orders", b2bOrder_routes_1.default);
 app.use("/b2b/markup", b2bMarkup_routes_1.default);
 // Mobile team markup routes (no /api prefix, proxy-friendly)
 app.use("/v1/settings", markup_routes_1.default);

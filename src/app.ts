@@ -25,6 +25,10 @@ import hubRoleRoutes from "./routes/hub/hubRole.routes";
 import hubManageStaffRoutes from "./routes/hub/hubManageStaff.routes";
 import hubInvoiceRoutes from "./routes/hub/invoice.routes";
 import b2bAuthRoutes from "./routes/b2b/auth.routes";
+import b2bVehicleRoutes from "./routes/b2b/vehicle.routes";
+import b2bOrderRoutes from "./routes/b2b/order.routes";
+import adminB2bOrderRoutes from "./routes/admin/b2bOrder.routes";
+import adminB2bUserRoutes from "./routes/admin/b2bUser.routes";
 import b2bMarkupRoutes from "./routes/b2b/b2bMarkup.routes";
 import { cashfreeWebhook } from "./controllers/wallet.controller";
 import { delhiveryWebhook } from "./controllers/delhivery.webhook.controller";
@@ -186,6 +190,10 @@ app.use("/hub/dashboard", hubDashboardRoutes);
 // Read-only: the invoices for the parcels routed through this hub
 app.use("/hub/invoice", hubInvoiceRoutes);
 app.use("/b2b/auth", b2bAuthRoutes);
+app.use("/b2b/vehicles", b2bVehicleRoutes);
+app.use("/b2b/orders", b2bOrderRoutes);
+app.use("/admin/b2b/orders", adminB2bOrderRoutes);
+app.use("/admin/b2b/users", adminB2bUserRoutes);
 app.use("/b2b/markup", b2bMarkupRoutes);
 
 // Mobile team markup routes (no /api prefix, proxy-friendly)
