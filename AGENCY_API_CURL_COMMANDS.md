@@ -17,6 +17,17 @@ curl -X POST http://localhost:3000/admin/auth/login \
 # Copy the token from response and use it below
 # Replace YOUR_JWT_TOKEN with actual token
 
+# Agency demo OTP login (Play Store testing)
+# Default demo phone: 9999999999
+# Fixed OTP: 123456
+curl -X POST http://localhost:3000/admin/agency/login/send-otp `
+  -H "Content-Type: application/json" `
+  -d '{"phone":"9999999999","countryCode":"+91"}'
+
+curl -X POST http://localhost:3000/admin/agency/login/verify-otp `
+  -H "Content-Type: application/json" `
+  -d '{"phone":"9999999999","countryCode":"+91","otp":"123456"}'
+
 # =============================================================================
 # STEP 2: Create a Hub (if not exists) - Required for Agency
 # =============================================================================

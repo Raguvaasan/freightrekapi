@@ -7,6 +7,9 @@ export const b2bVehicleService = {
   async create(payload: any) {
     const vehicle = await B2bVehicle.create({
       vehicleType: payload.vehicleType,
+      registrationNumber: payload.registrationNumber,
+      insuranceNumber: payload.insuranceNumber,
+      rcNumber: payload.rcNumber,
       capacityKg: toNumber(payload.capacity),
       ratePerKm: Number(payload.ratePerKm),
       status: payload.status || 'Active',
@@ -19,7 +22,12 @@ export const b2bVehicleService = {
     const search = String(query.search || '').trim();
     const status = String(query.status || '').trim();
     const mongoQuery: any = {};
-    if (search) mongoQuery.$or = [{ vehicleType: { $regex: search, $options: 'i' } }];
+    if (search) mongoQuery.$or = [
+      { vehicleType: { $regex: search, $options: 'i' } },
+      { registrationNumber: { $regex: search, $options: 'i' } },
+      { insuranceNumber: { $regex: search, $options: 'i' } },
+      { rcNumber: { $regex: search, $options: 'i' } },
+    ];
     if (status) mongoQuery.status = status;
     const [vehicles, total] = await Promise.all([
       B2bVehicle.find(mongoQuery).skip((page - 1) * limit).limit(limit).sort({ createdAt: -1 }),
@@ -37,6 +45,9 @@ export const b2bVehicleService = {
     if (!Types.ObjectId.isValid(id)) return { success: false, message: 'Invalid vehicle ID' };
     const vehicle = await B2bVehicle.findByIdAndUpdate(id, {
       ...(payload.vehicleType !== undefined ? { vehicleType: payload.vehicleType } : {}),
+      ...(payload.registrationNumber !== undefined ? { registrationNumber: payload.registrationNumber } : {}),
+      ...(payload.insuranceNumber !== undefined ? { insuranceNumber: payload.insuranceNumber } : {}),
+      ...(payload.rcNumber !== undefined ? { rcNumber: payload.rcNumber } : {}),
       ...(payload.capacity !== undefined ? { capacityKg: toNumber(payload.capacity) } : {}),
       ...(payload.ratePerKm !== undefined ? { ratePerKm: Number(payload.ratePerKm) } : {}),
       ...(payload.status !== undefined ? { status: payload.status } : {}),

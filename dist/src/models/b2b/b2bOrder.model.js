@@ -1,10 +1,13 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.B2bOrder = void 0;
+exports.B2bOrder = exports.B2B_ORDER_STATUSES = void 0;
 const mongoose_1 = require("mongoose");
+exports.B2B_ORDER_STATUSES = ['DRAFT', 'CONFIRMED', 'ORDER_CREATED', 'IN_TRANSIT', 'DELIVERED', 'FAILED', 'CANCELLED'];
 const b2bOrderSchema = new mongoose_1.Schema({
     b2bUserId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'B2bUser', required: true, index: true },
-    status: { type: String, enum: ['DRAFT', 'CONFIRMED', 'CANCELLED'], default: 'DRAFT', index: true },
+    lrNo: { type: String, trim: true, uppercase: true, index: true, unique: true, sparse: true },
+    waybill: { type: String, trim: true, uppercase: true },
+    status: { type: String, enum: exports.B2B_ORDER_STATUSES, default: 'DRAFT', index: true },
     bookingCustomer: {
         name: { type: String, required: true, trim: true },
         phoneNumber: { type: String, required: true, trim: true },
@@ -19,6 +22,12 @@ const b2bOrderSchema = new mongoose_1.Schema({
     },
     shipment: {
         approximateWeight: { type: Number, required: true, min: 0 },
+    },
+    driverId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Driver' },
+    driver: {
+        driverName: { type: String, trim: true },
+        phoneNumber: { type: String, trim: true },
+        licenseNumber: { type: String, trim: true, uppercase: true },
     },
     selectedVehicleId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'B2bVehicle' },
     selectedVehicle: {

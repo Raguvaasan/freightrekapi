@@ -8,6 +8,7 @@ const transaction_model_1 = require("../../models/wallet/transaction.model");
 const hub_model_1 = require("../../models/hub/hub.model");
 const parcelOrder_model_1 = require("../../models/admin/parcelOrder.model");
 const parcelSettlement_model_1 = require("../../models/admin/parcelSettlement.model");
+const b2bOrder_model_1 = require("../../models/b2b/b2bOrder.model");
 const walletLedger_1 = require("../../utils/walletLedger");
 /**
  * How the three parcel payment types are labelled on the dashboard chart.
@@ -192,13 +193,25 @@ class AdminDashboardService {
                     },
                 },
             ]);
-            const [totalAgencies, activeAgencies, totalHubs, activeHubs, allTime, today, paymentTypeRows, topAgencyRows, recentOrders, walletSummary,] = await Promise.all([
+            const b2bTotalsFor = (match) => b2bOrder_model_1.B2bOrder.aggregate([
+                { $match: match },
+                {
+                    $group: {
+                        _id: null,
+                        orders: { $sum: 1 },
+                        revenue: { $sum: { $ifNull: ['$totalAmount', 0] } },
+                    },
+                },
+            ]);
+            const [totalAgencies, activeAgencies, totalHubs, activeHubs, allTime, today, b2bAllTime, b2bToday, paymentTypeRows, topAgencyRows, recentOrders, walletSummary,] = await Promise.all([
                 agency_model_1.Agency.countDocuments(),
                 agency_model_1.Agency.countDocuments({ status: 'Active' }),
                 hub_model_1.HubModel.countDocuments(),
                 hub_model_1.HubModel.countDocuments({ status: true }),
                 totalsFor({}),
                 totalsFor({ createdAt: { $gte: todayStart } }),
+                b2bTotalsFor({}),
+                b2bTotalsFor({ createdAt: { $gte: todayStart } }),
                 // 7. Payment split — Prepaid / ToPay / Credit
                 parcelOrder_model_1.ParcelOrder.aggregate([
                     { $match: periodMatch },
@@ -227,6 +240,8 @@ class AdminDashboardService {
             ]);
             const totals = allTime[0] || { orders: 0, revenue: 0 };
             const todayTotals = today[0] || { orders: 0, revenue: 0 };
+            const b2bTotals = b2bAllTime[0] || { orders: 0, revenue: 0 };
+            const b2bTodayTotals = b2bToday[0] || { orders: 0, revenue: 0 };
             // Always report all three payment types, even the ones with no bookings —
             // a chart that silently drops an empty slice reads as if it does not exist
             const byType = new Map(paymentTypeRows.map((row) => [row._id, row]));
@@ -252,6 +267,10 @@ class AdminDashboardService {
                         totalRevenue: (0, walletLedger_1.round2)(totals.revenue),
                         todayOrders: todayTotals.orders,
                         todayRevenue: (0, walletLedger_1.round2)(todayTotals.revenue),
+                        totalB2bOrders: b2bTotals.orders,
+                        totalB2bRevenue: (0, walletLedger_1.round2)(b2bTotals.revenue),
+                        todayB2bOrders: b2bTodayTotals.orders,
+                        todayB2bRevenue: (0, walletLedger_1.round2)(b2bTodayTotals.revenue),
                         currency: '₹',
                     },
                     paymentTypeDistribution,

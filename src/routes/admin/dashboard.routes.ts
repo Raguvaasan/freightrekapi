@@ -40,7 +40,8 @@ router.use(authMiddleware);
  *       200:
  *         description: >
  *           overview { totalAgencies, totalHubs, totalOrders, totalRevenue,
- *           todayOrders, todayRevenue }, paymentTypeDistribution[],
+ *           todayOrders, todayRevenue, totalB2bOrders, totalB2bRevenue,
+ *           todayB2bOrders, todayB2bRevenue }, paymentTypeDistribution[],
  *           recentBookings[], topAgencies[], walletSummary
  */
 router.get('/', getAdminDashboard);

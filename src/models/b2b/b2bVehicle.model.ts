@@ -2,6 +2,9 @@ import { Schema, model } from 'mongoose';
 
 export interface IB2bVehicle {
   vehicleType: string;
+  registrationNumber: string;
+  insuranceNumber: string;
+  rcNumber: string;
   capacityKg: number;
   ratePerKm: number;
   status: 'Active' | 'Inactive';
@@ -12,6 +15,9 @@ export interface IB2bVehicle {
 const b2bVehicleSchema = new Schema<IB2bVehicle>(
   {
     vehicleType: { type: String, required: true, trim: true },
+    registrationNumber: { type: String, required: true, trim: true, uppercase: true },
+    insuranceNumber: { type: String, required: true, trim: true, uppercase: true },
+    rcNumber: { type: String, required: true, trim: true, uppercase: true },
     capacityKg: { type: Number, required: true, min: 0 },
     ratePerKm: { type: Number, required: true, min: 0 },
     status: { type: String, enum: ['Active', 'Inactive'], default: 'Active' },

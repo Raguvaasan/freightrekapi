@@ -8,6 +8,7 @@ const agency_validator_1 = require("../../validators/admin/agency.validator");
 const checkPermission_middleware_1 = require("../../middleware/checkPermission.middleware");
 const objectIdParam_middleware_1 = require("../../middleware/objectIdParam.middleware");
 const adminModule_1 = require("../../config/adminModule");
+const agency_model_1 = require("../../models/admin/agency.model");
 const router = (0, express_1.Router)();
 // `/:id` below would otherwise swallow every unmatched sub-path and answer
 // "Access denied" from the permission check instead of a plain 404
@@ -17,6 +18,25 @@ router.post('/login/send-otp', (0, validate_middleware_1.validate)(agency_valida
 router.post('/login/verify-otp', (0, validate_middleware_1.validate)(agency_validator_1.franchiseVerifyOtpSchema), agency_controller_1.verifyFranchiseOtp);
 // All other routes require authentication
 router.use(auth_middleware_1.authMiddleware);
+const allowAgencySelfOrAdminRead = async (req, res, next) => {
+    try {
+        const actorId = req.user?.id;
+        const agencyId = req.params.id;
+        if (actorId && actorId === agencyId) {
+            const agency = await agency_model_1.Agency.findById(actorId).select('_id');
+            if (agency) {
+                return next();
+            }
+        }
+        return (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.agency_management, 'read')(req, res, next);
+    }
+    catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error.message || 'Error checking agency access',
+        });
+    }
+};
 /**
  * @swagger
  * /admin/agency:
@@ -170,7 +190,7 @@ router.get('/', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.
  *         description: Agency not found
  */
 // Get agency by ID
-router.get('/:id', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.agency_management, 'read'), (0, validate_middleware_1.validate)(agency_validator_1.getAgencyByIdSchema), agency_controller_1.getAgencyById);
+router.get('/:id', allowAgencySelfOrAdminRead, (0, validate_middleware_1.validate)(agency_validator_1.getAgencyByIdSchema), agency_controller_1.getAgencyById);
 // Update agency
 router.put('/:id', (0, checkPermission_middleware_1.checkPermission)(adminModule_1.adminModule.agency_management, 'update'), (0, validate_middleware_1.validate)(agency_validator_1.updateAgencySchema), agency_controller_1.updateAgency);
 /**

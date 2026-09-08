@@ -30,7 +30,8 @@ router.use(auth_middleware_1.authMiddleware);
  *       200:
  *         description: >
  *           overview { totalAgencies, totalHubs, totalOrders, totalRevenue,
- *           todayOrders, todayRevenue }, paymentTypeDistribution[],
+ *           todayOrders, todayRevenue, totalB2bOrders, totalB2bRevenue,
+ *           todayB2bOrders, todayB2bRevenue }, paymentTypeDistribution[],
  *           recentBookings[], topAgencies[], walletSummary
  */
 router.get('/', dashboard_controller_1.getAdminDashboard);
@@ -47,7 +48,7 @@ router.get('/', dashboard_controller_1.getAdminDashboard);
  *         schema: { type: integer, default: 5 }
  *       - in: query
  *         name: period
- *         schema: { type: string, enum: [today, week, month, year, all], default: all }
+ *         schema: { type: string, enum: [day, today, week, month, year, all], default: all }
  *     responses:
  *       200:
  *         description: "agencies[] with agencyId, agencyName, city, orders, revenue"

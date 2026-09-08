@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.listB2bUsers = exports.updateB2bUser = exports.getB2bUser = exports.updateB2bProfile = exports.getB2bProfile = exports.registerB2b = void 0;
+exports.listB2bUsers = exports.updateB2bUser = exports.getB2bCustomerDetails = exports.getB2bUser = exports.updateB2bProfile = exports.getB2bProfile = exports.registerB2b = void 0;
 const auth_service_1 = require("../../services/b2b/auth.service");
 const registerB2b = async (req, res) => {
     const result = await auth_service_1.b2bAuthService.register(req.body);
@@ -13,6 +13,11 @@ const updateB2bProfile = async (req, res) => res.json(await auth_service_1.b2bAu
 exports.updateB2bProfile = updateB2bProfile;
 const getB2bUser = async (req, res) => res.json(await auth_service_1.b2bAuthService.getById(String(req.params.id)));
 exports.getB2bUser = getB2bUser;
+const getB2bCustomerDetails = async (req, res) => {
+    const result = await auth_service_1.b2bAuthService.getCustomerDetails(String(req.params.id), req.query);
+    return res.status(result.success ? 200 : result.code || 400).json(result);
+};
+exports.getB2bCustomerDetails = getB2bCustomerDetails;
 const updateB2bUser = async (req, res) => res.json(await auth_service_1.b2bAuthService.update(String(req.params.id), req.body));
 exports.updateB2bUser = updateB2bUser;
 const listB2bUsers = async (req, res) => res.json(await auth_service_1.b2bAuthService.list(req.query));

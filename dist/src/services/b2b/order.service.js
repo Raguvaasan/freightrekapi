@@ -4,6 +4,8 @@ exports.b2bOrderService = void 0;
 const mongoose_1 = require("mongoose");
 const b2bOrder_model_1 = require("../../models/b2b/b2bOrder.model");
 const b2bVehicle_model_1 = require("../../models/b2b/b2bVehicle.model");
+const driver_model_1 = require("../../models/admin/driver.model");
+const b2bInvoice_model_1 = require("../../models/b2b/b2bInvoice.model");
 const pincode = require('bharat-pincode');
 const distanceBetween = (fromPin, toPin) => {
     const dist = pincode.distanceBetween(fromPin, toPin);
@@ -11,10 +13,27 @@ const distanceBetween = (fromPin, toPin) => {
         throw new Error('Unable to calculate distance for the provided pincodes');
     return Number(dist.toFixed(2));
 };
+const formatOrderNumber = (seq) => {
+    const digits = String(seq).padStart(9, '0').slice(-9);
+    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+};
 exports.b2bOrderService = {
+    async generateLrNo() {
+        const count = await b2bOrder_model_1.B2bOrder.countDocuments();
+        let seq = count + 1;
+        let lrNo = formatOrderNumber(seq);
+        while (await b2bOrder_model_1.B2bOrder.exists({ lrNo })) {
+            seq += 1;
+            lrNo = formatOrderNumber(seq);
+        }
+        return lrNo;
+    },
     async createDraft(userId, payload) {
+        const lrNo = await this.generateLrNo();
         const order = await b2bOrder_model_1.B2bOrder.create({
             b2bUserId: userId,
+            lrNo,
+            waybill: payload.waybill ? String(payload.waybill).trim().toUpperCase() : undefined,
             status: 'DRAFT',
             bookingCustomer: payload.bookingCustomer,
             deliveryCustomer: payload.deliveryCustomer,
@@ -61,7 +80,7 @@ exports.b2bOrderService = {
             return { success: false, message: 'No suitable vehicle found' };
         const distanceKm = distanceBetween(order.bookingCustomer.pincode, order.deliveryCustomer.pincode);
         const totalAmount = Number((distanceKm * vehicle.ratePerKm).toFixed(2));
-        order.status = 'CONFIRMED';
+        order.status = 'ORDER_CREATED';
         order.selectedVehicleId = vehicle._id;
         order.selectedVehicle = { vehicleType: vehicle.vehicleType, capacityKg: vehicle.capacityKg };
         order.distanceKm = distanceKm;
@@ -70,16 +89,71 @@ exports.b2bOrderService = {
         await order.save();
         return { success: true, message: 'B2B order confirmed successfully', data: order };
     },
+    async assignDriver(orderId, userId, driverId) {
+        if (!mongoose_1.Types.ObjectId.isValid(orderId))
+            return { success: false, message: 'Invalid order ID' };
+        if (!mongoose_1.Types.ObjectId.isValid(driverId))
+            return { success: false, message: 'Invalid driver ID' };
+        const order = await b2bOrder_model_1.B2bOrder.findOne({ _id: orderId, ...(userId ? { b2bUserId: userId } : {}) });
+        if (!order)
+            return { success: false, message: 'Order not found' };
+        const driver = await driver_model_1.Driver.findOne({ _id: driverId, status: 'Active' });
+        if (!driver)
+            return { success: false, message: 'Active driver not found' };
+        order.driverId = driver._id;
+        order.driver = {
+            driverName: driver.driverName,
+            phoneNumber: driver.phoneNumber,
+            licenseNumber: driver.licenseNumber,
+        };
+        await order.save();
+        await b2bInvoice_model_1.B2bInvoice.updateOne({ order: order._id }, {
+            $set: {
+                driver: order.driver,
+            },
+        });
+        return { success: true, message: 'Driver assigned successfully', data: order };
+    },
+    async updateStatus(orderId, status) {
+        if (!mongoose_1.Types.ObjectId.isValid(orderId))
+            return { success: false, message: 'Invalid order ID' };
+        const normalizedStatus = String(status).trim().toUpperCase();
+        if (!b2bOrder_model_1.B2B_ORDER_STATUSES.includes(normalizedStatus)) {
+            return { success: false, message: `Status must be one of: ${b2bOrder_model_1.B2B_ORDER_STATUSES.join(', ')}` };
+        }
+        const order = await b2bOrder_model_1.B2bOrder.findById(orderId);
+        if (!order)
+            return { success: false, message: 'Order not found' };
+        order.status = normalizedStatus;
+        await order.save();
+        await b2bInvoice_model_1.B2bInvoice.updateOne({ order: order._id }, { $set: { orderStatus: normalizedStatus } });
+        return { success: true, message: 'Order status updated successfully', data: order };
+    },
     async getById(orderId, userId) {
         if (!mongoose_1.Types.ObjectId.isValid(orderId))
             return { success: false, message: 'Invalid order ID' };
         const query = { _id: orderId };
         if (userId)
             query.b2bUserId = userId;
-        const order = await b2bOrder_model_1.B2bOrder.findOne(query).populate('selectedVehicleId');
+        const order = await b2bOrder_model_1.B2bOrder.findOne(query)
+            .populate('selectedVehicleId', 'vehicleType capacityKg ratePerKm status')
+            .populate('driverId', 'driverName phoneNumber licenseNumber status');
         if (!order)
             return { success: false, message: 'Order not found' };
         return { success: true, data: order };
+    },
+    async getDriverOptions(query = {}) {
+        const filter = { status: 'Active' };
+        if (query.search) {
+            const search = String(query.search).trim();
+            filter.$or = [
+                { driverName: { $regex: search, $options: 'i' } },
+                { phoneNumber: { $regex: search, $options: 'i' } },
+                { licenseNumber: { $regex: search, $options: 'i' } },
+            ];
+        }
+        const drivers = await driver_model_1.Driver.find(filter).select('_id driverName').sort({ driverName: 1 });
+        return { success: true, data: drivers };
     },
     async list(userId, query = {}) {
         const page = Math.max(Number(query.page) || 1, 1);
@@ -135,6 +209,7 @@ exports.b2bOrderService = {
             b2bOrder_model_1.B2bOrder.find(filter)
                 .populate('b2bUserId', 'name mobileNumber gstNumber state pincode status')
                 .populate('selectedVehicleId', 'vehicleType capacityKg ratePerKm status')
+                .populate('driverId', 'driverName phoneNumber licenseNumber status')
                 .skip((page - 1) * limit)
                 .limit(limit)
                 .sort({ createdAt: -1 }),

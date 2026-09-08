@@ -25,6 +25,7 @@ import {
 import { checkPermission } from '../../middleware/checkPermission.middleware';
 import { objectIdParam } from '../../middleware/objectIdParam.middleware';
 import { adminModule } from '../../config/adminModule';
+import { Agency } from '../../models/admin/agency.model';
 
 const router = Router();
 
@@ -38,6 +39,27 @@ router.post('/login/verify-otp', validate(franchiseVerifyOtpSchema), verifyFranc
 
 // All other routes require authentication
 router.use(authMiddleware);
+
+const allowAgencySelfOrAdminRead = async (req: any, res: any, next: any) => {
+  try {
+    const actorId = req.user?.id;
+    const agencyId = req.params.id;
+
+    if (actorId && actorId === agencyId) {
+      const agency = await Agency.findById(actorId).select('_id');
+      if (agency) {
+        return next();
+      }
+    }
+
+    return checkPermission(adminModule.agency_management, 'read')(req, res, next);
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Error checking agency access',
+    });
+  }
+};
 
 /**
  * @swagger
@@ -205,7 +227,7 @@ router.get(
 // Get agency by ID
 router.get(
   '/:id',
-  checkPermission(adminModule.agency_management, 'read'),
+  allowAgencySelfOrAdminRead,
   validate(getAgencyByIdSchema),
   getAgencyById
 );

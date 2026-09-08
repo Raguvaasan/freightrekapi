@@ -5,6 +5,7 @@ import { Transaction } from '../../models/wallet/transaction.model';
 import { HubModel } from '../../models/hub/hub.model';
 import { ParcelOrder, PAYMENT_TYPES } from '../../models/admin/parcelOrder.model';
 import { ParcelSettlement } from '../../models/admin/parcelSettlement.model';
+import { B2bOrder } from '../../models/b2b/b2bOrder.model';
 import { round2 } from '../../utils/walletLedger';
 
 interface ServiceResponse {
@@ -216,6 +217,18 @@ export class AdminDashboardService {
           },
         ]);
 
+      const b2bTotalsFor = (match: any) =>
+        B2bOrder.aggregate([
+          { $match: match },
+          {
+            $group: {
+              _id: null,
+              orders: { $sum: 1 },
+              revenue: { $sum: { $ifNull: ['$totalAmount', 0] } },
+            },
+          },
+        ]);
+
       const [
         totalAgencies,
         activeAgencies,
@@ -223,6 +236,8 @@ export class AdminDashboardService {
         activeHubs,
         allTime,
         today,
+        b2bAllTime,
+        b2bToday,
         paymentTypeRows,
         topAgencyRows,
         recentOrders,
@@ -234,6 +249,8 @@ export class AdminDashboardService {
         HubModel.countDocuments({ status: true }),
         totalsFor({}),
         totalsFor({ createdAt: { $gte: todayStart } }),
+        b2bTotalsFor({}),
+        b2bTotalsFor({ createdAt: { $gte: todayStart } }),
 
         // 7. Payment split — Prepaid / ToPay / Credit
         ParcelOrder.aggregate([
@@ -269,6 +286,8 @@ export class AdminDashboardService {
 
       const totals = allTime[0] || { orders: 0, revenue: 0 };
       const todayTotals = today[0] || { orders: 0, revenue: 0 };
+      const b2bTotals = b2bAllTime[0] || { orders: 0, revenue: 0 };
+      const b2bTodayTotals = b2bToday[0] || { orders: 0, revenue: 0 };
 
       // Always report all three payment types, even the ones with no bookings —
       // a chart that silently drops an empty slice reads as if it does not exist
@@ -297,6 +316,10 @@ export class AdminDashboardService {
             totalRevenue: round2(totals.revenue),
             todayOrders: todayTotals.orders,
             todayRevenue: round2(todayTotals.revenue),
+            totalB2bOrders: b2bTotals.orders,
+            totalB2bRevenue: round2(b2bTotals.revenue),
+            todayB2bOrders: b2bTodayTotals.orders,
+            todayB2bRevenue: round2(b2bTodayTotals.revenue),
             currency: '₹',
           },
           paymentTypeDistribution,

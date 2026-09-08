@@ -32,7 +32,9 @@ const invoice_routes_1 = __importDefault(require("./routes/hub/invoice.routes"))
 const auth_routes_2 = __importDefault(require("./routes/b2b/auth.routes"));
 const vehicle_routes_1 = __importDefault(require("./routes/b2b/vehicle.routes"));
 const order_routes_2 = __importDefault(require("./routes/b2b/order.routes"));
+const invoice_routes_2 = __importDefault(require("./routes/b2b/invoice.routes"));
 const b2bOrder_routes_1 = __importDefault(require("./routes/admin/b2bOrder.routes"));
+const b2bInvoice_routes_1 = __importDefault(require("./routes/admin/b2bInvoice.routes"));
 const b2bUser_routes_1 = __importDefault(require("./routes/admin/b2bUser.routes"));
 const b2bMarkup_routes_1 = __importDefault(require("./routes/b2b/b2bMarkup.routes"));
 const wallet_controller_1 = require("./controllers/wallet.controller");
@@ -180,7 +182,9 @@ app.use("/hub/invoice", invoice_routes_1.default);
 app.use("/b2b/auth", auth_routes_2.default);
 app.use("/b2b/vehicles", vehicle_routes_1.default);
 app.use("/b2b/orders", order_routes_2.default);
+app.use("/b2b/invoice", invoice_routes_2.default);
 app.use("/admin/b2b/orders", b2bOrder_routes_1.default);
+app.use("/admin/b2b/invoice", b2bInvoice_routes_1.default);
 app.use("/admin/b2b/users", b2bUser_routes_1.default);
 app.use("/b2b/markup", b2bMarkup_routes_1.default);
 // Mobile team markup routes (no /api prefix, proxy-friendly)

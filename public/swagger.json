@@ -3822,7 +3822,7 @@
         ],
         "responses": {
           "200": {
-            "description": "overview { totalAgencies, totalHubs, totalOrders, totalRevenue, todayOrders, todayRevenue }, paymentTypeDistribution[], recentBookings[], topAgencies[], walletSummary\n"
+            "description": "overview { totalAgencies, totalHubs, totalOrders, totalRevenue, todayOrders, todayRevenue, totalB2bOrders, totalB2bRevenue, todayB2bOrders, todayB2bRevenue }, paymentTypeDistribution[], recentBookings[], topAgencies[], walletSummary\n"
           }
         }
       }
@@ -3853,6 +3853,7 @@
             "schema": {
               "type": "string",
               "enum": [
+                "day",
                 "today",
                 "week",
                 "month",

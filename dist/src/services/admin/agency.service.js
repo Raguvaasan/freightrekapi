@@ -13,6 +13,9 @@ const jwt_1 = require("../../utils/jwt");
 const otp_model_1 = require("../../models/customer/otp.model");
 const axios_1 = __importDefault(require("axios"));
 const phoneCheck_1 = require("../../utils/phoneCheck");
+const AGENCY_DEMO_PHONE = (process.env.AGENCY_DEMO_PHONE || '9999999999').trim();
+const AGENCY_DEMO_OTP = (process.env.AGENCY_DEMO_OTP || '123456').trim();
+const isDemoAgencyLogin = (phone) => phone.trim() === AGENCY_DEMO_PHONE;
 // Picks the agency that the staff of `agencyBeingDeleted` should move to.
 // Nearest first — same city, then same state — so staff stay with an agency
 // they can realistically work out of; any other active agency is the last
@@ -473,6 +476,12 @@ class AgencyService {
             if (!agency) {
                 return { success: false, message: 'No active franchise account found with this phone number' };
             }
+            if (isDemoAgencyLogin(phone)) {
+                return {
+                    success: true,
+                    message: `Demo OTP sent successfully. Use ${AGENCY_DEMO_OTP} to login.`,
+                };
+            }
             const otp = Math.floor(100000 + Math.random() * 900000).toString();
             const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
             await otp_model_1.Otp.deleteMany({ phone, userType: 'franchise' });
@@ -521,6 +530,36 @@ class AgencyService {
     // OTP Login - Verify OTP
     async verifyLoginOtp(phone, countryCode, otp) {
         try {
+            if (isDemoAgencyLogin(phone)) {
+                if (otp !== AGENCY_DEMO_OTP) {
+                    return { success: false, message: 'Invalid OTP' };
+                }
+                const agency = await agency_model_1.Agency.findOne({ phone, status: 'Active' }).lean();
+                if (!agency) {
+                    return { success: false, message: 'No active franchise account found with this phone number' };
+                }
+                const token = (0, jwt_1.generateToken)(agency._id.toString());
+                return {
+                    success: true,
+                    message: 'Login successful',
+                    token,
+                    data: {
+                        id: agency._id,
+                        agencyName: agency.agencyName,
+                        agencyOwner: agency.agencyOwner,
+                        phone: agency.phone,
+                        email: agency.email,
+                        type: agency.type,
+                        agencyType: agency.type === 'Own',
+                        status: agency.status,
+                        address: agency.address,
+                        city: agency.city,
+                        state: agency.state,
+                        pincode: agency.pincode,
+                        profitPercentage: agency.profitPercentage,
+                    },
+                };
+            }
             const record = await otp_model_1.Otp.findOne({ phone, used: false, userType: 'franchise' }).lean();
             if (!record) {
                 return { success: false, message: 'OTP not found. Please request a new one' };

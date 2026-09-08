@@ -169,8 +169,22 @@ curl -X POST "http://localhost:3000/b2b/orders/draft" \
       "address": "Chennai Office",
       "pincode": "600001"
     },
+    "waybill": "AWB-556677",
     "approximateWeight": 350
   }'
+```
+
+Response now includes the generated `lrNo`, for example:
+
+```json
+{
+  "success": true,
+  "message": "Order draft created successfully",
+  "data": {
+    "lrNo": "000-000-026",
+    "waybill": "AWB-556677"
+  }
+}
 ```
 
 ## 8. Get Draft / Step 2 Details
@@ -206,7 +220,7 @@ Supported B2B-user listing query parameters: `page`, `limit`, `status`, `search`
 ## 12. Admin Order Listing: Search, Filters and Pagination
 
 ```bash
-curl -X GET "http://localhost:3000/admin/b2b/orders?page=1&limit=10&status=CONFIRMED&search=Rahul&b2bUserId=B2B_USER_ID&orderId=ORDER_ID&vehicleId=VEHICLE_ID&bookingPincode=560001&deliveryPincode=600001&vehicleType=Mini%20Truck&minWeight=100&maxWeight=1000&minAmount=1000&maxAmount=10000&minDistance=10&maxDistance=500&startDate=2026-01-01&endDate=2026-12-31" \
+curl -X GET "http://localhost:3000/admin/b2b/orders?page=1&limit=10&search=Rahul&b2bUserId=B2B_USER_ID&orderId=ORDER_ID&vehicleId=VEHICLE_ID&bookingPincode=560001&deliveryPincode=600001&vehicleType=Mini%20Truck&minWeight=100&maxWeight=1000&minAmount=1000&maxAmount=10000&minDistance=10&maxDistance=500&startDate=2026-01-01&endDate=2026-12-31" \
   -H "Authorization: Bearer TOKEN_ADMIN"
 ```
 

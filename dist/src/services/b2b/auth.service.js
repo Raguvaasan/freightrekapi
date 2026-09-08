@@ -9,6 +9,8 @@ const b2bOtp_model_1 = require("../../models/b2b/b2bOtp.model");
 const b2bUser_model_1 = require("../../models/b2b/b2bUser.model");
 const jwt_1 = require("../../utils/jwt");
 const mongoose_1 = require("mongoose");
+const b2bOrder_model_1 = require("../../models/b2b/b2bOrder.model");
+const b2bInvoice_model_1 = require("../../models/b2b/b2bInvoice.model");
 const sendSms = async (mobileNumber, otp, countryCode = '+91') => {
     const apiKey = process.env.PING4SMS_API_KEY;
     const sender = process.env.PING4SMS_SENDER;
@@ -43,6 +45,77 @@ exports.b2bAuthService = {
         if (!user)
             return { success: false, message: 'B2B user not found' };
         return { success: true, data: user };
+    },
+    async getCustomerDetails(id, query = {}) {
+        if (!mongoose_1.Types.ObjectId.isValid(id))
+            return { success: false, code: 400, message: 'Invalid B2B user ID' };
+        const user = await b2bUser_model_1.B2bUser.findById(id).lean();
+        if (!user)
+            return { success: false, code: 404, message: 'B2B user not found' };
+        const page = Math.max(Number(query.page) || 1, 1);
+        const limit = Math.min(Math.max(Number(query.limit) || 10, 1), 100);
+        const filter = { b2bUserId: user._id };
+        if (query.status)
+            filter.status = String(query.status).trim().toUpperCase();
+        if (query.startDate || query.endDate) {
+            filter.createdAt = {};
+            if (query.startDate)
+                filter.createdAt.$gte = new Date(String(query.startDate));
+            if (query.endDate) {
+                const end = new Date(String(query.endDate));
+                end.setDate(end.getDate() + 1);
+                filter.createdAt.$lt = end;
+            }
+        }
+        const allOrders = await b2bOrder_model_1.B2bOrder.find({ b2bUserId: user._id }).select('status totalAmount createdAt').lean();
+        const deliveredOrders = allOrders.filter((order) => order.status === 'DELIVERED').length;
+        const lifetimeTotal = allOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+        const [filteredTotal, filteredSums] = await Promise.all([
+            b2bOrder_model_1.B2bOrder.countDocuments(filter),
+            b2bOrder_model_1.B2bOrder.aggregate([
+                { $match: filter },
+                { $group: { _id: null, amount: { $sum: { $ifNull: ['$totalAmount', 0] } } } },
+            ]),
+        ]);
+        const orders = await b2bOrder_model_1.B2bOrder.find(filter)
+            .populate('selectedVehicleId', 'vehicleType capacityKg ratePerKm status')
+            .populate('driverId', 'driverName phoneNumber licenseNumber status')
+            .sort({ createdAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(limit)
+            .lean();
+        const invoices = await b2bInvoice_model_1.B2bInvoice.find({ order: { $in: orders.map((order) => order._id) } }).lean();
+        const invoiceByOrder = new Map(invoices.map((invoice) => [String(invoice.order), invoice]));
+        const ordersWithInvoices = orders.map((order) => ({
+            ...order,
+            invoice: invoiceByOrder.get(String(order._id)) || null,
+        }));
+        const filteredAmount = filteredSums[0]?.amount || 0;
+        return {
+            success: true,
+            data: {
+                customer: user,
+                summary: {
+                    totalOrders: allOrders.length,
+                    deliveredOrders,
+                    pendingOrders: allOrders.length - deliveredOrders,
+                    totalAmount: lifetimeTotal,
+                    firstOrderDate: allOrders.length ? allOrders.reduce((first, order) => order.createdAt < first ? order.createdAt : first, allOrders[0].createdAt) : null,
+                    lastOrderDate: allOrders.length ? allOrders.reduce((last, order) => order.createdAt > last ? order.createdAt : last, allOrders[0].createdAt) : null,
+                },
+                orders: ordersWithInvoices,
+                totals: {
+                    orders: filteredTotal,
+                    amount: filteredAmount,
+                },
+                pagination: {
+                    total: filteredTotal,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(filteredTotal / limit),
+                },
+            },
+        };
     },
     async update(id, payload) {
         if (!mongoose_1.Types.ObjectId.isValid(id))

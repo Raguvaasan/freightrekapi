@@ -1,16 +1,24 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getAdminB2bOrder = exports.listAdminB2bOrders = exports.listB2bOrders = exports.getB2bOrder = exports.confirmB2bOrder = exports.getB2bDraftStep2Details = exports.createB2bOrderDraft = void 0;
+exports.getAdminB2bOrder = exports.listAdminB2bOrders = exports.listB2bOrders = exports.getB2bOrder = exports.updateAdminB2bOrderStatus = exports.assignAdminB2bOrderDriver = exports.assignB2bOrderDriver = exports.confirmB2bOrder = exports.getB2bDraftStep2Details = exports.getB2bDrivers = exports.createB2bOrderDraft = void 0;
 const order_service_1 = require("../../services/b2b/order.service");
 const createB2bOrderDraft = async (req, res) => {
     const result = await order_service_1.b2bOrderService.createDraft(String(req.user.id), req.body);
     return res.status(result.success ? 201 : 400).json(result);
 };
 exports.createB2bOrderDraft = createB2bOrderDraft;
+const getB2bDrivers = async (req, res) => res.json(await order_service_1.b2bOrderService.getDriverOptions(req.query));
+exports.getB2bDrivers = getB2bDrivers;
 const getB2bDraftStep2Details = async (req, res) => res.json(await order_service_1.b2bOrderService.getDraftStep2Details(String(req.params.id), String(req.user.id)));
 exports.getB2bDraftStep2Details = getB2bDraftStep2Details;
 const confirmB2bOrder = async (req, res) => res.json(await order_service_1.b2bOrderService.confirm(String(req.params.id), String(req.user.id)));
 exports.confirmB2bOrder = confirmB2bOrder;
+const assignB2bOrderDriver = async (req, res) => res.json(await order_service_1.b2bOrderService.assignDriver(String(req.params.id), String(req.user.id), String(req.body.driver)));
+exports.assignB2bOrderDriver = assignB2bOrderDriver;
+const assignAdminB2bOrderDriver = async (req, res) => res.json(await order_service_1.b2bOrderService.assignDriver(String(req.params.id), undefined, String(req.body.driver)));
+exports.assignAdminB2bOrderDriver = assignAdminB2bOrderDriver;
+const updateAdminB2bOrderStatus = async (req, res) => res.json(await order_service_1.b2bOrderService.updateStatus(String(req.params.id), String(req.body.status)));
+exports.updateAdminB2bOrderStatus = updateAdminB2bOrderStatus;
 const getB2bOrder = async (req, res) => res.json(await order_service_1.b2bOrderService.getById(String(req.params.id), String(req.user?.id || '')));
 exports.getB2bOrder = getB2bOrder;
 const listB2bOrders = async (req, res) => res.json(await order_service_1.b2bOrderService.list(req.user?.id, req.query));

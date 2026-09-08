@@ -2,9 +2,16 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const auth_middleware_1 = require("../../middleware/auth.middleware");
+const b2bUser_model_1 = require("../../models/b2b/b2bUser.model");
 const order_controller_1 = require("../../controllers/b2b/order.controller");
 const router = (0, express_1.Router)();
 router.use(auth_middleware_1.authMiddleware);
+router.use(async (req, res, next) => {
+    const user = await b2bUser_model_1.B2bUser.findOne({ _id: req.user?.id, status: 'Active' });
+    if (!user)
+        return res.status(403).json({ success: false, message: 'Active B2B customer access required' });
+    next();
+});
 router.post('/draft', order_controller_1.createB2bOrderDraft);
 router.get('/draft/:id/step2', order_controller_1.getB2bDraftStep2Details);
 router.post('/draft/:id/confirm', order_controller_1.confirmB2bOrder);
