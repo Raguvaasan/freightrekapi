@@ -1,17 +1,52 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.b2bOrderService = void 0;
 const mongoose_1 = require("mongoose");
+const axios_1 = __importDefault(require("axios"));
 const b2bOrder_model_1 = require("../../models/b2b/b2bOrder.model");
 const b2bVehicle_model_1 = require("../../models/b2b/b2bVehicle.model");
+const vehicle_model_1 = require("../../models/admin/vehicle.model");
 const driver_model_1 = require("../../models/admin/driver.model");
 const b2bInvoice_model_1 = require("../../models/b2b/b2bInvoice.model");
-const pincode = require('bharat-pincode');
-const distanceBetween = (fromPin, toPin) => {
-    const dist = pincode.distanceBetween(fromPin, toPin);
-    if (dist == null)
-        throw new Error('Unable to calculate distance for the provided pincodes');
-    return Number(dist.toFixed(2));
+const GOOGLE_ROUTES_API_URL = 'https://routes.googleapis.com/directions/v2:computeRoutes';
+const distanceBetween = async (fromPin, toPin) => {
+    const normalizedFromPin = String(fromPin || '').replace(/\D/g, '');
+    const normalizedToPin = String(toPin || '').replace(/\D/g, '');
+    const apiKey = (process.env.GOOGLE_MAPS_API_KEY || '').trim();
+    if (!/^\d{6}$/.test(normalizedFromPin) || !/^\d{6}$/.test(normalizedToPin)) {
+        throw new Error('Booking and delivery pincodes must each contain 6 digits');
+    }
+    if (!apiKey) {
+        throw new Error('GOOGLE_MAPS_API_KEY is not configured');
+    }
+    try {
+        const response = await axios_1.default.post(GOOGLE_ROUTES_API_URL, {
+            origin: { address: `${normalizedFromPin}, India` },
+            destination: { address: `${normalizedToPin}, India` },
+            travelMode: 'DRIVE',
+            routingPreference: 'TRAFFIC_UNAWARE',
+        }, {
+            headers: {
+                'X-Goog-Api-Key': apiKey,
+                'X-Goog-FieldMask': 'routes.distanceMeters',
+            },
+            timeout: 10000,
+        });
+        const distanceMeters = Number(response.data?.routes?.[0]?.distanceMeters);
+        if (!Number.isFinite(distanceMeters) || distanceMeters < 0) {
+            throw new Error('Google Maps did not return a driving distance for the provided pincodes');
+        }
+        return Math.max(1, Number((distanceMeters / 1000).toFixed(2)));
+    }
+    catch (error) {
+        if (error instanceof Error && !axios_1.default.isAxiosError(error))
+            throw error;
+        const message = error.response?.data?.error?.message;
+        throw new Error(message ? `Google Maps distance lookup failed: ${message}` : 'Google Maps distance lookup failed');
+    }
 };
 const formatOrderNumber = (seq) => {
     const digits = String(seq).padStart(9, '0').slice(-9);
@@ -47,22 +82,35 @@ exports.b2bOrderService = {
         const order = await b2bOrder_model_1.B2bOrder.findOne({ _id: orderId, b2bUserId: userId });
         if (!order)
             return { success: false, message: 'Draft not found' };
-        const vehicle = await b2bVehicle_model_1.B2bVehicle.findOne({
+        const vehicles = await b2bVehicle_model_1.B2bVehicle.find({
             status: 'Active',
             capacityKg: { $gte: order.shipment.approximateWeight },
         }).sort({ capacityKg: 1, ratePerKm: 1 });
-        if (!vehicle)
+        if (!vehicles.length)
             return { success: false, message: 'No suitable vehicle found' };
-        const distanceKm = distanceBetween(order.bookingCustomer.pincode, order.deliveryCustomer.pincode);
-        const totalAmount = Number((distanceKm * vehicle.ratePerKm).toFixed(2));
+        const distanceKm = await distanceBetween(order.bookingCustomer.pincode, order.deliveryCustomer.pincode);
+        const vehicleOptions = vehicles
+            .map((vehicle) => {
+            const ratePerKm = Number(vehicle.ratePerKm);
+            if (!Number.isFinite(ratePerKm) || ratePerKm <= 0)
+                return null;
+            return {
+                vehicle,
+                distanceKm,
+                ratePerKm,
+                totalAmount: Number((distanceKm * ratePerKm).toFixed(2)),
+            };
+        })
+            .filter(Boolean);
+        if (!vehicleOptions.length)
+            return { success: false, message: 'No suitable vehicle with a valid rate per km found' };
         return {
             success: true,
             data: {
                 order,
-                vehicle,
                 distanceKm,
-                ratePerKm: vehicle.ratePerKm,
-                totalAmount,
+                vehicleOptions,
+                userSelectedVehicle: order.userSelectedVehicle || null,
             },
         };
     },
@@ -72,17 +120,21 @@ exports.b2bOrderService = {
         const order = await b2bOrder_model_1.B2bOrder.findOne({ _id: orderId, b2bUserId: userId });
         if (!order)
             return { success: false, message: 'Draft not found' };
+        if (!order.userSelectedVehicle?.vehicleId)
+            return { success: false, message: 'Please select a vehicle before confirming the order' };
         const vehicle = await b2bVehicle_model_1.B2bVehicle.findOne({
+            _id: order.userSelectedVehicle.vehicleId,
             status: 'Active',
             capacityKg: { $gte: order.shipment.approximateWeight },
-        }).sort({ capacityKg: 1, ratePerKm: 1 });
+        });
         if (!vehicle)
-            return { success: false, message: 'No suitable vehicle found' };
-        const distanceKm = distanceBetween(order.bookingCustomer.pincode, order.deliveryCustomer.pincode);
-        const totalAmount = Number((distanceKm * vehicle.ratePerKm).toFixed(2));
+            return { success: false, message: 'The selected vehicle is no longer available for this shipment' };
+        const distanceKm = await distanceBetween(order.bookingCustomer.pincode, order.deliveryCustomer.pincode);
+        const ratePerKm = Number(vehicle.ratePerKm);
+        if (!Number.isFinite(ratePerKm))
+            return { success: false, message: 'Vehicle rate per km is invalid' };
+        const totalAmount = Number((distanceKm * ratePerKm).toFixed(2));
         order.status = 'ORDER_CREATED';
-        order.selectedVehicleId = vehicle._id;
-        order.selectedVehicle = { vehicleType: vehicle.vehicleType, capacityKg: vehicle.capacityKg };
         order.distanceKm = distanceKm;
         order.ratePerKm = vehicle.ratePerKm;
         order.totalAmount = totalAmount;
@@ -114,6 +166,93 @@ exports.b2bOrderService = {
         });
         return { success: true, message: 'Driver assigned successfully', data: order };
     },
+    async assignVehicle(orderId, vehicleId, userId) {
+        if (!mongoose_1.Types.ObjectId.isValid(orderId))
+            return { success: false, message: 'Invalid order ID' };
+        if (!mongoose_1.Types.ObjectId.isValid(vehicleId))
+            return { success: false, message: 'Invalid vehicle ID' };
+        const order = await b2bOrder_model_1.B2bOrder.findOne({ _id: orderId, ...(userId ? { b2bUserId: userId } : {}) });
+        if (!order)
+            return { success: false, message: 'Order not found' };
+        if (userId && order.status !== 'DRAFT')
+            return { success: false, message: 'A vehicle can only be selected while the order is a draft' };
+        const vehicle = await b2bVehicle_model_1.B2bVehicle.findOne({
+            _id: vehicleId,
+            status: 'Active',
+            capacityKg: { $gte: order.shipment.approximateWeight },
+        });
+        if (!vehicle)
+            return { success: false, message: 'The selected vehicle is not available for this shipment weight' };
+        const ratePerKm = Number(vehicle.ratePerKm);
+        if (!Number.isFinite(ratePerKm) || ratePerKm <= 0) {
+            return { success: false, message: 'Vehicle rate per km must be greater than zero' };
+        }
+        const distanceKm = await distanceBetween(order.bookingCustomer.pincode, order.deliveryCustomer.pincode);
+        const totalAmount = Number((distanceKm * ratePerKm).toFixed(2));
+        const vehicleDetails = {
+            vehicleType: vehicle.vehicleType,
+            capacityKg: vehicle.capacityKg,
+            ratePerKm,
+            status: vehicle.status,
+        };
+        order.distanceKm = distanceKm;
+        order.totalAmount = totalAmount;
+        if (userId) {
+            order.userSelectedVehicle = { vehicleId: vehicle._id, ...vehicleDetails };
+            order.selectedVehicleId = undefined;
+            order.ratePerKm = ratePerKm;
+            await order.save();
+            await b2bOrder_model_1.B2bOrder.updateOne({ _id: order._id }, { $unset: { selectedVehicle: 1, selectedVehicleId: 1 } });
+            const updatedOrder = await b2bOrder_model_1.B2bOrder.findById(order._id);
+            return { success: true, message: 'Vehicle selected successfully', data: updatedOrder };
+        }
+        order.selectedVehicleId = vehicle._id;
+        order.status = 'VEHICLE_ASSIGNED';
+        order.ratePerKm = ratePerKm;
+        await order.save();
+        await b2bOrder_model_1.B2bOrder.updateOne({ _id: order._id }, { $unset: { selectedVehicle: 1 } });
+        await b2bInvoice_model_1.B2bInvoice.updateOne({ order: order._id }, {
+            $set: {
+                vehicle: vehicleDetails,
+                'charges.transportationCharge': totalAmount,
+                'charges.totalAmount': totalAmount,
+            },
+        });
+        const updatedOrder = await b2bOrder_model_1.B2bOrder.findById(order._id).populate('selectedVehicleId', 'vehicleType capacity vehicleRegistrationNumber rcNumber insuranceNumber status');
+        return { success: true, message: 'Vehicle assigned successfully', data: updatedOrder };
+    },
+    async assignAdminVehicle(orderId, vehicleId) {
+        if (!mongoose_1.Types.ObjectId.isValid(orderId))
+            return { success: false, message: 'Invalid order ID' };
+        if (!mongoose_1.Types.ObjectId.isValid(vehicleId))
+            return { success: false, message: 'Invalid vehicle ID' };
+        const order = await b2bOrder_model_1.B2bOrder.findById(orderId);
+        if (!order)
+            return { success: false, message: 'Order not found' };
+        const vehicle = await vehicle_model_1.Vehicle.findOne({ _id: vehicleId, status: 'Active' });
+        if (!vehicle)
+            return { success: false, message: 'Active admin vehicle not found' };
+        const capacityKg = Number(String(vehicle.capacity).replace(/[^0-9.]/g, ''));
+        if (!Number.isFinite(capacityKg) || capacityKg < order.shipment.approximateWeight) {
+            return { success: false, message: 'The selected vehicle is not available for this shipment weight' };
+        }
+        const vehicleDetails = {
+            vehicleType: vehicle.vehicleType,
+            registrationNumber: vehicle.vehicleRegistrationNumber,
+            insuranceNumber: vehicle.insuranceNumber,
+            rcNumber: vehicle.rcNumber,
+            capacityKg,
+            ratePerKm: order.ratePerKm,
+            status: vehicle.status,
+        };
+        order.selectedVehicleId = vehicle._id;
+        order.status = 'VEHICLE_ASSIGNED';
+        await order.save();
+        await b2bInvoice_model_1.B2bInvoice.updateOne({ order: order._id }, { $set: { vehicle: vehicleDetails } });
+        const updatedOrder = await b2bOrder_model_1.B2bOrder.findById(order._id)
+            .populate('selectedVehicleId', 'vehicleType capacity vehicleRegistrationNumber rcNumber insuranceNumber status');
+        return { success: true, message: 'Vehicle assigned successfully', data: updatedOrder };
+    },
     async updateStatus(orderId, status) {
         if (!mongoose_1.Types.ObjectId.isValid(orderId))
             return { success: false, message: 'Invalid order ID' };
@@ -136,7 +275,7 @@ exports.b2bOrderService = {
         if (userId)
             query.b2bUserId = userId;
         const order = await b2bOrder_model_1.B2bOrder.findOne(query)
-            .populate('selectedVehicleId', 'vehicleType capacityKg ratePerKm status')
+            .populate('selectedVehicleId', 'vehicleType capacity vehicleRegistrationNumber rcNumber insuranceNumber status')
             .populate('driverId', 'driverName phoneNumber licenseNumber status');
         if (!order)
             return { success: false, message: 'Order not found' };
@@ -155,14 +294,41 @@ exports.b2bOrderService = {
         const drivers = await driver_model_1.Driver.find(filter).select('_id driverName').sort({ driverName: 1 });
         return { success: true, data: drivers };
     },
+    async getVehicleOptions(query = {}) {
+        const filter = { status: 'Active' };
+        if (query.search) {
+            filter.vehicleType = { $regex: String(query.search).trim(), $options: 'i' };
+        }
+        const vehicles = await b2bVehicle_model_1.B2bVehicle.find(filter)
+            .select('_id vehicleType')
+            .sort({ vehicleType: 1 });
+        return { success: true, data: vehicles };
+    },
+    async getAdminVehicleOptions(query = {}) {
+        const filter = { status: 'Active' };
+        if (query.search) {
+            filter.$or = [
+                { vehicleType: { $regex: String(query.search).trim(), $options: 'i' } },
+                { vehicleRegistrationNumber: { $regex: String(query.search).trim(), $options: 'i' } },
+            ];
+        }
+        const vehicles = await vehicle_model_1.Vehicle.find(filter)
+            .select('_id vehicleType capacity vehicleRegistrationNumber rcNumber insuranceNumber status')
+            .sort({ vehicleType: 1 });
+        return { success: true, data: vehicles };
+    },
     async list(userId, query = {}) {
         const page = Math.max(Number(query.page) || 1, 1);
         const limit = Math.min(Math.max(Number(query.limit) || 10, 1), 100);
         const filter = {};
         if (userId)
             filter.b2bUserId = userId;
-        if (query.status)
-            filter.status = query.status;
+        if (query.status) {
+            const status = String(query.status).trim();
+            filter.status = status.startsWith('!')
+                ? { $ne: status.slice(1).trim() }
+                : status;
+        }
         if (query.b2bUserId && !userId && mongoose_1.Types.ObjectId.isValid(String(query.b2bUserId)))
             filter.b2bUserId = query.b2bUserId;
         if (query.orderId && mongoose_1.Types.ObjectId.isValid(String(query.orderId)))
@@ -179,13 +345,17 @@ exports.b2bOrderService = {
                 { 'bookingCustomer.name': { $regex: search, $options: 'i' } },
                 { 'bookingCustomer.phoneNumber': { $regex: search, $options: 'i' } },
                 { 'deliveryCustomer.name': { $regex: search, $options: 'i' } },
+                { 'deliveryCustomer.companyName': { $regex: search, $options: 'i' } },
                 { 'deliveryCustomer.phoneNumber': { $regex: search, $options: 'i' } },
+                { 'deliveryCustomer.gstNumber': { $regex: search, $options: 'i' } },
                 { 'bookingCustomer.pincode': { $regex: search, $options: 'i' } },
                 { 'deliveryCustomer.pincode': { $regex: search, $options: 'i' } },
             ];
         }
-        if (query.vehicleType)
-            filter['selectedVehicle.vehicleType'] = { $regex: String(query.vehicleType), $options: 'i' };
+        if (query.vehicleType) {
+            const matchingVehicleIds = await vehicle_model_1.Vehicle.find({ vehicleType: { $regex: String(query.vehicleType), $options: 'i' } }).distinct('_id');
+            filter.selectedVehicleId = { $in: matchingVehicleIds };
+        }
         for (const [minKey, maxKey, field] of [['minWeight', 'maxWeight', 'shipment.approximateWeight'], ['minAmount', 'maxAmount', 'totalAmount'], ['minDistance', 'maxDistance', 'distanceKm']]) {
             if (query[minKey] !== undefined || query[maxKey] !== undefined) {
                 filter[field] = {};
@@ -208,7 +378,7 @@ exports.b2bOrderService = {
         const [orders, total] = await Promise.all([
             b2bOrder_model_1.B2bOrder.find(filter)
                 .populate('b2bUserId', 'name mobileNumber gstNumber state pincode status')
-                .populate('selectedVehicleId', 'vehicleType capacityKg ratePerKm status')
+                .populate('selectedVehicleId', 'vehicleType capacity vehicleRegistrationNumber rcNumber insuranceNumber status')
                 .populate('driverId', 'driverName phoneNumber licenseNumber status')
                 .skip((page - 1) * limit)
                 .limit(limit)

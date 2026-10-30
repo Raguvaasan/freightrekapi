@@ -5,7 +5,7 @@ const dashboard_service_1 = require("../../services/admin/dashboard.service");
 const dashboardService = new dashboard_service_1.AdminDashboardService();
 const DASHBOARD_PERIODS = ['today', 'week', 'month', 'year', 'all'];
 /** Anything unrecognised falls back to all time rather than 400-ing a dashboard */
-const dashboardPeriod = (value) => value === 'day' ? 'today' : DASHBOARD_PERIODS.includes(value) ? value : 'all';
+const dashboardPeriod = (value) => DASHBOARD_PERIODS.includes(value) ? value : 'all';
 const getAdminDashboard = async (req, res) => {
     try {
         const result = await dashboardService.getAdminDashboard(dashboardPeriod(req.query.period));

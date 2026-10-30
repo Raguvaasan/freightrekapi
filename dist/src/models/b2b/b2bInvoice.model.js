@@ -4,6 +4,7 @@ exports.B2bInvoice = void 0;
 const mongoose_1 = require("mongoose");
 const partySchema = new mongoose_1.Schema({
     name: { type: String, trim: true },
+    companyName: { type: String, trim: true },
     mobileNumber: { type: String, trim: true },
     address: { type: String, trim: true },
     state: { type: String, trim: true },
@@ -33,7 +34,12 @@ const b2bInvoiceSchema = new mongoose_1.Schema({
     },
     vehicle: {
         vehicleType: { type: String, trim: true },
+        registrationNumber: { type: String, trim: true, uppercase: true },
+        insuranceNumber: { type: String, trim: true, uppercase: true },
+        rcNumber: { type: String, trim: true, uppercase: true },
         capacityKg: { type: Number, min: 0 },
+        ratePerKm: { type: Number, min: 0 },
+        status: { type: String, trim: true },
     },
     charges: {
         transportationCharge: { type: Number, required: true, min: 0 },

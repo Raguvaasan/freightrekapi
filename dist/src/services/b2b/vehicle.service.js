@@ -21,7 +21,9 @@ exports.b2bVehicleService = {
         const status = String(query.status || '').trim();
         const mongoQuery = {};
         if (search)
-            mongoQuery.$or = [{ vehicleType: { $regex: search, $options: 'i' } }];
+            mongoQuery.$or = [
+                { vehicleType: { $regex: search, $options: 'i' } },
+            ];
         if (status)
             mongoQuery.status = status;
         const [vehicles, total] = await Promise.all([

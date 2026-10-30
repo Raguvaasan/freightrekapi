@@ -143,8 +143,8 @@ class ParcelOrderService {
                 deliveryAddress: data.deliveryAddress,
                 parcelDetails: data.parcelDetails,
                 waybill: data.waybill,
-                vehicleType: data.vehicleType,
-                vehicleCapacity: data.vehicleCapacity,
+                invoiceReceiptNumber: data.invoiceReceiptNumber,
+                packageWeight: data.packageWeight,
                 ...charges,
                 vehicle: data.vehicle || undefined,
                 driver: data.driver || undefined,
@@ -541,6 +541,22 @@ class ParcelOrderService {
                     message: 'Only the booking agency can edit these details',
                 };
             }
+            if (data.orderNumber !== undefined && data.orderNumber !== order.orderNumber) {
+                const existingOrder = await parcelOrder_model_1.ParcelOrder.exists({
+                    orderNumber: data.orderNumber,
+                    _id: { $ne: order._id },
+                });
+                if (existingOrder) {
+                    return {
+                        success: false,
+                        code: 409,
+                        message: 'LR number is already in use',
+                    };
+                }
+                order.orderNumber = data.orderNumber;
+            }
+            if (data.createdAt !== undefined)
+                order.createdAt = data.createdAt;
             // Only admin may move an order to a different booking agency
             const newAgencyId = pickAgencyId(data);
             if (newAgencyId) {
@@ -591,11 +607,16 @@ class ParcelOrderService {
                 order.paymentType = data.paymentType;
             if (data.waybill !== undefined)
                 order.waybill = data.waybill;
+            if (data.invoiceReceiptNumber !== undefined) {
+                order.invoiceReceiptNumber = data.invoiceReceiptNumber;
+            }
             if (data.vehicleType !== undefined)
                 order.vehicleType = data.vehicleType;
             if (data.vehicleCapacity !== undefined) {
                 order.vehicleCapacity = data.vehicleCapacity;
             }
+            if (data.packageWeight !== undefined)
+                order.packageWeight = data.packageWeight;
             if (data.vehicle !== undefined)
                 order.vehicle = data.vehicle || undefined;
             if (data.driver !== undefined)

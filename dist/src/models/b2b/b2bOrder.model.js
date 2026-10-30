@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.B2bOrder = exports.B2B_ORDER_STATUSES = void 0;
 const mongoose_1 = require("mongoose");
-exports.B2B_ORDER_STATUSES = ['DRAFT', 'CONFIRMED', 'ORDER_CREATED', 'IN_TRANSIT', 'DELIVERED', 'FAILED', 'CANCELLED'];
+exports.B2B_ORDER_STATUSES = ['DRAFT', 'CONFIRMED', 'ORDER_CREATED', 'VEHICLE_ASSIGNED', 'IN_TRANSIT', 'DELIVERED', 'FAILED', 'CANCELLED'];
 const b2bOrderSchema = new mongoose_1.Schema({
     b2bUserId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'B2bUser', required: true, index: true },
     lrNo: { type: String, trim: true, uppercase: true, index: true, unique: true, sparse: true },
@@ -16,9 +16,11 @@ const b2bOrderSchema = new mongoose_1.Schema({
     },
     deliveryCustomer: {
         name: { type: String, required: true, trim: true },
+        companyName: { type: String, trim: true },
         phoneNumber: { type: String, required: true, trim: true },
         address: { type: String, required: true, trim: true },
         pincode: { type: String, required: true, trim: true },
+        gstNumber: { type: String, trim: true, uppercase: true },
     },
     shipment: {
         approximateWeight: { type: Number, required: true, min: 0 },
@@ -29,9 +31,13 @@ const b2bOrderSchema = new mongoose_1.Schema({
         phoneNumber: { type: String, trim: true },
         licenseNumber: { type: String, trim: true, uppercase: true },
     },
-    selectedVehicleId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'B2bVehicle' },
-    selectedVehicle: {
+    selectedVehicleId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Vehicle' },
+    userSelectedVehicle: {
+        vehicleId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'B2bVehicle' },
         vehicleType: { type: String },
+        registrationNumber: { type: String, trim: true, uppercase: true },
+        insuranceNumber: { type: String, trim: true, uppercase: true },
+        rcNumber: { type: String, trim: true, uppercase: true },
         capacityKg: { type: Number },
     },
     distanceKm: { type: Number, min: 0 },

@@ -13,12 +13,27 @@ exports.b2bInvoiceService = {
         const order = await b2bOrder_model_1.B2bOrder.findOne({
             _id: orderId,
             ...(userId ? { b2bUserId: userId } : {}),
-        });
+        }).populate('selectedVehicleId', 'vehicleType capacity vehicleRegistrationNumber rcNumber insuranceNumber status');
         if (!order)
             return { success: false, code: 404, message: 'B2B order not found' };
+        const selectedVehicle = order.selectedVehicleId;
+        const vehicle = selectedVehicle?.vehicleType
+            ? {
+                vehicleType: selectedVehicle.vehicleType,
+                registrationNumber: selectedVehicle.vehicleRegistrationNumber,
+                insuranceNumber: selectedVehicle.insuranceNumber,
+                rcNumber: selectedVehicle.rcNumber,
+                capacityKg: Number(String(selectedVehicle.capacity).replace(/[^0-9.]/g, '')),
+                ratePerKm: order.ratePerKm,
+                status: selectedVehicle.status,
+            }
+            : undefined;
         const existing = await b2bInvoice_model_1.B2bInvoice.findOne({ order: order._id });
         if (existing) {
+            existing.shipTo = order.deliveryCustomer;
+            existing.deliveryAddress = order.deliveryCustomer.address;
             existing.driver = order.driver;
+            existing.vehicle = vehicle;
             existing.orderStatus = order.status;
             await existing.save();
             return { success: true, data: existing };
@@ -54,7 +69,7 @@ exports.b2bInvoiceService = {
                 orderStatus: order.status,
                 shipment: order.shipment,
                 driver: order.driver,
-                vehicle: order.selectedVehicle,
+                vehicle,
                 charges: {
                     transportationCharge: order.totalAmount || 0,
                     totalAmount: order.totalAmount || 0,

@@ -1926,20 +1926,18 @@
                       }
                     }
                   },
+                  "packageWeight": {
+                    "type": "number",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "description": "Optional. Package weight"
+                  },
                   "transportationCharge": {
                     "type": "number"
                   },
                   "waybill": {
                     "type": "string",
                     "description": "Optional. Carrier waybill / AWB number"
-                  },
-                  "vehicleType": {
-                    "type": "string",
-                    "description": "Optional. Vehicle class booked for the movement"
-                  },
-                  "vehicleCapacity": {
-                    "type": "string",
-                    "description": "Optional. Capacity of that vehicle (e.g. \"2 Ton\")"
                   }
                 }
               }
@@ -3853,7 +3851,6 @@
             "schema": {
               "type": "string",
               "enum": [
-                "day",
                 "today",
                 "week",
                 "month",
@@ -5354,13 +5351,16 @@
                     "type": "string",
                     "description": "Optional. Carrier waybill / AWB number"
                   },
-                  "vehicleType": {
+                  "invoiceReceiptNumber": {
                     "type": "string",
-                    "description": "Optional. Vehicle class booked for the movement"
+                    "maxLength": 100,
+                    "description": "Optional. Invoice receipt number supplied with the booking"
                   },
-                  "vehicleCapacity": {
-                    "type": "string",
-                    "description": "Optional. Capacity of that vehicle (e.g. \"2 Ton\")"
+                  "packageWeight": {
+                    "type": "number",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "description": "Optional. Package weight"
                   }
                 }
               }

@@ -107,6 +107,10 @@ const parcelOrderSchema = new mongoose_1.Schema({
         unique: true,
         trim: true,
     },
+    createdAt: {
+        type: Date,
+        immutable: false,
+    },
     agency: {
         type: mongoose_1.Schema.Types.ObjectId,
         ref: 'Agency',
@@ -196,6 +200,17 @@ const parcelOrderSchema = new mongoose_1.Schema({
         type: String,
         trim: true,
         uppercase: true,
+    },
+    invoiceReceiptNumber: {
+        type: String,
+        trim: true,
+    },
+    packageWeight: {
+        type: Number,
+        validate: {
+            validator: (value) => value > 0,
+            message: 'Package weight must be greater than 0',
+        },
     },
     vehicleType: {
         type: String,
