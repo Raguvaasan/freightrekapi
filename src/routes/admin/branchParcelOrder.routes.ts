@@ -95,16 +95,15 @@ const parcels = (action: 'read' | 'write' | 'update' | 'delete') =>
  *                   remarks: { type: string }
  *                   numberOfParcels: { type: integer }
  *                   approximateValue: { type: number }
+ *               packageWeight:
+ *                 type: number
+ *                 minimum: 0
+ *                 exclusiveMinimum: true
+ *                 description: Optional. Package weight
  *               transportationCharge: { type: number }
  *               waybill:
  *                 type: string
  *                 description: Optional. Carrier waybill / AWB number
- *               vehicleType:
- *                 type: string
- *                 description: Optional. Vehicle class booked for the movement
- *               vehicleCapacity:
- *                 type: string
- *                 description: Optional. Capacity of that vehicle (e.g. "2 Ton")
  *     responses:
  *       201: { description: Order booked with status "Order Created" }
  *       403: { description: Branch access required }

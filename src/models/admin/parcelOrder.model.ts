@@ -191,6 +191,10 @@ export interface IParcelOrder {
 
   /** Carrier waybill / AWB number written on the consignment note */
   waybill?: string;
+  /** Invoice receipt number provided at booking time */
+  invoiceReceiptNumber?: string;
+  /** Optional package weight supplied at booking time */
+  packageWeight?: number;
   /**
    * Vehicle booked for the movement, as typed on the booking form.
    *
@@ -268,6 +272,10 @@ const parcelOrderSchema = new Schema<IParcelOrder>(
       required: true,
       unique: true,
       trim: true,
+    },
+    createdAt: {
+      type: Date,
+      immutable: false,
     },
     agency: {
       type: Schema.Types.ObjectId,
@@ -363,6 +371,17 @@ const parcelOrderSchema = new Schema<IParcelOrder>(
       type: String,
       trim: true,
       uppercase: true,
+    },
+    invoiceReceiptNumber: {
+      type: String,
+      trim: true,
+    },
+    packageWeight: {
+      type: Number,
+      validate: {
+        validator: (value: number) => value > 0,
+        message: 'Package weight must be greater than 0',
+      },
     },
     vehicleType: {
       type: String,

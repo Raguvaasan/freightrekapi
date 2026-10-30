@@ -30,6 +30,12 @@ const waybillField = yup
   .trim()
   .optional();
 
+const invoiceReceiptNumberField = yup
+  .string()
+  .max(100, 'Invoice receipt number must not exceed 100 characters')
+  .trim()
+  .optional();
+
 const vehicleTypeField = yup
   .string()
   .max(100, 'Vehicle type must not exceed 100 characters')
@@ -40,6 +46,12 @@ const vehicleCapacityField = yup
   .string()
   .max(50, 'Vehicle capacity must not exceed 50 characters')
   .trim()
+  .optional();
+
+const packageWeightField = yup
+  .number()
+  .typeError('Package weight must be a number')
+  .positive('Package weight must be greater than 0')
   .optional();
 
 const chargeOverrides = {
@@ -149,8 +161,8 @@ const bookingBody = {
   ...chargeOverrides,
 
   waybill: waybillField,
-  vehicleType: vehicleTypeField,
-  vehicleCapacity: vehicleCapacityField,
+  invoiceReceiptNumber: invoiceReceiptNumberField,
+  packageWeight: packageWeightField,
 
   vehicle: yup.string().matches(objectId, 'Invalid vehicle ID').optional(),
   driver: yup.string().matches(objectId, 'Invalid driver ID').optional(),
@@ -182,6 +194,16 @@ export const branchCreateParcelOrderSchema = yup.object({
 // Update parcel order (booking details) validation schema
 export const updateParcelOrderSchema = yup.object({
   body: yup.object({
+    orderNumber: yup
+      .string()
+      .min(1, 'LR number cannot be empty')
+      .max(50, 'LR number must not exceed 50 characters')
+      .trim()
+      .optional(),
+    createdAt: yup
+      .date()
+      .typeError('Created at must be a valid date')
+      .optional(),
     agency: yup.string().matches(objectId, 'Invalid agency ID').optional(),
     branch: yup.string().matches(objectId, 'Invalid agency ID').optional(),
     bookingCustomer: yup
@@ -240,8 +262,10 @@ export const updateParcelOrderSchema = yup.object({
       })
       .optional(),
     waybill: waybillField,
+    invoiceReceiptNumber: invoiceReceiptNumberField,
     vehicleType: vehicleTypeField,
     vehicleCapacity: vehicleCapacityField,
+    packageWeight: packageWeightField,
     vehicle: yup.string().matches(objectId, 'Invalid vehicle ID').optional(),
     driver: yup.string().matches(objectId, 'Invalid driver ID').optional(),
   }),

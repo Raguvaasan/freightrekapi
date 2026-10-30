@@ -94,12 +94,15 @@ router.use(authMiddleware);
  *               waybill:
  *                 type: string
  *                 description: Optional. Carrier waybill / AWB number
- *               vehicleType:
+ *               invoiceReceiptNumber:
  *                 type: string
- *                 description: Optional. Vehicle class booked for the movement
- *               vehicleCapacity:
- *                 type: string
- *                 description: Optional. Capacity of that vehicle (e.g. "2 Ton")
+ *                 maxLength: 100
+ *                 description: Optional. Invoice receipt number supplied with the booking
+ *               packageWeight:
+ *                 type: number
+ *                 minimum: 0
+ *                 exclusiveMinimum: true
+ *                 description: Optional. Package weight
  *     responses:
  *       201:
  *         description: Parcel order created

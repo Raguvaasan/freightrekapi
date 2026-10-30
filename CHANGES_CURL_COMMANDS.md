@@ -2,7 +2,7 @@
 # Base URL: http://localhost:3000   (prod: https://freightrekapi.vercel.app)
 #
 # Covers, in order:
-#   1. Parcel creation - delivery agency optional + waybill / vehicleType / vehicleCapacity
+#   1. Parcel creation - delivery agency optional + invoiceReceiptNumber / waybill / vehicleType / vehicleCapacity
 #   2. Agency login response - agency type
 #   3. Invoice access for a hub
 #   4. Role delete (the 500 fix)
@@ -47,7 +47,7 @@ curl -X POST http://localhost:3000/admin/hub/login \
 
 # =============================================================================
 # 1. PARCEL CREATION - delivery agency is now OPTIONAL
-#    + waybill, vehicleType, vehicleCapacity
+#    + invoiceReceiptNumber, waybill, vehicleType, vehicleCapacity
 # =============================================================================
 
 # --- 1a. Book WITHOUT a delivery agency (this used to be rejected) ---
@@ -60,6 +60,7 @@ curl -X POST http://localhost:3000/admin/agency/parcel-order \
     "deliveryCustomer": { "name": "Suresh", "mobileNumber": "9876543211" },
     "parcelDetails":    { "article": "Machine Parts", "numberOfParcels": 3, "approximateValue": 5000 },
     "transportationCharge": 500,
+    "invoiceReceiptNumber": "IR-2026-00123",
     "waybill":         "AWB-556677",
     "vehicleType":     "Tata Ace",
     "vehicleCapacity": "2 Ton"

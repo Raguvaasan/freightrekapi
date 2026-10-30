@@ -1,6 +1,6 @@
 import { Schema, model, Types } from 'mongoose';
 
-export const B2B_ORDER_STATUSES = ['DRAFT', 'CONFIRMED', 'ORDER_CREATED', 'IN_TRANSIT', 'DELIVERED', 'FAILED', 'CANCELLED'] as const;
+export const B2B_ORDER_STATUSES = ['DRAFT', 'CONFIRMED', 'ORDER_CREATED', 'VEHICLE_ASSIGNED', 'IN_TRANSIT', 'DELIVERED', 'FAILED', 'CANCELLED'] as const;
 export type B2bOrderStatus = (typeof B2B_ORDER_STATUSES)[number];
 
 export interface IB2bOrder {
@@ -16,9 +16,11 @@ export interface IB2bOrder {
   };
   deliveryCustomer: {
     name: string;
+    companyName?: string;
     phoneNumber: string;
     address: string;
     pincode: string;
+    gstNumber?: string;
   };
   shipment: {
     approximateWeight: number;
@@ -30,7 +32,8 @@ export interface IB2bOrder {
     licenseNumber?: string;
   };
   selectedVehicleId?: Types.ObjectId;
-  selectedVehicle?: {
+  userSelectedVehicle?: {
+    vehicleId: Types.ObjectId;
     vehicleType: string;
     registrationNumber?: string;
     insuranceNumber?: string;
@@ -60,9 +63,11 @@ const b2bOrderSchema = new Schema<IB2bOrder>(
     },
     deliveryCustomer: {
       name: { type: String, required: true, trim: true },
+      companyName: { type: String, trim: true },
       phoneNumber: { type: String, required: true, trim: true },
       address: { type: String, required: true, trim: true },
       pincode: { type: String, required: true, trim: true },
+      gstNumber: { type: String, trim: true, uppercase: true },
     },
     shipment: {
       approximateWeight: { type: Number, required: true, min: 0 },
@@ -73,8 +78,9 @@ const b2bOrderSchema = new Schema<IB2bOrder>(
       phoneNumber: { type: String, trim: true },
       licenseNumber: { type: String, trim: true, uppercase: true },
     },
-    selectedVehicleId: { type: Schema.Types.ObjectId, ref: 'B2bVehicle' },
-    selectedVehicle: {
+    selectedVehicleId: { type: Schema.Types.ObjectId, ref: 'Vehicle' },
+    userSelectedVehicle: {
+      vehicleId: { type: Schema.Types.ObjectId, ref: 'B2bVehicle' },
       vehicleType: { type: String },
       registrationNumber: { type: String, trim: true, uppercase: true },
       insuranceNumber: { type: String, trim: true, uppercase: true },

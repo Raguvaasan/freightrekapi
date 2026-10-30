@@ -71,7 +71,7 @@ export const b2bAuthService = {
       ]),
     ]);
     const orders = await B2bOrder.find(filter)
-      .populate('selectedVehicleId', 'vehicleType registrationNumber insuranceNumber rcNumber capacityKg ratePerKm status')
+      .populate('selectedVehicleId', 'vehicleType capacity vehicleRegistrationNumber rcNumber insuranceNumber status')
       .populate('driverId', 'driverName phoneNumber licenseNumber status')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)

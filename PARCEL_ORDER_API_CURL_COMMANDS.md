@@ -326,6 +326,7 @@ Invoke-RestMethod -Uri "http://localhost:3000/admin/parcel-order/ORDER_ID_HERE/c
 #     "paymentType": "To Pay",
 #     "deliveryCustomer": { "name": "Mahesh", "mobileNumber": "9123456780", "deliveryBranch": { "_id": "...", "agencyName": "Trichy Branch", "city": "Trichy" } },
 #     "parcelDetails": { "article": "Electronics", "remarks": "Handle with care", "numberOfParcels": 3, "approximateValue": 15000 },
+#     "packageWeight": 2.5,
 #     "transportationCharge": 0,
 #     "status": "Order Created",
 #     "statusHistory": [ { "status": "Order Created", "note": "Order created", "updatedAt": "..." } ],
@@ -341,6 +342,7 @@ Invoke-RestMethod -Uri "http://localhost:3000/admin/parcel-order/ORDER_ID_HERE/c
 # 2. "branch" is the booking franchise -> an Agency _id (/admin/agency).
 #    It is required on create, must exist and must be Active.
 #    It can be reassigned later via PUT /admin/parcel-order/:id.
+#    The same PUT endpoint can also update orderNumber (LR number) and createdAt.
 # 3. deliveryCustomer.deliveryBranch is the DESTINATION branch -> an Agency _id.
 #    Get the dropdown list from GET /admin/parcel-order/options/delivery-branches
 #    (active franchises only). It must be Active, else 400.

@@ -125,7 +125,7 @@ Base URL in all examples: `http://localhost:3000`
 | GET | `/admin/parcel-order/options/vehicles` | read | Dropdown: active vehicles |
 | GET | `/admin/parcel-order/options/drivers` | read | Dropdown: active drivers |
 | GET | `/admin/parcel-order/:id` | read | Get one order |
-| PUT | `/admin/parcel-order/:id` | update | Update booking details / reassign branch |
+| PUT | `/admin/parcel-order/:id` | update | Update booking details, LR number, creation date / reassign branch |
 | **PATCH** | **`/admin/parcel-order/:id/assign-hub`** | update | **Assign the processing hub** |
 | PATCH | `/admin/parcel-order/:id/assign-vehicle` | update | Assign vehicle + driver (override of the hub action) |
 | GET | `/admin/parcel-order/:id/tracking` | read | Status timeline |
@@ -142,7 +142,7 @@ Base URL in all examples: `http://localhost:3000`
 | **GET** | **`/admin/branch/parcel-order/inward`** | **Inward register: what is addressed to this branch for delivery** |
 | **GET** | **`/admin/branch/parcel-order/options/delivery-branches`** | **Dropdown: available delivery branches** |
 | GET | `/admin/branch/parcel-order/:id` | Get one of its orders |
-| PUT | `/admin/branch/parcel-order/:id` | Update booking details (booking branch only) |
+| PUT | `/admin/branch/parcel-order/:id` | Update booking details including LR number and creation date (booking branch only) |
 | GET | `/admin/branch/parcel-order/:id/tracking` | Status timeline |
 | PATCH | `/admin/branch/parcel-order/:id/charge` | Update transportation charge (booking branch only) |
 | PATCH | `/admin/branch/parcel-order/:id/status` | Branch-side status update |
@@ -198,7 +198,8 @@ get `403`. The response wraps the usual list in
 
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
-| `orderNumber` | string | auto | `003-611-380`, read-only |
+| `orderNumber` (LR number) | string | auto on creation | `003-611-380`; editable via the update endpoint, must be unique |
+| `createdAt` | date | auto on creation | Editable via the update endpoint; send a valid date/time |
 | `branch` | ObjectId → `Agency` | ✅ | Booking branch (franchise); must be **Active** |
 | `bookingCustomer.name` | string | ✅ | |
 | `bookingCustomer.mobileNumber` | string | ✅ | Exactly 10 digits |
@@ -212,6 +213,7 @@ get `403`. The response wraps the usual list in
 | `parcelDetails.remarks` | string | ❌ | |
 | `parcelDetails.numberOfParcels` | number | ✅ | ≥ 1 |
 | `parcelDetails.approximateValue` | number | ❌ | |
+| `packageWeight` | number | ❌ | Must be greater than 0 when provided |
 | `transportationCharge` | number | ❌ | Defaults to `0`; edit via `/charge` |
 | `hub` | ObjectId → `Hub` | auto | Set by admin via `/assign-hub` |
 | `hubAssignedAt` | date | auto | |
@@ -493,7 +495,7 @@ curl -X GET "http://localhost:3000/admin/parcel-order/options/drivers" \
 # Create an order for a branch (admin must state both branches)
 curl -X POST http://localhost:3000/admin/parcel-order \
   -H "Content-Type: application/json" -H "Authorization: Bearer ADMIN_TOKEN" \
-  -d '{"branch":"BRANCH_ID","bookingCustomer":{"name":"Suresh","mobileNumber":"9876543210"},"paymentType":"Paid","deliveryCustomer":{"name":"Mahesh","mobileNumber":"9123456780","deliveryBranch":"DELIVERY_BRANCH_ID"},"parcelDetails":{"article":"Documents","numberOfParcels":1}}'
+  -d '{"branch":"BRANCH_ID","bookingCustomer":{"name":"Suresh","mobileNumber":"9876543210"},"paymentType":"Paid","deliveryCustomer":{"name":"Mahesh","mobileNumber":"9123456780","deliveryBranch":"DELIVERY_BRANCH_ID"},"parcelDetails":{"article":"Documents","numberOfParcels":1},"packageWeight":2.5}'
 
 # Assign vehicle + driver on the hub's behalf
 curl -X PATCH http://localhost:3000/admin/parcel-order/ORDER_ID/assign-vehicle \

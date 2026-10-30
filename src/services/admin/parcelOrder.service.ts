@@ -64,9 +64,9 @@ interface CreateParcelOrderInput {
   miscellaneousCharge?: number;
   /** Carrier waybill / AWB number written on the consignment note */
   waybill?: string;
-  /** Vehicle class and capacity as stated on the booking form (free text) */
-  vehicleType?: string;
-  vehicleCapacity?: string;
+  /** Invoice receipt number provided at booking time */
+  invoiceReceiptNumber?: string;
+  packageWeight?: number;
   vehicle?: string;
   driver?: string;
 }
@@ -261,8 +261,8 @@ export class ParcelOrderService {
         deliveryAddress: data.deliveryAddress,
         parcelDetails: data.parcelDetails,
         waybill: data.waybill,
-        vehicleType: data.vehicleType,
-        vehicleCapacity: data.vehicleCapacity,
+        invoiceReceiptNumber: data.invoiceReceiptNumber,
+        packageWeight: data.packageWeight,
         ...charges,
         vehicle: data.vehicle || undefined,
         driver: data.driver || undefined,
@@ -712,6 +712,22 @@ export class ParcelOrderService {
         };
       }
 
+      if (data.orderNumber !== undefined && data.orderNumber !== order.orderNumber) {
+        const existingOrder = await ParcelOrder.exists({
+          orderNumber: data.orderNumber,
+          _id: { $ne: order._id },
+        });
+        if (existingOrder) {
+          return {
+            success: false,
+            code: 409,
+            message: 'LR number is already in use',
+          };
+        }
+        order.orderNumber = data.orderNumber;
+      }
+      if (data.createdAt !== undefined) order.createdAt = data.createdAt;
+
       // Only admin may move an order to a different booking agency
       const newAgencyId = pickAgencyId(data);
       if (newAgencyId) {
@@ -762,10 +778,14 @@ export class ParcelOrderService {
       }
       if (data.paymentType !== undefined) order.paymentType = data.paymentType;
       if (data.waybill !== undefined) order.waybill = data.waybill;
+      if (data.invoiceReceiptNumber !== undefined) {
+        order.invoiceReceiptNumber = data.invoiceReceiptNumber;
+      }
       if (data.vehicleType !== undefined) order.vehicleType = data.vehicleType;
       if (data.vehicleCapacity !== undefined) {
         order.vehicleCapacity = data.vehicleCapacity;
       }
+      if (data.packageWeight !== undefined) order.packageWeight = data.packageWeight;
       if (data.vehicle !== undefined) order.vehicle = data.vehicle || undefined;
       if (data.driver !== undefined) order.driver = data.driver || undefined;
 

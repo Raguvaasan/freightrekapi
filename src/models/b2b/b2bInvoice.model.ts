@@ -2,6 +2,7 @@ import { Schema, model, Types } from 'mongoose';
 
 interface IB2bInvoiceParty {
   name?: string;
+  companyName?: string;
   mobileNumber?: string;
   address?: string;
   state?: string;
@@ -42,6 +43,7 @@ export interface IB2bInvoice {
 const partySchema = new Schema<IB2bInvoiceParty>(
   {
     name: { type: String, trim: true },
+    companyName: { type: String, trim: true },
     mobileNumber: { type: String, trim: true },
     address: { type: String, trim: true },
     state: { type: String, trim: true },

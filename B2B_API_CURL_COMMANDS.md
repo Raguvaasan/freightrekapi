@@ -165,14 +165,18 @@ curl -X POST "http://localhost:3000/b2b/orders/draft" \
     },
     "deliveryCustomer": {
       "name": "Kumar",
+      "companyName": "Kumar Trading Company",
       "phoneNumber": "9000000002",
       "address": "Chennai Office",
-      "pincode": "600001"
+      "pincode": "600001",
+      "gstNumber": "33ABCDE1234F1Z5"
     },
     "waybill": "AWB-556677",
     "approximateWeight": 350
   }'
 ```
+
+`deliveryCustomer.companyName` is required. `deliveryCustomer.gstNumber` is optional and, when supplied, is returned in the order listing and invoice `shipTo` details.
 
 Response now includes the generated `lrNo`, for example:
 

@@ -6,7 +6,7 @@ export interface IB2bUser {
   address: string;
   state: string;
   pincode: string;
-  gstNumber: string;
+  gstNumber?: string;
   status: 'Active' | 'Inactive';
   createdAt: Date;
   updatedAt: Date;
@@ -19,7 +19,7 @@ const b2bUserSchema = new Schema<IB2bUser>(
     address: { type: String, required: true, trim: true },
     state: { type: String, required: true, trim: true },
     pincode: { type: String, required: true, trim: true },
-    gstNumber: { type: String, required: true, trim: true, uppercase: true },
+    gstNumber: { type: String, trim: true, uppercase: true },
     status: { type: String, enum: ['Active', 'Inactive'], default: 'Active' },
   },
   { timestamps: true }
