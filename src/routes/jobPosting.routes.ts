@@ -11,8 +11,7 @@ import { checkPermission } from '../middleware/checkPermission.middleware';
 import { validate } from '../middleware/validate.middleware';
 import {
   createJobPostingSchema,
-  updateJobPostingSchema
-} from '../validators/jobPosting.validator';
+  updateJobPostingSchema} from '../validators/jobPosting.validator';
 import { adminModule } from '../config/adminModule';
 
 const router = Router();
